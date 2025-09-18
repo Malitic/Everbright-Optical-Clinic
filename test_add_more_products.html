@@ -1,0 +1,735 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Add More Products - Eyewear Gallery</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        .product-form {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        .form-group {
+            margin: 15px 0;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        .form-group input, .form-group select, .form-group textarea {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        .form-group textarea {
+            height: 80px;
+            resize: vertical;
+        }
+        .btn {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        .btn:hover {
+            background: #5a6fd8;
+        }
+        .btn-secondary {
+            background: #6c757d;
+        }
+        .btn-secondary:hover {
+            background: #5a6268;
+        }
+        .btn-success {
+            background: #28a745;
+        }
+        .btn-success:hover {
+            background: #218838;
+        }
+        .btn-danger {
+            background: #dc3545;
+        }
+        .btn-danger:hover {
+            background: #c82333;
+        }
+        .product-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin: 20px 0;
+        }
+        .product-card {
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 15px;
+            background: white;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .product-card h3 {
+            margin: 0 0 10px 0;
+            color: #333;
+        }
+        .product-card p {
+            margin: 5px 0;
+            color: #666;
+        }
+        .price {
+            font-weight: bold;
+            color: #667eea;
+            font-size: 18px;
+        }
+        .category {
+            background: #e3f2fd;
+            color: #1976d2;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            display: inline-block;
+            margin: 5px 0;
+        }
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+        .stat-card {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+        }
+        .stat-number {
+            font-size: 24px;
+            font-weight: bold;
+            color: #667eea;
+        }
+        .sample-products {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 20px 0;
+        }
+        .sample-products h3 {
+            margin: 0 0 10px 0;
+            color: #856404;
+        }
+        .sample-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin: 15px 0;
+        }
+        .sample-item {
+            background: white;
+            border: 1px solid #ffeaa7;
+            border-radius: 4px;
+            padding: 10px;
+            text-align: center;
+        }
+        .sample-item h4 {
+            margin: 0 0 5px 0;
+            color: #856404;
+        }
+        .sample-item p {
+            margin: 2px 0;
+            font-size: 12px;
+            color: #856404;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🛍️ Add More Products to Eyewear Gallery</h1>
+        <p>Expand your product catalog with more eyewear options</p>
+    </div>
+
+    <div class="container">
+        <h2>📊 Current Product Statistics</h2>
+        <div class="stats">
+            <div class="stat-card">
+                <div class="stat-number" id="totalProducts">0</div>
+                <div>Total Products</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="sunglassesCount">0</div>
+                <div>Sunglasses</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="glassesCount">0</div>
+                <div>Prescription Glasses</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="contactLensesCount">0</div>
+                <div>Contact Lenses</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+        <h2>➕ Add New Product Manually</h2>
+        <div class="product-form">
+            <form id="productForm">
+                <div class="form-group">
+                    <label>Product Name:</label>
+                    <input type="text" id="productName" placeholder="e.g., Ray-Ban Aviator Classic" required>
+                </div>
+                
+                <div class="form-group">
+                    <label>Description:</label>
+                    <textarea id="productDescription" placeholder="Describe the product features, materials, and benefits..."></textarea>
+                </div>
+                
+                <div class="form-group">
+                    <label>Category:</label>
+                    <select id="productCategory" required>
+                        <option value="">Select Category</option>
+                        <option value="sunglasses">Sunglasses</option>
+                        <option value="prescription_glasses">Prescription Glasses</option>
+                        <option value="contact_lenses">Contact Lenses</option>
+                        <option value="eyewear_accessories">Eyewear Accessories</option>
+                        <option value="reading_glasses">Reading Glasses</option>
+                        <option value="safety_glasses">Safety Glasses</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label>Price (₱):</label>
+                    <input type="number" id="productPrice" placeholder="9999" min="0" step="0.01" required>
+                </div>
+                
+                <div class="form-group">
+                    <label>Stock Quantity:</label>
+                    <input type="number" id="productStock" placeholder="50" min="0" required>
+                </div>
+                
+                <div class="form-group">
+                    <label>Brand:</label>
+                    <input type="text" id="productBrand" placeholder="e.g., Ray-Ban, Oakley, Prada">
+                </div>
+                
+                <div class="form-group">
+                    <label>Frame Color:</label>
+                    <input type="text" id="productFrameColor" placeholder="e.g., Black, Gold, Silver">
+                </div>
+                
+                <div class="form-group">
+                    <label>Lens Color:</label>
+                    <input type="text" id="productLensColor" placeholder="e.g., Green, Brown, Clear">
+                </div>
+                
+                <div class="form-group">
+                    <label>Frame Material:</label>
+                    <select id="productFrameMaterial">
+                        <option value="">Select Material</option>
+                        <option value="acetate">Acetate</option>
+                        <option value="metal">Metal</option>
+                        <option value="titanium">Titanium</option>
+                        <option value="plastic">Plastic</option>
+                        <option value="carbon_fiber">Carbon Fiber</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label>Prescription Required:</label>
+                    <select id="productPrescription">
+                        <option value="false">No</option>
+                        <option value="true">Yes</option>
+                    </select>
+                </div>
+                
+                <div style="text-align: center; margin: 20px 0;">
+                    <button type="submit" class="btn btn-success">Add Product</button>
+                    <button type="button" class="btn btn-secondary" onclick="clearForm()">Clear Form</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="container">
+        <h2>🎯 Quick Add Sample Products</h2>
+        <p>Add pre-configured sample products to quickly populate your gallery:</p>
+        
+        <div class="sample-products">
+            <h3>🏷️ Premium Sunglasses Collection</h3>
+            <div class="sample-grid">
+                <div class="sample-item">
+                    <h4>Ray-Ban Aviator</h4>
+                    <p>Classic gold frame</p>
+                    <p>Green lenses</p>
+                    <p>₱8,999</p>
+                    <button class="btn" onclick="addSampleProduct('rayban-aviator')">Add</button>
+                </div>
+                <div class="sample-item">
+                    <h4>Oakley Holbrook</h4>
+                    <p>Modern black frame</p>
+                    <p>Black lenses</p>
+                    <p>₱12,999</p>
+                    <button class="btn" onclick="addSampleProduct('oakley-holbrook')">Add</button>
+                </div>
+                <div class="sample-item">
+                    <h4>Prada Sunglasses</h4>
+                    <p>Luxury brown frame</p>
+                    <p>Brown lenses</p>
+                    <p>₱15,999</p>
+                    <button class="btn" onclick="addSampleProduct('prada-sunglasses')">Add</button>
+                </div>
+                <div class="sample-item">
+                    <h4>Gucci Eyewear</h4>
+                    <p>Designer silver frame</p>
+                    <p>Clear lenses</p>
+                    <p>₱18,999</p>
+                    <button class="btn" onclick="addSampleProduct('gucci-eyewear')">Add</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="sample-products">
+            <h3>👓 Prescription Glasses Collection</h3>
+            <div class="sample-grid">
+                <div class="sample-item">
+                    <h4>Warby Parker</h4>
+                    <p>Blue light blocking</p>
+                    <p>Progressive lenses</p>
+                    <p>₱6,999</p>
+                    <button class="btn" onclick="addSampleProduct('warby-parker')">Add</button>
+                </div>
+                <div class="sample-item">
+                    <h4>Tom Ford Glasses</h4>
+                    <p>Premium acetate frame</p>
+                    <p>Anti-reflective coating</p>
+                    <p>₱14,999</p>
+                    <button class="btn" onclick="addSampleProduct('tom-ford-glasses')">Add</button>
+                </div>
+                <div class="sample-item">
+                    <h4>Persol Eyewear</h4>
+                    <p>Italian craftsmanship</p>
+                    <p>Hand-polished lenses</p>
+                    <p>₱11,999</p>
+                    <button class="btn" onclick="addSampleProduct('persol-eyewear')">Add</button>
+                </div>
+                <div class="sample-item">
+                    <h4>Maui Jim</h4>
+                    <p>Polarized lenses</p>
+                    <p>UV protection</p>
+                    <p>₱9,999</p>
+                    <button class="btn" onclick="addSampleProduct('maui-jim')">Add</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="sample-products">
+            <h3>👁️ Contact Lenses Collection</h3>
+            <div class="sample-grid">
+                <div class="sample-item">
+                    <h4>Acuvue Oasys</h4>
+                    <p>Daily disposable</p>
+                    <p>Moisture lock</p>
+                    <p>₱2,999</p>
+                    <button class="btn" onclick="addSampleProduct('acuvue-oasys')">Add</button>
+                </div>
+                <div class="sample-item">
+                    <h4>Air Optix</h4>
+                    <p>Monthly replacement</p>
+                    <p>Breathable material</p>
+                    <p>₱1,999</p>
+                    <button class="btn" onclick="addSampleProduct('air-optix')">Add</button>
+                </div>
+                <div class="sample-item">
+                    <h4>Biofinity</h4>
+                    <p>Extended wear</p>
+                    <p>Comfortable fit</p>
+                    <p>₱2,499</p>
+                    <button class="btn" onclick="addSampleProduct('biofinity')">Add</button>
+                </div>
+                <div class="sample-item">
+                    <h4>Proclear</h4>
+                    <p>Dry eye relief</p>
+                    <p>All-day comfort</p>
+                    <p>₱1,799</p>
+                    <button class="btn" onclick="addSampleProduct('proclear')">Add</button>
+                </div>
+            </div>
+        </div>
+
+        <div style="text-align: center; margin: 20px 0;">
+            <button class="btn btn-success" onclick="addAllSampleProducts()">Add All Sample Products</button>
+            <button class="btn btn-secondary" onclick="clearAllProducts()">Clear All Products</button>
+        </div>
+    </div>
+
+    <div class="container">
+        <h2>📋 Current Products</h2>
+        <div class="product-grid" id="productsList">
+            <!-- Products will be displayed here -->
+        </div>
+    </div>
+
+    <div class="container">
+        <h2>💡 Pro Tips for Adding Products</h2>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px;">
+            <div>
+                <h3>📝 Product Information</h3>
+                <ul>
+                    <li><strong>Name:</strong> Be descriptive and include brand</li>
+                    <li><strong>Description:</strong> Highlight key features and benefits</li>
+                    <li><strong>Category:</strong> Choose the most appropriate category</li>
+                    <li><strong>Price:</strong> Set competitive pricing</li>
+                    <li><strong>Stock:</strong> Keep track of inventory levels</li>
+                </ul>
+            </div>
+            <div>
+                <h3>🏷️ Product Details</h3>
+                <ul>
+                    <li><strong>Brand:</strong> Helps with brand recognition</li>
+                    <li><strong>Frame Color:</strong> Important for customer selection</li>
+                    <li><strong>Lens Color:</strong> Affects style and function</li>
+                    <li><strong>Material:</strong> Indicates quality and durability</li>
+                    <li><strong>Prescription:</strong> Clarifies if Rx is needed</li>
+                </ul>
+            </div>
+            <div>
+                <h3>📸 Product Images</h3>
+                <ul>
+                    <li><strong>Upload 8 images</strong> per product</li>
+                    <li><strong>Front view:</strong> Complete frame from front</li>
+                    <li><strong>Side view:</strong> Profile and temple design</li>
+                    <li><strong>Detail shots:</strong> Hinges, logos, features</li>
+                    <li><strong>Lifestyle:</strong> Model wearing if possible</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const PRODUCTS_KEY = 'localStorage_products';
+        let products = [];
+
+        // Load products on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            loadProducts();
+            updateStats();
+            displayProducts();
+        });
+
+        function loadProducts() {
+            try {
+                const stored = localStorage.getItem(PRODUCTS_KEY);
+                if (stored) {
+                    products = JSON.parse(stored);
+                }
+            } catch (error) {
+                console.error('Error loading products:', error);
+            }
+        }
+
+        function saveProducts() {
+            try {
+                localStorage.setItem(PRODUCTS_KEY, JSON.stringify(products));
+                updateStats();
+                displayProducts();
+            } catch (error) {
+                console.error('Error saving products:', error);
+            }
+        }
+
+        function updateStats() {
+            document.getElementById('totalProducts').textContent = products.length;
+            document.getElementById('sunglassesCount').textContent = 
+                products.filter(p => p.category === 'sunglasses').length;
+            document.getElementById('glassesCount').textContent = 
+                products.filter(p => p.category === 'prescription_glasses').length;
+            document.getElementById('contactLensesCount').textContent = 
+                products.filter(p => p.category === 'contact_lenses').length;
+        }
+
+        function displayProducts() {
+            const container = document.getElementById('productsList');
+            
+            if (products.length === 0) {
+                container.innerHTML = '<div style="text-align: center; padding: 40px; color: #666;"><h3>No Products Yet</h3><p>Add your first product to get started!</p></div>';
+                return;
+            }
+
+            container.innerHTML = products.map(product => `
+                <div class="product-card">
+                    <h3>${product.name}</h3>
+                    <p>${product.description}</p>
+                    <div class="category">${product.category.replace('_', ' ').toUpperCase()}</div>
+                    <p><strong>Brand:</strong> ${product.brand || 'N/A'}</p>
+                    <p><strong>Frame:</strong> ${product.frame_color || 'N/A'}</p>
+                    <p><strong>Lens:</strong> ${product.lens_color || 'N/A'}</p>
+                    <p><strong>Material:</strong> ${product.frame_material || 'N/A'}</p>
+                    <p><strong>Stock:</strong> ${product.stock_quantity}</p>
+                    <p><strong>Images:</strong> ${product.image_paths ? product.image_paths.length : 0}/8</p>
+                    <p class="price">₱${product.price.toFixed(2)}</p>
+                    <button class="btn btn-danger" onclick="removeProduct('${product.id}')">Remove</button>
+                </div>
+            `).join('');
+        }
+
+        // Form submission
+        document.getElementById('productForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const newProduct = {
+                id: Date.now().toString(),
+                name: document.getElementById('productName').value,
+                description: document.getElementById('productDescription').value,
+                category: document.getElementById('productCategory').value,
+                price: parseFloat(document.getElementById('productPrice').value),
+                stock_quantity: parseInt(document.getElementById('productStock').value),
+                brand: document.getElementById('productBrand').value,
+                frame_color: document.getElementById('productFrameColor').value,
+                lens_color: document.getElementById('productLensColor').value,
+                frame_material: document.getElementById('productFrameMaterial').value,
+                prescription_required: document.getElementById('productPrescription').value === 'true',
+                image_paths: [],
+                is_active: true,
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString()
+            };
+
+            products.push(newProduct);
+            saveProducts();
+            clearForm();
+            alert('Product added successfully!');
+        });
+
+        function clearForm() {
+            document.getElementById('productForm').reset();
+        }
+
+        function removeProduct(productId) {
+            if (confirm('Are you sure you want to remove this product?')) {
+                products = products.filter(p => p.id !== productId);
+                saveProducts();
+                alert('Product removed successfully!');
+            }
+        }
+
+        function clearAllProducts() {
+            if (confirm('Are you sure you want to remove ALL products? This action cannot be undone.')) {
+                products = [];
+                saveProducts();
+                alert('All products removed!');
+            }
+        }
+
+        // Sample product data
+        const sampleProducts = {
+            'rayban-aviator': {
+                name: 'Ray-Ban Aviator Classic',
+                description: 'The iconic aviator sunglasses with gold frame and green lenses. Perfect for any outdoor activity.',
+                category: 'sunglasses',
+                price: 8999,
+                stock_quantity: 25,
+                brand: 'Ray-Ban',
+                frame_color: 'Gold',
+                lens_color: 'Green',
+                frame_material: 'metal',
+                prescription_required: false
+            },
+            'oakley-holbrook': {
+                name: 'Oakley Holbrook',
+                description: 'Modern sunglasses with black frame and black lenses. Sleek design for urban lifestyle.',
+                category: 'sunglasses',
+                price: 12999,
+                stock_quantity: 20,
+                brand: 'Oakley',
+                frame_color: 'Black',
+                lens_color: 'Black',
+                frame_material: 'acetate',
+                prescription_required: false
+            },
+            'prada-sunglasses': {
+                name: 'Prada Sunglasses',
+                description: 'Luxury sunglasses with brown frame and brown lenses. High-end fashion statement.',
+                category: 'sunglasses',
+                price: 15999,
+                stock_quantity: 15,
+                brand: 'Prada',
+                frame_color: 'Brown',
+                lens_color: 'Brown',
+                frame_material: 'acetate',
+                prescription_required: false
+            },
+            'gucci-eyewear': {
+                name: 'Gucci Eyewear',
+                description: 'Designer sunglasses with silver frame and clear lenses. Luxury Italian craftsmanship.',
+                category: 'sunglasses',
+                price: 18999,
+                stock_quantity: 10,
+                brand: 'Gucci',
+                frame_color: 'Silver',
+                lens_color: 'Clear',
+                frame_material: 'metal',
+                prescription_required: false
+            },
+            'warby-parker': {
+                name: 'Warby Parker Blue Light Glasses',
+                description: 'Blue light blocking glasses with modern frame. Perfect for digital eye strain relief.',
+                category: 'prescription_glasses',
+                price: 6999,
+                stock_quantity: 30,
+                brand: 'Warby Parker',
+                frame_color: 'Black',
+                lens_color: 'Clear',
+                frame_material: 'acetate',
+                prescription_required: true
+            },
+            'tom-ford-glasses': {
+                name: 'Tom Ford Prescription Glasses',
+                description: 'Premium acetate frame with anti-reflective coating. Luxury eyewear for professionals.',
+                category: 'prescription_glasses',
+                price: 14999,
+                stock_quantity: 12,
+                brand: 'Tom Ford',
+                frame_color: 'Tortoise',
+                lens_color: 'Clear',
+                frame_material: 'acetate',
+                prescription_required: true
+            },
+            'persol-eyewear': {
+                name: 'Persol Eyewear',
+                description: 'Italian craftsmanship with hand-polished lenses. Timeless elegance and quality.',
+                category: 'prescription_glasses',
+                price: 11999,
+                stock_quantity: 18,
+                brand: 'Persol',
+                frame_color: 'Brown',
+                lens_color: 'Clear',
+                frame_material: 'acetate',
+                prescription_required: true
+            },
+            'maui-jim': {
+                name: 'Maui Jim Polarized Sunglasses',
+                description: 'Polarized lenses with UV protection. Perfect for outdoor activities and driving.',
+                category: 'sunglasses',
+                price: 9999,
+                stock_quantity: 22,
+                brand: 'Maui Jim',
+                frame_color: 'Black',
+                lens_color: 'Blue',
+                frame_material: 'titanium',
+                prescription_required: false
+            },
+            'acuvue-oasys': {
+                name: 'Acuvue Oasys Daily',
+                description: 'Daily disposable contact lenses with moisture lock technology. All-day comfort.',
+                category: 'contact_lenses',
+                price: 2999,
+                stock_quantity: 100,
+                brand: 'Acuvue',
+                frame_color: 'N/A',
+                lens_color: 'Clear',
+                frame_material: 'N/A',
+                prescription_required: true
+            },
+            'air-optix': {
+                name: 'Air Optix Monthly',
+                description: 'Monthly replacement contact lenses with breathable material. Extended wear comfort.',
+                category: 'contact_lenses',
+                price: 1999,
+                stock_quantity: 80,
+                brand: 'Air Optix',
+                frame_color: 'N/A',
+                lens_color: 'Clear',
+                frame_material: 'N/A',
+                prescription_required: true
+            },
+            'biofinity': {
+                name: 'Biofinity Extended Wear',
+                description: 'Extended wear contact lenses with comfortable fit. Up to 6 nights of continuous wear.',
+                category: 'contact_lenses',
+                price: 2499,
+                stock_quantity: 60,
+                brand: 'Biofinity',
+                frame_color: 'N/A',
+                lens_color: 'Clear',
+                frame_material: 'N/A',
+                prescription_required: true
+            },
+            'proclear': {
+                name: 'Proclear Dry Eye Relief',
+                description: 'Contact lenses designed for dry eye relief. All-day comfort and moisture retention.',
+                category: 'contact_lenses',
+                price: 1799,
+                stock_quantity: 70,
+                brand: 'Proclear',
+                frame_color: 'N/A',
+                lens_color: 'Clear',
+                frame_material: 'N/A',
+                prescription_required: true
+            }
+        };
+
+        function addSampleProduct(productKey) {
+            const sampleData = sampleProducts[productKey];
+            if (!sampleData) return;
+
+            const newProduct = {
+                id: Date.now().toString(),
+                ...sampleData,
+                image_paths: [],
+                is_active: true,
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString()
+            };
+
+            products.push(newProduct);
+            saveProducts();
+            alert(`${sampleData.name} added successfully!`);
+        }
+
+        function addAllSampleProducts() {
+            if (confirm('Add all sample products to your gallery?')) {
+                Object.keys(sampleProducts).forEach(key => {
+                    const sampleData = sampleProducts[key];
+                    const newProduct = {
+                        id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+                        ...sampleData,
+                        image_paths: [],
+                        is_active: true,
+                        created_at: new Date().toISOString(),
+                        updated_at: new Date().toISOString()
+                    };
+                    products.push(newProduct);
+                });
+                saveProducts();
+                alert('All sample products added successfully!');
+            }
+        }
+    </script>
+</body>
+</html>
