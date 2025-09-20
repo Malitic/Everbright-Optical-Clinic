@@ -68,7 +68,7 @@ const ProductGallery: React.FC = () => {
             {/* Product Info */}
             <h3 className="font-semibold text-lg">{product.name}</h3>
             <p className="text-sm text-gray-600">{product.model}</p>
-            <p className="font-bold mt-2">₱{product.price.toFixed(2)}</p>
+            <p className="font-bold mt-2">₱{Number(product.price || 0).toFixed(2)}</p>
           </div>
         ))}
       </div>

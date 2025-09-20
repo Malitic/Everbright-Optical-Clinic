@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api';
 const API_BASE = `${API_BASE_URL}/products`;
 
 // Include auth token if present
@@ -33,10 +33,8 @@ export const createProduct = async (formData: FormData) => {
 };
 
 export const updateProduct = async (id: string, formData: FormData) => {
-  const response = await axios.post(`${API_BASE}/${id}`, formData, {
+  const response = await axios.put(`${API_BASE}/${id}`, formData, {
     headers: { 'Content-Type': 'multipart/form-data' },
-    method: 'POST',
-    params: { _method: 'PUT' }, // Laravel method spoofing
   });
   return response.data;
 };

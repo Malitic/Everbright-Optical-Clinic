@@ -84,7 +84,7 @@ class AuthController extends Controller
             ], 401);
         }
 
-        if ($user->role !== $request->role) {
+        if ($user->role->value !== $request->role) {
             return response()->json([
                 'message' => 'Invalid role for this user'
             ], 401);

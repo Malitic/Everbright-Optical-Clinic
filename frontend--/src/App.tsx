@@ -35,6 +35,9 @@ import ProductDetails from "@/features/products/components/ProductDetails";
 import ReservationList from "@/features/products/components/ReservationList";
 import { ProductGalleryLocalStorage } from "@/features/products/components/ProductGalleryLocalStorage";
 import { ProductGallerySimple } from "@/features/products/components/ProductGallerySimple";
+import { ProductGalleryDatabase } from "@/features/products/components/ProductGalleryDatabase";
+import { ProductGalleryTest } from "@/features/products/components/ProductGalleryTest";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 
 // Optometrist Components
 import OptometristAppointments from "@/features/appointments/components/OptometristAppointments";
@@ -70,7 +73,7 @@ const App = () => (
               <Route path="prescriptions" element={<CustomerPrescriptionsLocalStorage />} />
               <Route path="receipts" element={<CustomerReceipts />} />
               <Route path="notifications" element={<NotificationCenter />} />
-              <Route path="products" element={<ProductGallerySimple />} />
+              <Route path="products" element={<ProductGalleryDatabase />} />
               <Route path="products/:productId" element={<ProductDetails />} />
               <Route path="reservations" element={<ReservationList />} />
             </Route>
@@ -97,6 +100,11 @@ const App = () => (
             }>
               <Route path="dashboard" element={<StaffDashboard />} />
               <Route path="appointments" element={<AppointmentBooking />} />
+              <Route path="products" element={
+                <ErrorBoundary>
+                  <ProductGalleryDatabase />
+                </ErrorBoundary>
+              } />
               <Route path="inventory" element={<InventoryManagement />} />
               <Route path="patients" element={<PatientManagement />} />
               <Route path="notifications" element={<NotificationCenter />} />
@@ -112,7 +120,11 @@ const App = () => (
               <Route path="analytics" element={<AnalyticsDashboard />} />
               <Route path="users" element={<PatientManagement />} />
               <Route path="inventory" element={<InventoryManagement />} />
-              <Route path="products" element={<ProductGallerySimple />} />
+              <Route path="products" element={
+                <ErrorBoundary>
+                  <ProductGalleryDatabase />
+                </ErrorBoundary>
+              } />
               <Route path="notifications" element={<NotificationCenter />} />
               <Route path="patients" element={<PatientManagement />} />
               <Route path="sales" element={<AnalyticsDashboard />} />

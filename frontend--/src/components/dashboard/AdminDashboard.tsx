@@ -54,7 +54,7 @@ const AdminDashboard = () => {
       </div>
 
       {/* Key Metrics */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
         <DashboardCard
           title="Monthly Revenue"
           value={`₱${monthlyRevenue.toLocaleString()}`}
@@ -104,6 +104,19 @@ const AdminDashboard = () => {
           action={{
             label: 'Branch Analytics',
             onClick: () => navigate('/admin/analytics'),
+            variant: 'admin'
+          }}
+          gradient
+        />
+        
+        <DashboardCard
+          title="Product Gallery"
+          value="Manage"
+          description="Add, edit, delete products"
+          icon={Package}
+          action={{
+            label: 'Manage Products',
+            onClick: () => navigate('/admin/products'),
             variant: 'admin'
           }}
           gradient
@@ -172,8 +185,13 @@ const AdminDashboard = () => {
                 </div>
               </div>
             ))}
-            <Button variant="outline" size="sm" className="w-full">
-              Product Analytics
+            <Button 
+              variant="outline" 
+              size="sm" 
+              className="w-full"
+              onClick={() => navigate('/admin/products')}
+            >
+              Manage Products
             </Button>
           </CardContent>
         </Card>

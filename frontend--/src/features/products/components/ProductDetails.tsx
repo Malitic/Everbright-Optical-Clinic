@@ -137,7 +137,7 @@ const ProductDetails: React.FC = () => {
             ))}
           </div>
 
-          <p className="text-2xl font-bold mb-4">₱{product.price.toFixed(2)}</p>
+          <p className="text-2xl font-bold mb-4">₱{Number(product.price || 0).toFixed(2)}</p>
 
           <p className="text-gray-700 mb-6">{product.description}</p>
 

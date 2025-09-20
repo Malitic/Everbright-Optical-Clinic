@@ -1,4 +1,25 @@
 export interface Product {
+  id: number;
+  name: string;
+  description: string;
+  price: number;
+  category: string;
+  image_paths: string[]; // array of image file paths
+  stock_quantity: number;
+  is_active: boolean;
+  created_by_role: string;
+  created_at: string;
+  updated_at: string;
+  creator?: {
+    id: number;
+    name: string;
+    email: string;
+    role: string;
+  };
+}
+
+// Legacy interface for backward compatibility
+export interface LegacyProduct {
   id: string;
   name: string;
   model: string;

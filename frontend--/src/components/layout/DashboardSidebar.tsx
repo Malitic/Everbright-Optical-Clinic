@@ -129,6 +129,12 @@ const getNavItems = (role: UserRole): NavItem[] => {
         description: 'Manage appointments'
       },
       {
+        title: 'Product Gallery',
+        href: '/staff/products',
+        icon: ShoppingCart,
+        description: 'Manage products and inventory'
+      },
+      {
         title: 'Inventory',
         href: '/staff/inventory',
         icon: Package,

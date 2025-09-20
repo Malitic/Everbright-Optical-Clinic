@@ -273,7 +273,7 @@ export const ProductGalleryLocalStorage: React.FC = () => {
             )}
             <h3 className="font-semibold text-lg">{product.name}</h3>
             <p className="text-gray-700 flex-grow">{product.description}</p>
-            <p className="font-bold mt-2">₱{product.price.toFixed(2)}</p>
+            <p className="font-bold mt-2">₱{Number(product.price || 0).toFixed(2)}</p>
             <p className="text-sm text-gray-600 mt-1">
               Stock: {product.stock_quantity} | Reservations: {getReservationCount(product.id)}
             </p>

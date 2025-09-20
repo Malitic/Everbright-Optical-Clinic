@@ -116,7 +116,7 @@ const ReservationList: React.FC = () => {
                   <div className="flex-grow">
                     <h3 className="font-semibold">{product.name}</h3>
                     <p className="text-sm text-gray-600">{product.model}</p>
-                    <p className="font-bold">₱{product.price.toFixed(2)}</p>
+                    <p className="font-bold">₱{Number(product.price || 0).toFixed(2)}</p>
                     <p className="text-sm">Quantity: {reservation.quantity}</p>
                   </div>
 

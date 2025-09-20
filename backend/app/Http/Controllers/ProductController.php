@@ -19,8 +19,8 @@ class ProductController extends Controller
         $user = Auth::user();
         $query = Product::with('creator');
 
-        // Filter by active status for customers
-        if ($user->role === 'customer') {
+        // Filter by active status for customers (if authenticated)
+        if ($user && $user->role->value === 'customer') {
             $query->active();
         }
 
@@ -50,10 +50,10 @@ class ProductController extends Controller
     {
         $user = Auth::user();
 
-        // Only admin, staff, and optometrists can create products
-        if (!in_array($user->role, ['admin', 'staff', 'optometrist'])) {
+        // Staff and Admin can create products
+        if (!$user || !in_array($user->role->value, ['admin', 'staff'])) {
             return response()->json([
-                'message' => 'Unauthorized to create products'
+                'message' => 'Unauthorized to create products. Only Staff and Admin can upload products.'
             ], 403);
         }
 
@@ -86,10 +86,11 @@ class ProductController extends Controller
             'name' => $request->name,
             'description' => $request->description,
             'price' => $request->price,
+            'category' => $request->category ?? 'General',
             'stock_quantity' => $request->stock_quantity,
             'is_active' => $request->is_active ?? true,
             'image_paths' => $imagePaths,
-            'created_by' => $user->id,
+            'created_by_role' => $user->role,
         ]);
 
         return response()->json([
@@ -105,8 +106,8 @@ class ProductController extends Controller
     {
         $user = Auth::user();
 
-        // Customers can only view active products
-        if ($user->role === 'customer' && !$product->is_active) {
+        // Customers can only view active products (if authenticated)
+        if ($user && $user->role->value === 'customer' && !$product->is_active) {
             return response()->json(['message' => 'Product not found'], 404);
         }
 
@@ -120,10 +121,17 @@ class ProductController extends Controller
     {
         $user = Auth::user();
 
-        // Only admin, staff, and optometrists can update products
-        if (!in_array($user->role, ['admin', 'staff', 'optometrist'])) {
+        // Staff can update products they created, Admin can update any product
+        if (!$user || !in_array($user->role->value, ['admin', 'staff'])) {
             return response()->json([
-                'message' => 'Unauthorized to update products'
+                'message' => 'Unauthorized to update products. Only Staff and Admin can update products.'
+            ], 403);
+        }
+
+        // Staff can only update their own products, Admin can update any product
+        if ($user->role->value === 'staff' && $product->created_by_role !== 'staff') {
+            return response()->json([
+                'message' => 'Staff can only update products they created. Contact Admin for approval.'
             ], 403);
         }
 
@@ -178,10 +186,10 @@ class ProductController extends Controller
     {
         $user = Auth::user();
 
-        // Only admin, staff, and optometrists can delete products
-        if (!in_array($user->role, ['admin', 'staff', 'optometrist'])) {
+        // Only Admin can delete products (full permissions)
+        if (!$user || $user->role->value !== 'admin') {
             return response()->json([
-                'message' => 'Unauthorized to delete products'
+                'message' => 'Unauthorized to delete products. Only Admin can delete products.'
             ], 403);
         }
 
@@ -196,6 +204,74 @@ class ProductController extends Controller
 
         return response()->json([
             'message' => 'Product deleted successfully'
+        ]);
+    }
+
+    /**
+     * Admin: Approve product changes and manage all products
+     */
+    public function approveProduct(Product $product): JsonResponse
+    {
+        $user = Auth::user();
+
+        // Only Admin can approve products
+        if (!$user || $user->role->value !== 'admin') {
+            return response()->json([
+                'message' => 'Unauthorized. Only Admin can approve product changes.'
+            ], 403);
+        }
+
+        // Activate the product (approve it)
+        $product->update(['is_active' => true]);
+
+        return response()->json([
+            'message' => 'Product approved and activated successfully',
+            'product' => $product->load('creator')
+        ]);
+    }
+
+    /**
+     * Admin: Get all products with management details
+     */
+    public function adminIndex(Request $request): JsonResponse
+    {
+        $user = Auth::user();
+
+        // Only Admin can access this endpoint
+        if (!$user || $user->role->value !== 'admin') {
+            return response()->json([
+                'message' => 'Unauthorized. Only Admin can access product management.'
+            ], 403);
+        }
+
+        $query = Product::with('creator');
+
+        // Filter by active status
+        if ($request->has('active')) {
+            $query->where('is_active', $request->boolean('active'));
+        }
+
+        // Filter by creator role
+        if ($request->has('created_by_role')) {
+            $query->where('created_by_role', $request->created_by_role);
+        }
+
+        // Filter by search term
+        if ($request->has('search')) {
+            $search = $request->search;
+            $query->where(function ($q) use ($search) {
+                $q->where('name', 'like', "%{$search}%")
+                  ->orWhere('description', 'like', "%{$search}%");
+            });
+        }
+
+        $products = $query->orderBy('created_at', 'desc')->get();
+
+        return response()->json([
+            'products' => $products,
+            'total_count' => $products->count(),
+            'active_count' => $products->where('is_active', true)->count(),
+            'pending_count' => $products->where('is_active', false)->count()
         ]);
     }
 }

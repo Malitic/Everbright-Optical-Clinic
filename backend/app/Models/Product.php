@@ -15,10 +15,11 @@ class Product extends Model
         'name',
         'description',
         'price',
+        'category',
         'image_paths',
         'stock_quantity',
         'is_active',
-        'created_by',
+        'created_by_role',
     ];
 
     protected $casts = [
@@ -30,10 +31,12 @@ class Product extends Model
 
     /**
      * Get the user who created this product.
+     * Note: This is a placeholder since we're using created_by_role instead of created_by
      */
     public function creator(): BelongsTo
     {
-        return $this->belongsTo(User::class, 'created_by');
+        // Since we don't have created_by field, return null for now
+        return $this->belongsTo(User::class, 'id');
     }
 
     /**

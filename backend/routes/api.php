@@ -43,8 +43,20 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::delete('/admin/users/{targetUser}', [AuthController::class, 'deleteUser']);
 });
 
-// Product routes (explicitly public - no sanctum auth)
-Route::apiResource('products', ProductController::class)->withoutMiddleware(['auth:sanctum']);
+// Product routes - public read access, authenticated write access
+Route::get('products', [ProductController::class, 'index']);
+Route::get('products/{product}', [ProductController::class, 'show']);
+
+// Staff and Admin product management
+Route::middleware('auth:sanctum')->group(function () {
+    Route::post('products', [ProductController::class, 'store']);
+    Route::put('products/{product}', [ProductController::class, 'update']);
+    Route::delete('products/{product}', [ProductController::class, 'destroy']);
+    
+    // Admin-only routes
+    Route::get('admin/products', [ProductController::class, 'adminIndex']);
+    Route::put('admin/products/{product}/approve', [ProductController::class, 'approveProduct']);
+});
 
 // Reservation routes
 Route::apiResource('reservations', ReservationController::class);

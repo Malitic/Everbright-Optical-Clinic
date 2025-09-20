@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { login as apiLogin, register as apiRegister, logout as apiLogout, getProfile, User as ApiUser } from '../services/authApi';
 
 export type UserRole = 'customer' | 'optometrist' | 'staff' | 'admin';
 
@@ -80,35 +81,28 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       setIsLoading(true);
 
-      // Find user by email
-      const existingUser = findUserByEmail(email);
-
-      if (!existingUser) {
-        throw new Error('User not found. Please check your email or register first.');
+      // Use real API authentication
+      const response = await apiLogin({ email, password, role });
+      
+      // Check if the user's role matches the expected role
+      if (response.user.role !== role) {
+        throw new Error(`Invalid role. Expected ${role}, but user has role ${response.user.role}.`);
       }
-
-      // For demo purposes, we'll use a simple password check
-      // In a real app, passwords would be hashed
-      const users = getStoredUsers();
-      const userWithPassword = users.find(u => u.email.toLowerCase() === email.toLowerCase());
-
-      if (!userWithPassword || userWithPassword.role !== role) {
-        throw new Error('Invalid credentials. Please check your email, password, and role.');
-      }
-
-      // For demo, we'll accept any password for existing users
-      // In production, you'd verify the hashed password
-
-      // Generate mock token
-      const token = generateMockToken(existingUser.id);
 
       // Store auth data
-      localStorage.setItem(TOKEN_KEY, token);
-      localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(existingUser));
+      localStorage.setItem(TOKEN_KEY, response.token);
+      localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(response.user));
 
-      setUser(existingUser);
+      setUser(response.user);
     } catch (error: any) {
-      throw new Error(error.message || 'Login failed. Please try again.');
+      // Handle API errors
+      if (error.response?.data?.message) {
+        throw new Error(error.response.data.message);
+      } else if (error.message) {
+        throw new Error(error.message);
+      } else {
+        throw new Error('Login failed. Please try again.');
+      }
     } finally {
       setIsLoading(false);
     }
@@ -123,44 +117,54 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         throw new Error('Password must be at least 8 characters long.');
       }
 
-      // Check if user already exists
-      const existingUser = findUserByEmail(email);
-      if (existingUser) {
-        throw new Error('An account with this email already exists. Please use a different email or try logging in.');
+      // Validate password confirmation
+      if (password !== confirmPassword) {
+        throw new Error('Passwords do not match. Please try again.');
       }
 
-      // Create new user
-      const newUser: User = {
-        id: Date.now().toString(),
+      // Use real API registration
+      const response = await apiRegister({
         name: name.trim(),
         email: email.toLowerCase().trim(),
-        role,
-      };
-
-      // Get existing users and add new user
-      const users = getStoredUsers();
-      users.push(newUser);
-      saveUsers(users);
-
-      // Generate mock token
-      const token = generateMockToken(newUser.id);
+        password,
+        password_confirmation: confirmPassword,
+        role
+      });
 
       // Store auth data
-      localStorage.setItem(TOKEN_KEY, token);
-      localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(newUser));
+      localStorage.setItem(TOKEN_KEY, response.token);
+      localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(response.user));
 
-      setUser(newUser);
+      setUser(response.user);
     } catch (error: any) {
-      throw new Error(error.message || 'Registration failed. Please try again.');
+      // Handle API errors
+      if (error.response?.data?.message) {
+        throw new Error(error.response.data.message);
+      } else if (error.response?.data?.errors) {
+        // Handle validation errors
+        const errors = error.response.data.errors;
+        const firstError = Object.values(errors)[0];
+        throw new Error(Array.isArray(firstError) ? firstError[0] : firstError);
+      } else if (error.message) {
+        throw new Error(error.message);
+      } else {
+        throw new Error('Registration failed. Please try again.');
+      }
     } finally {
       setIsLoading(false);
     }
   };
 
-  const logout = () => {
-    localStorage.removeItem(TOKEN_KEY);
-    localStorage.removeItem(CURRENT_USER_KEY);
-    setUser(null);
+  const logout = async () => {
+    try {
+      await apiLogout();
+    } catch (error) {
+      console.error('Logout API error:', error);
+    } finally {
+      localStorage.removeItem(TOKEN_KEY);
+      localStorage.removeItem(CURRENT_USER_KEY);
+      setUser(null);
+    }
   };
 
   return (

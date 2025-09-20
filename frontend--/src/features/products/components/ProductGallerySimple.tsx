@@ -493,7 +493,7 @@ export const ProductGallerySimple: React.FC = () => {
             </div>
                 
                 <p className="text-sm text-gray-600 mb-2 line-clamp-2">{product.description}</p>
-                <p className="font-bold text-lg mb-2">₱{product.price.toFixed(2)}</p>
+                <p className="font-bold text-lg mb-2">₱{Number(product.price || 0).toFixed(2)}</p>
                 
                 <div className="flex items-center justify-between mb-3">
                   <Badge variant="outline">{product.category}</Badge>
