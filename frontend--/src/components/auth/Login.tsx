@@ -5,15 +5,14 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { useAuth, UserRole } from '@/contexts/AuthContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 
 const Login = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [role, setRole] = useState<UserRole>('customer');
   const [showPassword, setShowPassword] = useState(false);
+  const [role, setRole] = useState<'customer' | 'staff' | 'admin' | 'optometrist'>('customer');
   const [isLoading, setIsLoading] = useState(false);
 
   const { login } = useAuth();
@@ -25,16 +24,38 @@ const Login = () => {
     setIsLoading(true);
 
     try {
-      await login(email, password, role);
+      console.log('Starting login with:', { email, password, role });
+      const loggedIn = await login(email, password, role);
+      console.log('Login response:', loggedIn);
+      
+      const roleName = (loggedIn as any)?.role ?? role;
+      console.log('Role name:', roleName);
+
       toast({
         title: "Login successful",
-        description: `Welcome back! Redirecting to your ${role} dashboard.`,
+        description: `Welcome back! Redirecting to your ${roleName} dashboard.`,
       });
-      navigate(`/${role}/dashboard`);
-    } catch (error) {
+
+      // Fallback to stored user if needed
+      const stored = sessionStorage.getItem('auth_current_user');
+      console.log('Stored user:', stored);
+      const destRole = roleName || (stored ? (JSON.parse(stored).role || 'customer') : 'customer');
+      console.log('Destination role:', destRole);
+      console.log('Navigating to:', `/${destRole}/dashboard`);
+      
+      // Add a small delay to ensure state is updated
+      setTimeout(() => {
+        console.log('Executing navigation after delay');
+        navigate(`/${destRole}/dashboard`);
+      }, 100);
+    } catch (error: any) {
+      console.error('Login error:', error);
+      const apiMsg = error?.response?.data?.message;
       toast({
         title: "Login failed",
-        description: error instanceof Error ? error.message : "Please check your credentials and try again.",
+        description: apiMsg === 'Account pending admin approval' 
+          ? 'Your account is pending admin approval. Please try again later.'
+          : (error instanceof Error ? error.message : "Please check your credentials and try again."),
         variant: "destructive",
       });
     } finally {
@@ -42,53 +63,33 @@ const Login = () => {
     }
   };
 
-  const getRoleStyles = (selectedRole: UserRole) => {
-    const styles = {
-      customer: 'border-customer bg-customer-light',
-      optometrist: 'border-optometrist bg-optometrist-light',
-      staff: 'border-staff bg-staff-light',
-      admin: 'border-admin bg-admin-light'
-    };
-    return styles[selectedRole];
-  };
-
-  const getRoleButtonVariant = (selectedRole: UserRole) => {
-    const variants = {
-      customer: 'customer',
-      optometrist: 'optometrist',
-      staff: 'staff',
-      admin: 'admin'
-    } as const;
-    return variants[selectedRole];
-  };
-
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 p-4">
-      <Card className={`w-full max-w-md shadow-2xl transition-all duration-300 ${getRoleStyles(role)}`}>
+      <Card className="w-full max-w-md shadow-2xl transition-all duration-300">
         <CardHeader className="space-y-1 text-center">
-          <div className="mx-auto w-12 h-12 bg-white rounded-full flex items-center justify-center mb-4 shadow-lg">
-            <User className="h-6 w-6 text-slate-600" />
+          <div className="mx-auto w-12 h-12 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center mb-4 shadow-lg">
+            <User className="h-6 w-6 text-white" />
           </div>
-          <CardTitle className="text-2xl font-bold">Sign In</CardTitle>
-          <CardDescription>
+          <CardTitle className="text-2xl font-bold text-slate-900">Sign In</CardTitle>
+          <CardDescription className="text-slate-600">
             Access your optical clinic account
           </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="role">Account Type</Label>
-              <Select value={role} onValueChange={(value: UserRole) => setRole(value)}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select your role" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="customer">Customer</SelectItem>
-                  <SelectItem value="optometrist">Optometrist</SelectItem>
-                  <SelectItem value="staff">Clinic Staff</SelectItem>
-                  <SelectItem value="admin">Administrator</SelectItem>
-                </SelectContent>
-              </Select>
+              <Label htmlFor="role">Role</Label>
+              <select
+                id="role"
+                className="w-full border rounded-md h-10 px-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                value={role}
+                onChange={(e) => setRole(e.target.value as any)}
+              >
+                <option value="customer">Customer</option>
+                <option value="staff">Staff</option>
+                <option value="optometrist">Optometrist</option>
+                <option value="admin">Admin</option>
+              </select>
             </div>
 
             <div className="space-y-2">
@@ -130,10 +131,9 @@ const Login = () => {
               </div>
             </div>
 
-            <Button
-              type="submit"
-              className="w-full"
-              variant={getRoleButtonVariant(role)}
+            <Button 
+              type="submit" 
+              className="w-full bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white shadow-lg" 
               disabled={isLoading}
             >
               {isLoading ? "Signing in..." : "Sign In"}
@@ -146,6 +146,7 @@ const Login = () => {
               Sign up
             </Link>
           </div>
+          
         </CardContent>
       </Card>
     </div>

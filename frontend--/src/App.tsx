@@ -4,12 +4,13 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { NotificationProvider } from "@/contexts/NotificationContext";
 import ProtectedRoute from "@/components/auth/ProtectedRoute";
 import Login from "@/components/auth/Login";
 import Register from "@/components/auth/Register";
 import DashboardLayout from "@/components/layout/DashboardLayout";
 import CustomerDashboard from "@/components/dashboard/CustomerDashboard";
-import OptometristDashboard from "@/components/dashboard/OptometristDashboard";
+import OptometristDashboardGrouped from "@/components/optometrist/OptometristDashboardGrouped";
 import StaffDashboard from "@/components/dashboard/StaffDashboard";
 import AdminDashboard from "@/components/dashboard/AdminDashboard";
 import AppointmentBooking from "@/components/appoinments/AppointmentBooking";
@@ -20,17 +21,19 @@ import PatientManagement from "@/components/patients/PatientManagement";
 import AnalyticsDashboard from "@/components/analytics/AnalyticsDashboard";
 import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
+import BookAppointmentPage from "./pages/BookAppointmentPage";
 
 // Customer Components
 import CustomerAppointments from "@/features/customer/components/CustomerAppointments";
 import CustomerVisionHistory from "@/features/customer/components/CustomerVisionHistory";
 import CustomerPrescriptions from "@/features/customer/components/CustomerPrescriptions";
+import CustomerFeedback from "@/features/feedback/components/CustomerFeedback";
 import CustomerReceipts from "@/features/customer/components/CustomerReceipts";
 import { CustomerAppointmentsLocalStorage } from "@/features/customer/components/CustomerAppointmentsLocalStorage";
 import { CustomerPrescriptionsLocalStorage } from "@/features/customer/components/CustomerPrescriptionsLocalStorage";
 
 // Product Components
-import ProductGallery from "@/features/products/components/ProductGallery";
+import ProductGallery from "@/features/products/components/MultiBranchProductGallery";
 import ProductDetails from "@/features/products/components/ProductDetails";
 import ReservationList from "@/features/products/components/ReservationList";
 import { ProductGalleryLocalStorage } from "@/features/products/components/ProductGalleryLocalStorage";
@@ -39,19 +42,37 @@ import { ProductGalleryDatabase } from "@/features/products/components/ProductGa
 import { ProductGalleryTest } from "@/features/products/components/ProductGalleryTest";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 
+// Staff Components
+import StaffReservationDashboard from "@/features/staff/components/StaffReservationDashboard";
+import StaffRestockRequests from "@/features/staff/components/StaffRestockRequests";
+
+// Admin Components
+import AdminStockManagement from "@/features/admin/components/AdminStockManagement";
+import AdminProductManagement from "@/features/admin/components/AdminProductManagement";
+import RoleRequestsDashboard from "@/components/admin/RoleRequestsDashboard";
+import { RealtimeProvider } from "@/contexts/RealtimeProvider";
+
 // Optometrist Components
 import OptometristAppointments from "@/features/appointments/components/OptometristAppointments";
+import StaffAppointments from "@/features/appointments/components/StaffAppointments";
 import OptometristPatientRecords from "@/features/patients/components/OptometristPatientRecords";
 import OptometristPrescriptionManagement from "@/features/prescriptions/components/OptometristPrescriptionManagement";
-import OptometristInventoryView from "@/features/inventory/components/OptometristInventoryView";
-import OptometristReceiptGeneration from "@/features/receipts/components/OptometristReceiptGeneration";
+import OptometristSchedule from "@/components/schedule/OptometristSchedule";
+import UserProfile from "@/components/user/UserProfile";
+import AdminUserManagement from "@/components/admin/AdminUserManagement";
+import BranchManagement from "@/components/admin/BranchManagement";
+import EmployeeScheduleManagement from "@/components/admin/EmployeeScheduleManagement";
+import { BranchProvider } from "@/contexts/BranchContext";
 
 const queryClient = new QueryClient();
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <AuthProvider>
-      <TooltipProvider>
+      <NotificationProvider>
+        <BranchProvider>
+          <RealtimeProvider>
+        <TooltipProvider>
         <Toaster />
         <Sonner />
         <BrowserRouter>
@@ -68,15 +89,25 @@ const App = () => (
               </ProtectedRoute>
             }>
               <Route path="dashboard" element={<CustomerDashboard />} />
-              <Route path="appointments" element={<CustomerAppointmentsLocalStorage />} />
+              <Route path="appointments" element={<CustomerAppointments />} />
               <Route path="history" element={<CustomerVisionHistory />} />
               <Route path="prescriptions" element={<CustomerPrescriptionsLocalStorage />} />
               <Route path="receipts" element={<CustomerReceipts />} />
+              <Route path="feedback" element={<CustomerFeedback />} />
               <Route path="notifications" element={<NotificationCenter />} />
-              <Route path="products" element={<ProductGalleryDatabase />} />
+              <Route path="products" element={<ProductGallery />} />
               <Route path="products/:productId" element={<ProductDetails />} />
+              <Route path="profile" element={<UserProfile />} />
               <Route path="reservations" element={<ReservationList />} />
             </Route>
+
+            {/* Dedicated Customer Booking Page (outside dashboard layout) */}
+            <Route path="/customer/book-appointment" element={
+              <ProtectedRoute allowedRoles={['customer']}>
+                <BookAppointmentPage />
+              </ProtectedRoute>
+            } />
+
 
             {/* Optometrist Routes */}
             <Route path="/optometrist" element={
@@ -84,12 +115,14 @@ const App = () => (
                 <DashboardLayout />
               </ProtectedRoute>
             }>
-              <Route path="dashboard" element={<OptometristDashboard />} />
+              <Route index element={<Navigate to="dashboard" replace />} />
+              <Route path="dashboard" element={<OptometristDashboardGrouped />} />
               <Route path="appointments" element={<OptometristAppointments />} />
               <Route path="patients" element={<OptometristPatientRecords />} />
               <Route path="prescriptions" element={<OptometristPrescriptionManagement />} />
-              <Route path="inventory" element={<OptometristInventoryView />} />
-              <Route path="receipts" element={<OptometristReceiptGeneration />} />
+              <Route path="schedule" element={<OptometristSchedule />} />
+              <Route path="notifications" element={<NotificationCenter />} />
+              <Route path="profile" element={<UserProfile />} />
             </Route>
 
             {/* Staff Routes */}
@@ -99,14 +132,13 @@ const App = () => (
               </ProtectedRoute>
             }>
               <Route path="dashboard" element={<StaffDashboard />} />
-              <Route path="appointments" element={<AppointmentBooking />} />
-              <Route path="products" element={
-                <ErrorBoundary>
-                  <ProductGalleryDatabase />
-                </ErrorBoundary>
-              } />
+              <Route path="appointments" element={<StaffAppointments />} />
+              {/* Remove product gallery for staff */}
+              <Route path="reservations" element={<StaffReservationDashboard />} />
+              <Route path="restock-requests" element={<StaffRestockRequests />} />
               <Route path="inventory" element={<InventoryManagement />} />
               <Route path="patients" element={<PatientManagement />} />
+              <Route path="profile" element={<UserProfile />} />
               <Route path="notifications" element={<NotificationCenter />} />
             </Route>
 
@@ -118,16 +150,21 @@ const App = () => (
             }>
               <Route path="dashboard" element={<AdminDashboard />} />
               <Route path="analytics" element={<AnalyticsDashboard />} />
-              <Route path="users" element={<PatientManagement />} />
+              <Route path="users" element={<AdminUserManagement />} />
+              <Route path="branches" element={<BranchManagement />} />
               <Route path="inventory" element={<InventoryManagement />} />
+              <Route path="stock-management" element={<AdminStockManagement />} />
               <Route path="products" element={
                 <ErrorBoundary>
-                  <ProductGalleryDatabase />
+                  <AdminProductManagement />
                 </ErrorBoundary>
               } />
+              <Route path="role-requests" element={<RoleRequestsDashboard />} />
               <Route path="notifications" element={<NotificationCenter />} />
               <Route path="patients" element={<PatientManagement />} />
               <Route path="sales" element={<AnalyticsDashboard />} />
+              <Route path="employee-schedules" element={<EmployeeScheduleManagement />} />
+              <Route path="profile" element={<UserProfile />} />
             </Route>
 
             {/* Redirects */}
@@ -141,6 +178,9 @@ const App = () => (
           </Routes>
         </BrowserRouter>
       </TooltipProvider>
+        </RealtimeProvider>
+      </BranchProvider>
+      </NotificationProvider>
     </AuthProvider>
   </QueryClientProvider>
 );

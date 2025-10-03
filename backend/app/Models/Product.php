@@ -15,11 +15,15 @@ class Product extends Model
         'name',
         'description',
         'price',
-        'category',
         'image_paths',
         'stock_quantity',
         'is_active',
+        'created_by',
         'created_by_role',
+        'expiry_date',
+        'min_stock_threshold',
+        'auto_restock_quantity',
+        'auto_restock_enabled',
     ];
 
     protected $casts = [
@@ -27,16 +31,18 @@ class Product extends Model
         'price' => 'decimal:2',
         'is_active' => 'boolean',
         'stock_quantity' => 'integer',
+        'expiry_date' => 'date',
+        'min_stock_threshold' => 'integer',
+        'auto_restock_quantity' => 'integer',
+        'auto_restock_enabled' => 'boolean',
     ];
 
     /**
      * Get the user who created this product.
-     * Note: This is a placeholder since we're using created_by_role instead of created_by
      */
     public function creator(): BelongsTo
     {
-        // Since we don't have created_by field, return null for now
-        return $this->belongsTo(User::class, 'id');
+        return $this->belongsTo(User::class, 'created_by');
     }
 
     /**
@@ -45,6 +51,38 @@ class Product extends Model
     public function reservations(): HasMany
     {
         return $this->hasMany(Reservation::class);
+    }
+
+    /**
+     * Get all branch stock records for this product
+     */
+    public function branchStock(): HasMany
+    {
+        return $this->hasMany(BranchStock::class);
+    }
+
+    /**
+     * Get total stock across all branches
+     */
+    public function getTotalStockAttribute(): int
+    {
+        return $this->branchStock()->sum('stock_quantity');
+    }
+
+    /**
+     * Get total available stock across all branches
+     */
+    public function getTotalAvailableStockAttribute(): int
+    {
+        return $this->branchStock()->sum(\DB::raw('stock_quantity - reserved_quantity'));
+    }
+
+    /**
+     * Check if product is available in any branch
+     */
+    public function isAvailableInAnyBranch(): bool
+    {
+        return $this->branchStock()->whereRaw('stock_quantity > reserved_quantity')->exists();
     }
 
     /**

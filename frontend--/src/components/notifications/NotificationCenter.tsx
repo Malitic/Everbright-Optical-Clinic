@@ -1,92 +1,37 @@
-import React, { useState } from 'react';
-import { Bell, Calendar, Eye, Package, Users, CheckCircle, X, Plus } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Bell, Calendar, Eye, Package, CheckCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
-
-interface Notification {
-  id: string;
-  type: 'appointment' | 'prescription' | 'inventory' | 'system' | 'reminder';
-  title: string;
-  message: string;
-  date: string;
-  read: boolean;
-  priority: 'low' | 'medium' | 'high';
-  actionRequired?: boolean;
-}
+import { useNotifications } from '@/contexts/NotificationContext';
+import { formatDistanceToNow } from 'date-fns';
 
 const NotificationCenter = () => {
   const { toast } = useToast();
   const { user } = useAuth();
-  const [notifications, setNotifications] = useState<Notification[]>([
-    {
-      id: '1',
-      type: 'appointment',
-      title: 'Upcoming Appointment',
-      message: 'You have an appointment with Dr. Sarah Johnson tomorrow at 10:00 AM',
-      date: '2024-02-14',
-      read: false,
-      priority: 'high',
-      actionRequired: true
-    },
-    {
-      id: '2',
-      type: 'prescription',
-      title: 'Prescription Renewal Due',
-      message: 'Your prescription RX-2024-001 expires in 30 days. Schedule a renewal appointment.',
-      date: '2024-02-13',
-      read: false,
-      priority: 'medium',
-      actionRequired: true
-    },
-    {
-      id: '3',
-      type: 'inventory',
-      title: 'Low Stock Alert',
-      message: 'Crizal Prevencia Lenses are running low (3 units remaining)',
-      date: '2024-02-12',
-      read: true,
-      priority: 'medium',
-      actionRequired: false
-    },
-    {
-      id: '4',
-      type: 'reminder',
-      title: 'Annual Eye Exam Due',
-      message: 'It\'s been 11 months since your last comprehensive eye exam',
-      date: '2024-02-10',
-      read: false,
-      priority: 'low',
-      actionRequired: false
-    },
-    {
-      id: '5',
-      type: 'system',
-      title: 'System Maintenance',
-      message: 'Scheduled system maintenance on Sunday, February 18th from 2:00-4:00 AM',
-      date: '2024-02-09',
-      read: true,
-      priority: 'low',
-      actionRequired: false
-    }
-  ]);
+  const { 
+    notifications, 
+    unreadCount, 
+    loading, 
+    markNotificationAsRead, 
+    markAllNotificationsAsRead,
+    refreshNotifications 
+  } = useNotifications();
 
-  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  // Refresh notifications when component mounts
+  useEffect(() => {
+    refreshNotifications();
+  }, [refreshNotifications]);
 
   // Filter notifications based on user role
   const filteredNotifications = user?.role === 'customer'
-    ? notifications.filter(n => ['appointment', 'prescription', 'reminder'].includes(n.type))
+    ? notifications.filter(n => ['appointment', 'prescription', 'reminder'].includes(n.type || ''))
     : notifications;
 
-  const getTypeIcon = (type: string) => {
+  const getTypeIcon = (type?: string) => {
     switch (type) {
       case 'appointment': return Calendar;
       case 'prescription': return Eye;
@@ -97,16 +42,7 @@ const NotificationCenter = () => {
     }
   };
 
-  const getPriorityColor = (priority: string) => {
-    switch (priority) {
-      case 'high': return 'bg-red-500 text-white';
-      case 'medium': return 'bg-yellow-500 text-white';
-      case 'low': return 'bg-green-500 text-white';
-      default: return 'bg-slate-500 text-white';
-    }
-  };
-
-  const getTypeColor = (type: string) => {
+  const getTypeColor = (type?: string) => {
     switch (type) {
       case 'appointment': return 'bg-blue-100 text-blue-800';
       case 'prescription': return 'bg-purple-100 text-purple-800';
@@ -117,36 +53,45 @@ const NotificationCenter = () => {
     }
   };
 
-  const markAsRead = (id: string) => {
-    setNotifications(prev => prev.map(notif => 
-      notif.id === id ? { ...notif, read: true } : notif
-    ));
+  const handleMarkAsRead = async (id: number) => {
+    try {
+      await markNotificationAsRead(id);
+      toast({
+        title: "Notification marked as read",
+        description: "The notification has been updated."
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to mark notification as read.",
+        variant: "destructive"
+      });
+    }
   };
 
-  const markAllAsRead = () => {
-    setNotifications(prev => prev.map(notif => ({ ...notif, read: true })));
-    toast({
-      title: "All notifications marked as read",
-      description: "Your notification list has been updated."
-    });
+  const handleMarkAllAsRead = async () => {
+    try {
+      await markAllNotificationsAsRead();
+      toast({
+        title: "All notifications marked as read",
+        description: "Your notification list has been updated."
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to mark all notifications as read.",
+        variant: "destructive"
+      });
+    }
   };
 
-  const deleteNotification = (id: string) => {
-    setNotifications(prev => prev.filter(notif => notif.id !== id));
-    toast({
-      title: "Notification deleted",
-      description: "The notification has been removed."
-    });
-  };
+  const urgentCount = filteredNotifications.filter(n => n.status === 'unread').length;
 
-  const unreadCount = filteredNotifications.filter(n => !n.read).length;
-  const urgentCount = filteredNotifications.filter(n => n.priority === 'high' && !n.read).length;
-
-  const NotificationCard = ({ notification }: { notification: Notification }) => {
+  const NotificationCard = ({ notification }: { notification: any }) => {
     const Icon = getTypeIcon(notification.type);
     
     return (
-      <Card className={`transition-all duration-200 hover:shadow-md ${!notification.read ? 'border-l-4 border-l-primary bg-primary/5' : ''}`}>
+      <Card className={`transition-all duration-200 hover:shadow-md ${notification.status === 'unread' ? 'border-l-4 border-l-primary bg-primary/5' : ''}`}>
         <CardContent className="p-4">
           <div className="flex items-start justify-between">
             <div className="flex items-start space-x-3 flex-1">
@@ -155,39 +100,29 @@ const NotificationCenter = () => {
               </div>
               <div className="flex-1 space-y-2">
                 <div className="flex items-center space-x-2">
-                  <h3 className={`font-medium ${!notification.read ? 'font-semibold' : ''}`}>
+                  <h3 className={`font-medium ${notification.status === 'unread' ? 'font-semibold' : ''}`}>
                     {notification.title}
                   </h3>
-                  <Badge className={getPriorityColor(notification.priority)}>
-                    {notification.priority}
+                  <Badge variant={notification.status === 'unread' ? 'default' : 'secondary'}>
+                    {notification.status}
                   </Badge>
-                  {notification.actionRequired && (
-                    <Badge variant="outline" className="text-red-600 border-red-200">
-                      Action Required
-                    </Badge>
-                  )}
                 </div>
                 <p className="text-sm text-muted-foreground">{notification.message}</p>
-                <p className="text-xs text-muted-foreground">{notification.date}</p>
+                <p className="text-xs text-muted-foreground">
+                  {formatDistanceToNow(new Date(notification.created_at), { addSuffix: true })}
+                </p>
               </div>
             </div>
             <div className="flex items-center space-x-2">
-              {!notification.read && (
+              {notification.status === 'unread' && (
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => markAsRead(notification.id)}
+                  onClick={() => handleMarkAsRead(notification.id)}
                 >
                   <CheckCircle className="h-4 w-4" />
                 </Button>
               )}
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => deleteNotification(notification.id)}
-              >
-                <X className="h-4 w-4" />
-              </Button>
             </div>
           </div>
         </CardContent>
@@ -208,143 +143,83 @@ const NotificationCenter = () => {
           )}
         </div>
         <div className="flex space-x-2">
-          <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-            <DialogTrigger asChild>
-              <Button variant="outline">
-                <Plus className="mr-2 h-4 w-4" />
-                Create Notification
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Create New Notification</DialogTitle>
-                <DialogDescription>
-                  Send a notification to users or set a reminder.
-                </DialogDescription>
-              </DialogHeader>
-              <div className="space-y-4">
-                <div>
-                  <Label htmlFor="type">Type</Label>
-                  <Select>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select notification type" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="appointment">Appointment</SelectItem>
-                      <SelectItem value="prescription">Prescription</SelectItem>
-                      <SelectItem value="inventory">Inventory</SelectItem>
-                      <SelectItem value="reminder">Reminder</SelectItem>
-                      <SelectItem value="system">System</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label htmlFor="priority">Priority</Label>
-                  <Select>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select priority" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="low">Low</SelectItem>
-                      <SelectItem value="medium">Medium</SelectItem>
-                      <SelectItem value="high">High</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label htmlFor="title">Title</Label>
-                  <Input id="title" placeholder="Notification title" />
-                </div>
-                <div>
-                  <Label htmlFor="message">Message</Label>
-                  <Textarea id="message" placeholder="Notification message" rows={3} />
-                </div>
-                <Button className="w-full">Send Notification</Button>
-              </div>
-            </DialogContent>
-          </Dialog>
           {unreadCount > 0 && (
-            <Button onClick={markAllAsRead}>
+            <Button onClick={handleMarkAllAsRead}>
               Mark All as Read
             </Button>
           )}
         </div>
       </div>
 
-      {urgentCount > 0 && (
-        <Card className="mb-6 border-red-200 bg-red-50">
-          <CardHeader>
-            <CardTitle className="text-red-800 flex items-center space-x-2">
-              <Bell className="h-5 w-5" />
-              <span>Urgent Notifications ({urgentCount})</span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {filteredNotifications
-                .filter(n => n.priority === 'high' && !n.read)
-                .map(notification => (
-                  <NotificationCard key={notification.id} notification={notification} />
-                ))}
-            </div>
+      {loading ? (
+        <div className="flex items-center justify-center py-8">
+          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+          <span className="ml-2">Loading notifications...</span>
+        </div>
+      ) : filteredNotifications.length === 0 ? (
+        <Card>
+          <CardContent className="p-8 text-center">
+            <Bell className="h-12 w-12 text-gray-300 mx-auto mb-4" />
+            <h3 className="text-lg font-medium text-gray-900 mb-2">No notifications yet</h3>
+            <p className="text-gray-600">You'll see notifications here when they arrive.</p>
           </CardContent>
         </Card>
-      )}
+      ) : (
+        <Tabs defaultValue="all" className="w-full">
+          <TabsList className={`grid w-full ${user?.role === 'customer' ? 'grid-cols-4' : 'grid-cols-6'}`}>
+            <TabsTrigger value="all">All ({filteredNotifications.length})</TabsTrigger>
+            <TabsTrigger value="unread">Unread ({unreadCount})</TabsTrigger>
+            <TabsTrigger value="appointment">Appointments ({filteredNotifications.filter(n => n.type === 'appointment').length})</TabsTrigger>
+            <TabsTrigger value="prescription">Prescriptions ({filteredNotifications.filter(n => n.type === 'prescription').length})</TabsTrigger>
+            {user?.role !== 'customer' && (
+              <>
+                <TabsTrigger value="inventory">Inventory ({filteredNotifications.filter(n => n.type === 'inventory').length})</TabsTrigger>
+                <TabsTrigger value="system">System ({filteredNotifications.filter(n => n.type === 'system').length})</TabsTrigger>
+              </>
+            )}
+          </TabsList>
 
-      <Tabs defaultValue="all" className="w-full">
-        <TabsList className={`grid w-full ${user?.role === 'customer' ? 'grid-cols-4' : 'grid-cols-6'}`}>
-          <TabsTrigger value="all">All ({filteredNotifications.length})</TabsTrigger>
-          <TabsTrigger value="unread">Unread ({unreadCount})</TabsTrigger>
-          <TabsTrigger value="appointment">Appointments ({filteredNotifications.filter(n => n.type === 'appointment').length})</TabsTrigger>
-          <TabsTrigger value="prescription">Prescriptions ({filteredNotifications.filter(n => n.type === 'prescription').length})</TabsTrigger>
+          <TabsContent value="all" className="space-y-4">
+            {filteredNotifications.map(notification => (
+              <NotificationCard key={notification.id} notification={notification} />
+            ))}
+          </TabsContent>
+
+          <TabsContent value="unread" className="space-y-4">
+            {filteredNotifications.filter(n => n.status === 'unread').map(notification => (
+              <NotificationCard key={notification.id} notification={notification} />
+            ))}
+          </TabsContent>
+
+          <TabsContent value="appointment" className="space-y-4">
+            {filteredNotifications.filter(n => n.type === 'appointment').map(notification => (
+              <NotificationCard key={notification.id} notification={notification} />
+            ))}
+          </TabsContent>
+
+          <TabsContent value="prescription" className="space-y-4">
+            {filteredNotifications.filter(n => n.type === 'prescription').map(notification => (
+              <NotificationCard key={notification.id} notification={notification} />
+            ))}
+          </TabsContent>
+
           {user?.role !== 'customer' && (
             <>
-              <TabsTrigger value="inventory">Inventory ({filteredNotifications.filter(n => n.type === 'inventory').length})</TabsTrigger>
-              <TabsTrigger value="system">System ({filteredNotifications.filter(n => n.type === 'system').length})</TabsTrigger>
+              <TabsContent value="inventory" className="space-y-4">
+                {filteredNotifications.filter(n => n.type === 'inventory').map(notification => (
+                  <NotificationCard key={notification.id} notification={notification} />
+                ))}
+              </TabsContent>
+
+              <TabsContent value="system" className="space-y-4">
+                {filteredNotifications.filter(n => n.type === 'system').map(notification => (
+                  <NotificationCard key={notification.id} notification={notification} />
+                ))}
+              </TabsContent>
             </>
           )}
-        </TabsList>
-
-        <TabsContent value="all" className="space-y-4">
-          {filteredNotifications.map(notification => (
-            <NotificationCard key={notification.id} notification={notification} />
-          ))}
-        </TabsContent>
-
-        <TabsContent value="unread" className="space-y-4">
-          {filteredNotifications.filter(n => !n.read).map(notification => (
-            <NotificationCard key={notification.id} notification={notification} />
-          ))}
-        </TabsContent>
-
-        <TabsContent value="appointment" className="space-y-4">
-          {filteredNotifications.filter(n => n.type === 'appointment').map(notification => (
-            <NotificationCard key={notification.id} notification={notification} />
-          ))}
-        </TabsContent>
-
-        <TabsContent value="prescription" className="space-y-4">
-          {filteredNotifications.filter(n => n.type === 'prescription').map(notification => (
-            <NotificationCard key={notification.id} notification={notification} />
-          ))}
-        </TabsContent>
-
-        {user?.role !== 'customer' && (
-          <>
-            <TabsContent value="inventory" className="space-y-4">
-              {filteredNotifications.filter(n => n.type === 'inventory').map(notification => (
-                <NotificationCard key={notification.id} notification={notification} />
-              ))}
-            </TabsContent>
-
-            <TabsContent value="system" className="space-y-4">
-              {filteredNotifications.filter(n => n.type === 'system').map(notification => (
-                <NotificationCard key={notification.id} notification={notification} />
-              ))}
-            </TabsContent>
-          </>
-        )}
-      </Tabs>
+        </Tabs>
+      )}
     </div>
   );
 };

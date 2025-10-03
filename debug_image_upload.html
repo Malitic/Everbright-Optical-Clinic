@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Image Upload Debug</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .container { max-width: 800px; margin: 0 auto; }
+        .upload-area { border: 2px dashed #ccc; padding: 20px; text-align: center; margin: 20px 0; }
+        .preview { max-width: 200px; margin: 10px 0; }
+        .error { color: red; }
+        .success { color: green; }
+        .debug { background: #f5f5f5; padding: 10px; margin: 10px 0; border-radius: 4px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Image Upload Debug Tool</h1>
+        
+        <div class="debug">
+            <h3>Backend Status Check</h3>
+            <p>Backend URL: <a href="http://127.0.0.1:8000" target="_blank">http://127.0.0.1:8000</a></p>
+            <p>API Endpoint: <code>POST /api/upload/image</code></p>
+            <p>Frontend URL: <a href="http://localhost:8081" target="_blank">http://localhost:8081</a></p>
+        </div>
+
+        <div class="upload-area" id="uploadArea">
+            <p>Click here or drag and drop an image file</p>
+            <input type="file" id="fileInput" accept="image/*" style="display: none;">
+            <p><small>Max size: 2MB | Supported: JPEG, PNG, JPG, GIF</small></p>
+        </div>
+
+        <div id="preview"></div>
+        <div id="status"></div>
+        <div id="debug"></div>
+
+        <div class="debug">
+            <h3>Debug Steps:</h3>
+            <ol>
+                <li>Make sure backend is running: <code>cd backend && php artisan serve</code></li>
+                <li>Make sure frontend is running: <code>cd frontend-- && npm run dev</code></li>
+                <li>Check browser console for errors (F12)</li>
+                <li>Check network tab for failed requests</li>
+                <li>Verify you're logged in as admin</li>
+                <li>Check if CORS is properly configured</li>
+            </ol>
+        </div>
+
+        <div class="debug">
+            <h3>Common Issues:</h3>
+            <ul>
+                <li><strong>CORS Error:</strong> Backend not allowing frontend requests</li>
+                <li><strong>Authentication Error:</strong> Not logged in or token expired</li>
+                <li><strong>File Size Error:</strong> Image too large (>2MB)</li>
+                <li><strong>File Type Error:</strong> Not a valid image format</li>
+                <li><strong>Storage Error:</strong> Uploads directory not writable</li>
+            </ul>
+        </div>
+    </div>
+
+    <script>
+        const uploadArea = document.getElementById('uploadArea');
+        const fileInput = document.getElementById('fileInput');
+        const preview = document.getElementById('preview');
+        const status = document.getElementById('status');
+        const debug = document.getElementById('debug');
+
+        uploadArea.addEventListener('click', () => fileInput.click());
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.style.borderColor = '#007bff';
+        });
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.style.borderColor = '#ccc';
+        });
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.style.borderColor = '#ccc';
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                handleFile(files[0]);
+            }
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                handleFile(e.target.files[0]);
+            }
+        });
+
+        function handleFile(file) {
+            debug.innerHTML = `<h4>File Details:</h4><pre>${JSON.stringify({
+                name: file.name,
+                size: file.size,
+                type: file.type,
+                lastModified: file.lastModified
+            }, null, 2)}</pre>`;
+
+            // Validate file
+            if (!file.type.startsWith('image/')) {
+                status.innerHTML = '<div class="error">❌ Please select a valid image file</div>';
+                return;
+            }
+
+            if (file.size > 2 * 1024 * 1024) {
+                status.innerHTML = '<div class="error">❌ Image size must be less than 2MB</div>';
+                return;
+            }
+
+            // Show preview
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                preview.innerHTML = `<img src="${e.target.result}" class="preview" alt="Preview">`;
+            };
+            reader.readAsDataURL(file);
+
+            // Upload file
+            uploadFile(file);
+        }
+
+        async function uploadFile(file) {
+            status.innerHTML = '<div>⏳ Uploading image...</div>';
+            
+            const formData = new FormData();
+            formData.append('image', file);
+
+            try {
+                // Get token from localStorage (if available)
+                const token = localStorage.getItem('token');
+                
+                const response = await fetch('http://127.0.0.1:8000/api/upload/image', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': token ? `Bearer ${token}` : ''
+                    },
+                    body: formData
+                });
+
+                const data = await response.json();
+                
+                debug.innerHTML += `<h4>Response:</h4><pre>${JSON.stringify(data, null, 2)}</pre>`;
+                debug.innerHTML += `<h4>Response Headers:</h4><pre>${JSON.stringify(Object.fromEntries(response.headers.entries()), null, 2)}</pre>`;
+
+                if (response.ok) {
+                    status.innerHTML = `<div class="success">✅ Upload successful! URL: ${data.url}</div>`;
+                } else {
+                    status.innerHTML = `<div class="error">❌ Upload failed: ${data.message || 'Unknown error'}</div>`;
+                }
+            } catch (error) {
+                status.innerHTML = `<div class="error">❌ Network error: ${error.message}</div>`;
+                debug.innerHTML += `<h4>Error:</h4><pre>${error.stack}</pre>`;
+            }
+        }
+
+        // Test backend connectivity
+        async function testBackend() {
+            try {
+                const response = await fetch('http://127.0.0.1:8000/api/products');
+                if (response.ok) {
+                    debug.innerHTML += '<div class="success">✅ Backend is accessible</div>';
+                } else {
+                    debug.innerHTML += `<div class="error">❌ Backend returned status: ${response.status}</div>`;
+                }
+            } catch (error) {
+                debug.innerHTML += `<div class="error">❌ Cannot connect to backend: ${error.message}</div>`;
+            }
+        }
+
+        // Run tests on load
+        testBackend();
+    </script>
+</body>
+</html>

@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Complete System Test - Multi-Branch Product Management</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .admin-feature { border-left: 4px solid #3b82f6; }
+        .staff-feature { border-left: 4px solid #f59e0b; }
+        .customer-feature { border-left: 4px solid #10b981; }
+    </style>
+</head>
+<body class="bg-gray-100">
+    <div class="container mx-auto p-6">
+        <h1 class="text-3xl font-bold mb-6">Admin Complete System Test</h1>
+        <p class="text-lg text-gray-600 mb-8">Comprehensive Multi-Branch Product Management System</p>
+        
+        <!-- System Overview -->
+        <div class="bg-white rounded-lg shadow p-6 mb-6">
+            <h2 class="text-xl font-bold mb-4">System Overview</h2>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div class="admin-feature bg-blue-50 p-4 rounded">
+                    <h3 class="font-semibold text-blue-800 mb-2">👨‍💻 Admin Role</h3>
+                    <ul class="text-sm text-blue-700 space-y-1">
+                        <li>• Centralized product gallery management</li>
+                        <li>• Upload, update, delete products</li>
+                        <li>• Monitor stock across all 4 branches</li>
+                        <li>• Handle restock requests from staff</li>
+                        <li>• Real-time availability updates</li>
+                    </ul>
+                </div>
+                <div class="staff-feature bg-yellow-50 p-4 rounded">
+                    <h3 class="font-semibold text-yellow-800 mb-2">👨‍💼 Staff Role</h3>
+                    <ul class="text-sm text-yellow-700 space-y-1">
+                        <li>• View branch-specific reservations</li>
+                        <li>• Prepare items for pickup</li>
+                        <li>• Send restock requests to admin</li>
+                        <li>• Complete reservations after payment</li>
+                        <li>• Cannot add/edit/delete products</li>
+                    </ul>
+                </div>
+                <div class="customer-feature bg-green-50 p-4 rounded">
+                    <h3 class="font-semibold text-green-800 mb-2">👤 Customer Role</h3>
+                    <ul class="text-sm text-green-700 space-y-1">
+                        <li>• View full product gallery</li>
+                        <li>• See stock per branch</li>
+                        <li>• Reserve from preferred branch</li>
+                        <li>• Physical payment only</li>
+                        <li>• Cannot buy/pay online</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- Admin Features -->
+        <div class="bg-white rounded-lg shadow p-6 mb-6">
+            <h2 class="text-xl font-bold mb-4">Admin Product Management Features</h2>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- Product Management -->
+                <div class="admin-feature bg-blue-50 p-4 rounded">
+                    <h3 class="font-semibold text-blue-800 mb-3">📦 Product Gallery Management</h3>
+                    <ul class="text-sm text-blue-700 space-y-2">
+                        <li>✅ <strong>Upload Products:</strong> Add new products with images, descriptions, prices</li>
+                        <li>✅ <strong>Update Products:</strong> Edit existing product information</li>
+                        <li>✅ <strong>Delete Products:</strong> Remove products from the system</li>
+                        <li>✅ <strong>Product Status:</strong> Activate/deactivate products</li>
+                        <li>✅ <strong>Category Management:</strong> Organize products by categories</li>
+                    </ul>
+                </div>
+
+                <!-- Stock Management -->
+                <div class="admin-feature bg-blue-50 p-4 rounded">
+                    <h3 class="font-semibold text-blue-800 mb-3">📊 Stock Management</h3>
+                    <ul class="text-sm text-blue-700 space-y-2">
+                        <li>✅ <strong>Multi-Branch Stock:</strong> Set stock levels for all 4 branches</li>
+                        <li>✅ <strong>Real-time Monitoring:</strong> Track availability across branches</li>
+                        <li>✅ <strong>Reservation Tracking:</strong> Monitor reserved quantities</li>
+                        <li>✅ <strong>Low Stock Alerts:</strong> Identify products needing restocking</li>
+                        <li>✅ <strong>Stock Updates:</strong> Update quantities per branch</li>
+                    </ul>
+                </div>
+
+                <!-- Restock Management -->
+                <div class="admin-feature bg-blue-50 p-4 rounded">
+                    <h3 class="font-semibold text-blue-800 mb-3">🔄 Restock Request Management</h3>
+                    <ul class="text-sm text-blue-700 space-y-2">
+                        <li>✅ <strong>Review Requests:</strong> View all restock requests from staff</li>
+                        <li>✅ <strong>Approve/Reject:</strong> Make decisions on restock requests</li>
+                        <li>✅ <strong>Fulfill Requests:</strong> Mark requests as completed</li>
+                        <li>✅ <strong>Auto Stock Update:</strong> Automatically update stock when fulfilled</li>
+                        <li>✅ <strong>Request History:</strong> Track all restock activities</li>
+                    </ul>
+                </div>
+
+                <!-- Branch Monitoring -->
+                <div class="admin-feature bg-blue-50 p-4 rounded">
+                    <h3 class="font-semibold text-blue-800 mb-3">🏢 Branch Monitoring</h3>
+                    <ul class="text-sm text-blue-700 space-y-2">
+                        <li>✅ <strong>All Branches View:</strong> Monitor all 4 branches simultaneously</li>
+                        <li>✅ <strong>Branch Comparison:</strong> Compare stock levels across branches</li>
+                        <li>✅ <strong>Availability Dashboard:</strong> Real-time availability status</li>
+                        <li>✅ <strong>Branch Statistics:</strong> Summary data per branch</li>
+                        <li>✅ <strong>Centralized Control:</strong> Manage entire inventory system</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- Branch Information -->
+        <div class="bg-white rounded-lg shadow p-6 mb-6">
+            <h2 class="text-xl font-bold mb-4">Branch Information</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div class="border rounded-lg p-4">
+                    <h3 class="font-semibold text-lg mb-2">Sta. Rosa Branch</h3>
+                    <div class="text-sm text-gray-600 space-y-1">
+                        <div><strong>Code:</strong> STA_ROSA</div>
+                        <div><strong>Address:</strong> 123 Main Street, Sta. Rosa, Laguna</div>
+                        <div><strong>Phone:</strong> +63 917 123 4567</div>
+                        <div><strong>Status:</strong> <span class="text-green-600">Active</span></div>
+                    </div>
+                </div>
+                <div class="border rounded-lg p-4">
+                    <h3 class="font-semibold text-lg mb-2">Cabuyao Branch</h3>
+                    <div class="text-sm text-gray-600 space-y-1">
+                        <div><strong>Code:</strong> CABUYAO</div>
+                        <div><strong>Address:</strong> 456 Commerce Ave, Cabuyao, Laguna</div>
+                        <div><strong>Phone:</strong> +63 917 234 5678</div>
+                        <div><strong>Status:</strong> <span class="text-green-600">Active</span></div>
+                    </div>
+                </div>
+                <div class="border rounded-lg p-4">
+                    <h3 class="font-semibold text-lg mb-2">Balibago Branch</h3>
+                    <div class="text-sm text-gray-600 space-y-1">
+                        <div><strong>Code:</strong> BALIBAGO</div>
+                        <div><strong>Address:</strong> 789 Business District, Balibago, Sta. Rosa</div>
+                        <div><strong>Phone:</strong> +63 917 345 6789</div>
+                        <div><strong>Status:</strong> <span class="text-green-600">Active</span></div>
+                    </div>
+                </div>
+                <div class="border rounded-lg p-4">
+                    <h3 class="font-semibold text-lg mb-2">SM Sta. Rosa Branch</h3>
+                    <div class="text-sm text-gray-600 space-y-1">
+                        <div><strong>Code:</strong> SM_STA_ROSA</div>
+                        <div><strong>Address:</strong> SM City Sta. Rosa, Ground Floor, Sta. Rosa, Laguna</div>
+                        <div><strong>Phone:</strong> +63 917 456 7890</div>
+                        <div><strong>Status:</strong> <span class="text-green-600">Active</span></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Current System Status -->
+        <div class="bg-white rounded-lg shadow p-6 mb-6">
+            <h2 class="text-xl font-bold mb-4">Current System Status</h2>
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div class="bg-blue-50 p-4 rounded-lg text-center">
+                    <div class="text-2xl font-bold text-blue-600">4</div>
+                    <div class="text-sm text-blue-700">Branches</div>
+                </div>
+                <div class="bg-green-50 p-4 rounded-lg text-center">
+                    <div class="text-2xl font-bold text-green-600">3</div>
+                    <div class="text-sm text-green-700">Products</div>
+                </div>
+                <div class="bg-yellow-50 p-4 rounded-lg text-center">
+                    <div class="text-2xl font-bold text-yellow-600">5</div>
+                    <div class="text-sm text-yellow-700">Users</div>
+                </div>
+                <div class="bg-purple-50 p-4 rounded-lg text-center">
+                    <div class="text-2xl font-bold text-purple-600">0</div>
+                    <div class="text-sm text-purple-700">Active Reservations</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Test Instructions -->
+        <div class="bg-green-50 border border-green-200 rounded-lg p-6 mb-6">
+            <h2 class="text-xl font-bold mb-4 text-green-800">How to Test the Complete System</h2>
+            
+            <div class="space-y-4">
+                <div>
+                    <h3 class="font-semibold text-green-800 mb-2">1. Start the Application</h3>
+                    <div class="bg-white p-3 rounded border">
+                        <code class="text-sm">
+                            # Backend Server<br>
+                            cd backend && php artisan serve<br><br>
+                            # Frontend Server<br>
+                            cd frontend-- && npm run dev
+                        </code>
+                    </div>
+                </div>
+                
+                <div>
+                    <h3 class="font-semibold text-green-800 mb-2">2. Test Admin Functionality</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div class="bg-white p-3 rounded border">
+                            <strong>Product Management:</strong>
+                            <ul class="text-sm mt-1 space-y-1">
+                                <li>• Login as admin</li>
+                                <li>• Go to /admin/products</li>
+                                <li>• Test: Add new product</li>
+                                <li>• Test: Update existing product</li>
+                                <li>• Test: Manage stock per branch</li>
+                            </ul>
+                        </div>
+                        <div class="bg-white p-3 rounded border">
+                            <strong>Stock & Monitoring:</strong>
+                            <ul class="text-sm mt-1 space-y-1">
+                                <li>• Go to /admin/stock-management</li>
+                                <li>• Test: Update stock levels</li>
+                                <li>• Go to /admin/branch-availability</li>
+                                <li>• Test: Monitor all branches</li>
+                                <li>• Test: Handle restock requests</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+                
+                <div>
+                    <h3 class="font-semibold text-green-800 mb-2">3. Test Staff Functionality</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div class="bg-white p-3 rounded border">
+                            <strong>Reservation Management:</strong>
+                            <ul class="text-sm mt-1 space-y-1">
+                                <li>• Login as staff</li>
+                                <li>• Go to /staff/reservations</li>
+                                <li>• Test: View branch reservations</li>
+                                <li>• Test: Approve reservations</li>
+                                <li>• Test: Mark as completed</li>
+                            </ul>
+                        </div>
+                        <div class="bg-white p-3 rounded border">
+                            <strong>Restock Requests:</strong>
+                            <ul class="text-sm mt-1 space-y-1">
+                                <li>• Go to /staff/restock-requests</li>
+                                <li>• Test: View low stock alerts</li>
+                                <li>• Test: Create restock request</li>
+                                <li>• Test: Monitor request status</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+                
+                <div>
+                    <h3 class="font-semibold text-green-800 mb-2">4. Test Customer Functionality</h3>
+                    <div class="bg-white p-3 rounded border">
+                        <ul class="text-sm space-y-1">
+                            <li>• Login as customer</li>
+                            <li>• Go to /customer/products</li>
+                            <li>• Test: View multi-branch availability</li>
+                            <li>• Test: Filter by branch</li>
+                            <li>• Test: Make reservation</li>
+                            <li>• Test: View reservation status</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Expected Results -->
+        <div class="bg-blue-50 border border-blue-200 rounded-lg p-6">
+            <h2 class="text-xl font-bold mb-4 text-blue-800">Expected Results</h2>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div class="bg-white p-3 rounded border">
+                    <strong class="text-blue-800">Admin Success:</strong>
+                    <ul class="text-sm mt-1 space-y-1 text-blue-700">
+                        <li>✅ Full product management</li>
+                        <li>✅ Multi-branch stock control</li>
+                        <li>✅ Real-time monitoring</li>
+                        <li>✅ Restock request handling</li>
+                        <li>✅ Centralized control</li>
+                    </ul>
+                </div>
+                <div class="bg-white p-3 rounded border">
+                    <strong class="text-yellow-800">Staff Success:</strong>
+                    <ul class="text-sm mt-1 space-y-1 text-yellow-700">
+                        <li>✅ Branch-specific reservations</li>
+                        <li>✅ Reservation management</li>
+                        <li>✅ Restock request creation</li>
+                        <li>✅ Stock monitoring</li>
+                        <li>✅ No product editing</li>
+                    </ul>
+                </div>
+                <div class="bg-white p-3 rounded border">
+                    <strong class="text-green-800">Customer Success:</strong>
+                    <ul class="text-sm mt-1 space-y-1 text-green-700">
+                        <li>✅ Multi-branch product view</li>
+                        <li>✅ Branch availability display</li>
+                        <li>✅ Reservation functionality</li>
+                        <li>✅ Branch selection</li>
+                        <li>✅ Physical payment only</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- System Architecture -->
+        <div class="bg-gray-50 border border-gray-200 rounded-lg p-6 mt-6">
+            <h2 class="text-xl font-bold mb-4 text-gray-800">System Architecture</h2>
+            <div class="text-sm text-gray-700 space-y-2">
+                <p><strong>Backend:</strong> Laravel API with multi-branch inventory management</p>
+                <p><strong>Frontend:</strong> React with role-based routing and components</p>
+                <p><strong>Database:</strong> MySQL with branch stock tracking and reservations</p>
+                <p><strong>Authentication:</strong> Laravel Sanctum with role-based access control</p>
+                <p><strong>Real-time Updates:</strong> Stock and reservation status updates across all branches</p>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

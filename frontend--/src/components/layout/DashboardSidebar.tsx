@@ -13,8 +13,14 @@ import {
   Bell,
   UserCheck,
   Activity,
+  Star,
   ShoppingCart,
-  TrendingUp
+  TrendingUp,
+  UserCircle,
+  Building2,
+  User,
+  Banknote,
+  ScrollText
 } from 'lucide-react';
 import { type ClassValue, clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
@@ -67,14 +73,26 @@ const getNavItems = (role: UserRole): NavItem[] => {
       {
         title: 'Receipts',
         href: '/customer/receipts',
-        icon: Receipt,
+        icon: ScrollText,
         description: 'View and download receipts'
+      },
+      {
+        title: 'Feedback',
+        href: '/customer/feedback',
+        icon: Star,
+        description: 'Share your experience'
       },
       {
         title: 'Notifications',
         href: '/customer/notifications',
         icon: Bell,
         description: 'Reminders and updates'
+      },
+      {
+        title: 'Profile',
+        href: '/customer/profile',
+        icon: UserCircle,
+        description: 'View your profile and branch info'
       }
     ],
     optometrist: [
@@ -102,17 +120,23 @@ const getNavItems = (role: UserRole): NavItem[] => {
         icon: FileText,
         description: 'Create and manage prescriptions'
       },
+        {
+            title: 'My Schedule',
+            href: '/optometrist/schedule',
+            icon: Calendar,
+            description: 'View weekly rotation schedule'
+        },
       {
-        title: 'Inventory',
-        href: '/optometrist/inventory',
-        icon: Package,
-        description: 'View available items'
+        title: 'Notifications',
+        href: '/optometrist/notifications',
+        icon: Bell,
+        description: 'View and manage notifications'
       },
       {
-        title: 'Receipts',
-        href: '/optometrist/receipts',
-        icon: Receipt,
-        description: 'Generate receipts'
+        title: 'Profile',
+        href: '/optometrist/profile',
+        icon: UserCircle,
+        description: 'View your profile and branch info'
       }
     ],
     staff: [
@@ -129,10 +153,10 @@ const getNavItems = (role: UserRole): NavItem[] => {
         description: 'Manage appointments'
       },
       {
-        title: 'Product Gallery',
-        href: '/staff/products',
-        icon: ShoppingCart,
-        description: 'Manage products and inventory'
+        title: 'Reservations',
+        href: '/staff/reservations',
+        icon: Banknote,
+        description: 'Customer reservations and totals'
       },
       {
         title: 'Inventory',
@@ -151,6 +175,12 @@ const getNavItems = (role: UserRole): NavItem[] => {
         href: '/staff/notifications',
         icon: Bell,
         description: 'Send notifications'
+      },
+      {
+        title: 'Profile',
+        href: '/staff/profile',
+        icon: UserCircle,
+        description: 'View your profile and branch info'
       }
     ],
     admin: [
@@ -159,6 +189,12 @@ const getNavItems = (role: UserRole): NavItem[] => {
         href: '/admin/dashboard',
         icon: BarChart3,
         description: 'Analytics overview'
+      },
+      {
+        title: 'Role Requests',
+        href: '/admin/role-requests',
+        icon: UserCheck,
+        description: 'Approve or reject role upgrades'
       },
       {
         title: 'Analytics',
@@ -173,6 +209,12 @@ const getNavItems = (role: UserRole): NavItem[] => {
         description: 'Manage users and roles'
       },
       {
+        title: 'Branch Management',
+        href: '/admin/branches',
+        icon: Building2,
+        description: 'Manage branch locations'
+      },
+      {
         title: 'Inventory',
         href: '/admin/inventory',
         icon: Package,
@@ -185,10 +227,16 @@ const getNavItems = (role: UserRole): NavItem[] => {
         description: 'Manage eye care products'
       },
       {
-        title: 'Settings',
-        href: '/admin/settings',
-        icon: Settings,
-        description: 'System configuration'
+        title: 'Employee Schedule Management',
+        href: '/admin/employee-schedules',
+        icon: Calendar,
+        description: 'Manage all employee schedules across branches'
+      },
+      {
+        title: 'Profile',
+        href: '/admin/profile',
+        icon: UserCircle,
+        description: 'View your profile and branch info'
       }
     ]
   };
@@ -202,7 +250,7 @@ export const DashboardSidebar = () => {
 
   if (!user) return null;
 
-  const navItems = getNavItems(user.role);
+  const navItems = getNavItems(user.role as UserRole);
 
   const getRoleAccentColor = (role: UserRole) => {
     const colors = {
@@ -228,7 +276,7 @@ export const DashboardSidebar = () => {
                 'hover:bg-slate-50 group',
                 isActive && [
                   'border-l-4',
-                  getRoleAccentColor(user.role),
+                  getRoleAccentColor(user.role as UserRole),
                   'text-slate-900 font-semibold'
                 ],
                 !isActive && 'text-slate-600 hover:text-slate-900'

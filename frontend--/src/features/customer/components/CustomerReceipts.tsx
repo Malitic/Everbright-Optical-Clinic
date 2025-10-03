@@ -4,6 +4,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Download, Eye, Calendar, CreditCard, MapPin } from 'lucide-react';
 import { format } from 'date-fns';
+import { downloadReceiptPdf } from '@/features/prescriptions/services/prescription.service';
 
 interface Receipt {
   id: string;
@@ -78,7 +79,7 @@ const CustomerReceipts: React.FC = () => {
       case 'credit card': return <CreditCard className="w-4 h-4" />;
       case 'debit card': return <CreditCard className="w-4 h-4" />;
       case 'insurance': return <Eye className="w-4 h-4" />;
-      default: return <span>$</span>;
+      default: return <span className="text-sm font-bold">₱</span>;
     }
   };
 
@@ -172,7 +173,7 @@ const CustomerReceipts: React.FC = () => {
                 </div>
 
                 <div className="flex gap-2 mt-4">
-                  <Button size="sm" variant="outline">
+                  <Button size="sm" variant="outline" onClick={() => downloadReceiptPdf(Number(receipt.id))}>
                     <Download className="w-4 h-4 mr-2" />
                     Download
                   </Button>

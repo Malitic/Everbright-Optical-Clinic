@@ -8,6 +8,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\DB;
 
 class ProductController extends Controller
 {
@@ -17,30 +18,64 @@ class ProductController extends Controller
     public function index(Request $request): JsonResponse
     {
         $user = Auth::user();
+        
+        // Use Eloquent for better reliability
         $query = Product::with('creator');
-
-        // Filter by active status for customers (if authenticated)
-        if ($user && $user->role->value === 'customer') {
-            $query->active();
+        
+        // Filter by active status for customers
+        if ($user && $user->role && $user->role->value === 'customer') {
+            $query->where('is_active', true);
         }
-
+        
         // Filter by search term
-        if ($request->has('search')) {
+        if ($request->has('search') && $request->search) {
             $search = $request->search;
             $query->where(function ($q) use ($search) {
                 $q->where('name', 'like', "%{$search}%")
                   ->orWhere('description', 'like', "%{$search}%");
             });
         }
-
+        
         // Filter by active status
         if ($request->has('active')) {
             $query->where('is_active', $request->boolean('active'));
         }
+        
+        $products = $query->orderBy('created_at', 'desc')->limit(100)->get();
+        
+        // Get branch data only if products exist
+        $branchStockData = [];
+        if ($products->isNotEmpty()) {
+            $productIds = $products->pluck('id')->toArray();
+            
+            $branchStockData = DB::table('branch_stock as bs')
+                ->join('branches as b', 'bs.branch_id', '=', 'b.id')
+                ->whereIn('bs.product_id', $productIds)
+                ->select('bs.*', 'b.name as branch_name', 'b.code as branch_code')
+                ->get()
+                ->groupBy('product_id');
+        }
+        
+        $productsWithAvailability = $products->map(function ($product) use ($branchStockData) {
+            $branchAvailability = collect($branchStockData->get($product->id, []))->map(function ($stock) {
+                return [
+                    'branch' => [
+                        'id' => $stock->branch_id,
+                        'name' => $stock->branch_name,
+                        'code' => $stock->branch_code,
+                    ],
+                    'available_quantity' => $stock->stock_quantity - ($stock->reserved_quantity ?? 0),
+                    'stock_quantity' => $stock->stock_quantity,
+                    'reserved_quantity' => $stock->reserved_quantity ?? 0,
+                    'is_available' => ($stock->stock_quantity - ($stock->reserved_quantity ?? 0)) > 0,
+                ];
+            });
 
-        $products = $query->orderBy('created_at', 'desc')->get();
+            $product->branch_availability = $branchAvailability;
+            return $product;
+        });
 
-        return response()->json($products);
+        return response()->json($productsWithAvailability);
     }
 
     /**
@@ -50,8 +85,12 @@ class ProductController extends Controller
     {
         $user = Auth::user();
 
+        if (!$user) {
+            return response()->json(['error' => 'User not authenticated'], 401);
+        }
+
         // Staff and Admin can create products
-        if (!$user || !in_array($user->role->value, ['admin', 'staff'])) {
+        if (!$user->role || !in_array($user->role->value, ['admin', 'staff'])) {
             return response()->json([
                 'message' => 'Unauthorized to create products. Only Staff and Admin can upload products.'
             ], 403);
@@ -86,11 +125,11 @@ class ProductController extends Controller
             'name' => $request->name,
             'description' => $request->description,
             'price' => $request->price,
-            'category' => $request->category ?? 'General',
             'stock_quantity' => $request->stock_quantity,
             'is_active' => $request->is_active ?? true,
             'image_paths' => $imagePaths,
-            'created_by_role' => $user->role,
+            'created_by' => $user->id,
+            'created_by_role' => $user->role->value,
         ]);
 
         return response()->json([
@@ -107,7 +146,7 @@ class ProductController extends Controller
         $user = Auth::user();
 
         // Customers can only view active products (if authenticated)
-        if ($user && $user->role->value === 'customer' && !$product->is_active) {
+        if ($user && $user->role && $user->role->value === 'customer' && !$product->is_active) {
             return response()->json(['message' => 'Product not found'], 404);
         }
 
@@ -121,8 +160,12 @@ class ProductController extends Controller
     {
         $user = Auth::user();
 
+        if (!$user) {
+            return response()->json(['error' => 'User not authenticated'], 401);
+        }
+
         // Staff can update products they created, Admin can update any product
-        if (!$user || !in_array($user->role->value, ['admin', 'staff'])) {
+        if (!$user->role || !in_array($user->role->value, ['admin', 'staff'])) {
             return response()->json([
                 'message' => 'Unauthorized to update products. Only Staff and Admin can update products.'
             ], 403);

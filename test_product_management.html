@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Product Management System Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; }
+        .container { max-width: 1200px; margin: 0 auto; }
+        .card { background: white; margin: 20px 0; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .success { border-left: 4px solid #28a745; }
+        .error { border-left: 4px solid #dc3545; }
+        .info { border-left: 4px solid #17a2b8; }
+        .warning { border-left: 4px solid #ffc107; }
+        button { background: #007bff; color: white; padding: 12px 24px; border: none; border-radius: 4px; cursor: pointer; margin: 10px 5px; font-size: 16px; }
+        button:hover { background: #0056b3; }
+        button:disabled { background: #6c757d; cursor: not-allowed; }
+        .result { margin: 15px 0; padding: 15px; border-radius: 4px; white-space: pre-wrap; font-family: monospace; }
+        .success-result { background: #d4edda; color: #155724; }
+        .error-result { background: #f8d7da; color: #721c24; }
+        .info-result { background: #d1ecf1; color: #0c5460; }
+        .warning-result { background: #fff3cd; color: #856404; }
+        .form-group { margin: 15px 0; }
+        .form-group label { display: block; margin-bottom: 5px; font-weight: bold; }
+        .form-group input, .form-group textarea, .form-group select { width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; }
+        .form-group input[type="file"] { padding: 4px; }
+        .image-preview { display: flex; gap: 10px; margin: 10px 0; flex-wrap: wrap; }
+        .image-preview img { width: 100px; height: 100px; object-fit: cover; border-radius: 4px; border: 1px solid #ddd; }
+        .products-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px; margin: 20px 0; }
+        .product-card { border: 1px solid #ddd; padding: 15px; border-radius: 8px; background: white; }
+        .product-card img { width: 100%; height: 200px; object-fit: cover; border-radius: 4px; margin-bottom: 10px; }
+        .status { display: flex; align-items: center; gap: 10px; margin: 10px 0; }
+        .status-dot { width: 12px; height: 12px; border-radius: 50%; }
+        .online { background: #28a745; }
+        .offline { background: #dc3545; }
+        .unknown { background: #6c757d; }
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        @media (max-width: 768px) { .grid { grid-template-columns: 1fr; } }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🛍️ Product Management System Test</h1>
+        <p>Test your complete product management system with Laravel database integration.</p>
+        
+        <div class="card info">
+            <h3>📊 System Status</h3>
+            <div class="status">
+                <div id="db-status" class="status-dot unknown"></div>
+                <span id="db-text">Database API Server (Port 8002) - Testing...</span>
+            </div>
+            <div class="status">
+                <div id="simple-status" class="status-dot unknown"></div>
+                <span id="simple-text">Simple API Server (Port 8001) - Testing...</span>
+            </div>
+        </div>
+        
+        <div class="grid">
+            <div class="card">
+                <h3>📝 Create New Product</h3>
+                <form id="productForm">
+                    <div class="form-group">
+                        <label for="productName">Product Name *</label>
+                        <input type="text" id="productName" required value="Test Product">
+                    </div>
+                    <div class="form-group">
+                        <label for="productDescription">Description</label>
+                        <textarea id="productDescription" rows="3">This is a test product created via the management system</textarea>
+                    </div>
+                    <div class="form-group">
+                        <label for="productPrice">Price *</label>
+                        <input type="number" id="productPrice" step="0.01" required value="99.99">
+                    </div>
+                    <div class="form-group">
+                        <label for="productStock">Stock Quantity</label>
+                        <input type="number" id="productStock" value="10">
+                    </div>
+                    <div class="form-group">
+                        <label for="productCategory">Category</label>
+                        <select id="productCategory">
+                            <option value="General">General</option>
+                            <option value="Electronics">Electronics</option>
+                            <option value="Clothing">Clothing</option>
+                            <option value="Books">Books</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="productImages">Product Images</label>
+                        <input type="file" id="productImages" accept="image/*" multiple>
+                        <div id="imagePreviews" class="image-preview"></div>
+                    </div>
+                    <button type="button" onclick="uploadImages()">Upload Images</button>
+                    <button type="button" onclick="createProduct()">Create Product</button>
+                </form>
+                <div id="create-result" class="result" style="display: none;"></div>
+            </div>
+            
+            <div class="card">
+                <h3>📋 Product Management</h3>
+                <button onclick="loadProducts()">Load Products</button>
+                <button onclick="clearProducts()">Clear Display</button>
+                <div id="products-result" class="result" style="display: none;"></div>
+                <div id="productsList" class="products-grid"></div>
+            </div>
+        </div>
+        
+        <div class="card">
+            <h3>🔄 Complete Flow Test</h3>
+            <p>Test the complete admin → database → customer flow</p>
+            <button onclick="testCompleteFlow()">Test Complete Flow</button>
+            <div id="flow-result" class="result" style="display: none;"></div>
+        </div>
+        
+        <div class="card">
+            <h3>📋 Instructions</h3>
+            <div class="result info-result">
+<strong>How to use your Product Management System:</strong>
+
+1. <strong>Upload Images:</strong>
+   - Select image files (JPG, PNG, GIF, WebP)
+   - Click "Upload Images" to upload to server
+   - Images will be stored in uploads/ folder
+
+2. <strong>Create Product:</strong>
+   - Fill in product details
+   - Click "Create Product" to save to Laravel database
+   - Product will be available in customer gallery
+
+3. <strong>View Products:</strong>
+   - Click "Load Products" to see all products
+   - Products are loaded from Laravel database
+   - Images display correctly
+
+<strong>Current Setup:</strong>
+- Database API: http://127.0.0.1:8002 (Laravel database)
+- Image Upload: http://127.0.0.1:8001 (File storage)
+- Database: backend/database/database.sqlite
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let uploadedImageUrls = [];
+        
+        function updateStatus(server, isOnline, message) {
+            const statusEl = document.getElementById(server + '-status');
+            const textEl = document.getElementById(server + '-text');
+            
+            if (isOnline === true) {
+                statusEl.className = 'status-dot online';
+                textEl.textContent = message + ' - ✅ Online';
+            } else if (isOnline === false) {
+                statusEl.className = 'status-dot offline';
+                textEl.textContent = message + ' - ❌ Offline';
+            } else {
+                statusEl.className = 'status-dot unknown';
+                textEl.textContent = message + ' - ⏳ Testing...';
+            }
+        }
+        
+        function showResult(elementId, message, type = 'info') {
+            const element = document.getElementById(elementId);
+            element.textContent = message;
+            element.className = `result ${type}-result`;
+            element.style.display = 'block';
+        }
+        
+        function showFlowResult(message, type = 'info') {
+            showResult('flow-result', message, type);
+        }
+        
+        // Test database connection
+        async function testDatabaseConnection() {
+            updateStatus('db', null, 'Database API Server (Port 8002)');
+            
+            try {
+                const response = await fetch('http://127.0.0.1:8002/api/products');
+                const data = await response.json();
+                
+                if (response.ok) {
+                    updateStatus('db', true, 'Database API Server (Port 8002)');
+                    return true;
+                } else {
+                    updateStatus('db', false, 'Database API Server (Port 8002)');
+                    return false;
+                }
+            } catch (error) {
+                updateStatus('db', false, 'Database API Server (Port 8002)');
+                return false;
+            }
+        }
+        
+        // Test simple API connection
+        async function testSimpleConnection() {
+            updateStatus('simple', null, 'Simple API Server (Port 8001)');
+            
+            try {
+                const response = await fetch('http://127.0.0.1:8001/api/products');
+                const data = await response.json();
+                
+                if (response.ok) {
+                    updateStatus('simple', true, 'Simple API Server (Port 8001)');
+                    return true;
+                } else {
+                    updateStatus('simple', false, 'Simple API Server (Port 8001)');
+                    return false;
+                }
+            } catch (error) {
+                updateStatus('simple', false, 'Simple API Server (Port 8001)');
+                return false;
+            }
+        }
+        
+        // Upload images
+        async function uploadImages() {
+            const fileInput = document.getElementById('productImages');
+            const files = fileInput.files;
+            
+            if (files.length === 0) {
+                showResult('create-result', 'Please select image files first', 'error');
+                return;
+            }
+            
+            uploadedImageUrls = [];
+            showResult('create-result', 'Uploading images...', 'info');
+            
+            for (let i = 0; i < files.length; i++) {
+                const file = files[i];
+                await uploadSingleImage(file);
+            }
+            
+            if (uploadedImageUrls.length > 0) {
+                showResult('create-result', `✅ Uploaded ${uploadedImageUrls.length} images successfully`, 'success');
+                displayImagePreviews();
+            }
+        }
+        
+        async function uploadSingleImage(file) {
+            try {
+                const formData = new FormData();
+                formData.append('image', file);
+                
+                const response = await fetch('http://127.0.0.1:8001/api/upload/image', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok && data.success) {
+                    uploadedImageUrls.push(data.url);
+                } else {
+                    showResult('create-result', `❌ Upload failed: ${data.message}`, 'error');
+                }
+            } catch (error) {
+                showResult('create-result', `❌ Upload Error: ${error.message}`, 'error');
+            }
+        }
+        
+        function displayImagePreviews() {
+            const container = document.getElementById('imagePreviews');
+            container.innerHTML = '';
+            
+            uploadedImageUrls.forEach(url => {
+                const img = document.createElement('img');
+                img.src = url;
+                img.alt = 'Product image';
+                container.appendChild(img);
+            });
+        }
+        
+        // Create product
+        async function createProduct() {
+            const productData = {
+                name: document.getElementById('productName').value,
+                description: document.getElementById('productDescription').value,
+                price: parseFloat(document.getElementById('productPrice').value),
+                stock_quantity: parseInt(document.getElementById('productStock').value),
+                category: document.getElementById('productCategory').value,
+                is_active: true,
+                created_by: 1,
+                image_urls: uploadedImageUrls
+            };
+            
+            showResult('create-result', 'Creating product...', 'info');
+            
+            try {
+                const response = await fetch('http://127.0.0.1:8002/api/products', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(productData)
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    showResult('create-result', `✅ Product created successfully!
+
+Product: ${data.product.name}
+Price: $${data.product.price}
+Stock: ${data.product.stock_quantity}
+Images: ${data.product.image_paths.length}
+
+Product saved to Laravel database!`, 'success');
+                    
+                    // Auto-refresh products list
+                    setTimeout(loadProducts, 1000);
+                } else {
+                    showResult('create-result', `❌ Product creation failed: ${data.error || data.message}`, 'error');
+                }
+            } catch (error) {
+                showResult('create-result', `❌ Error creating product: ${error.message}`, 'error');
+            }
+        }
+        
+        // Load products
+        async function loadProducts() {
+            showResult('products-result', 'Loading products...', 'info');
+            
+            try {
+                const response = await fetch('http://127.0.0.1:8002/api/products');
+                const products = await response.json();
+                
+                if (response.ok && Array.isArray(products)) {
+                    displayProducts(products);
+                    showResult('products-result', `✅ Loaded ${products.length} products from Laravel database`, 'success');
+                } else {
+                    showResult('products-result', '❌ Invalid response format from database', 'error');
+                }
+            } catch (error) {
+                showResult('products-result', `❌ Error loading products: ${error.message}`, 'error');
+            }
+        }
+        
+        function displayProducts(products) {
+            const container = document.getElementById('productsList');
+            container.innerHTML = '';
+            
+            if (!Array.isArray(products) || products.length === 0) {
+                container.innerHTML = '<p>No products found in database</p>';
+                return;
+            }
+            
+            products.forEach(product => {
+                const productDiv = document.createElement('div');
+                productDiv.className = 'product-card';
+                
+                let imagesHtml = '';
+                if (product.image_paths && Array.isArray(product.image_paths) && product.image_paths.length > 0) {
+                    imagesHtml = `<img src="http://127.0.0.1:8002/${product.image_paths[0]}" alt="Product image" onerror="this.style.display='none'">`;
+                } else {
+                    imagesHtml = '<div style="height: 200px; background: #f0f0f0; display: flex; align-items: center; justify-content: center; color: #666; border-radius: 4px;">No Image</div>';
+                }
+                
+                productDiv.innerHTML = `
+                    <h4>${product.name}</h4>
+                    <p><strong>Price:</strong> $${product.price}</p>
+                    <p><strong>Description:</strong> ${product.description || 'No description'}</p>
+                    <p><strong>Stock:</strong> ${product.stock_quantity}</p>
+                    <p><strong>Category:</strong> ${product.category}</p>
+                    <p><strong>Status:</strong> ${product.is_active ? 'Active' : 'Inactive'}</p>
+                    <p><strong>Creator:</strong> ${product.creator_name || 'Unknown'}</p>
+                    <p><strong>Created:</strong> ${new Date(product.created_at).toLocaleString()}</p>
+                    <div>${imagesHtml}</div>
+                `;
+                
+                container.appendChild(productDiv);
+            });
+        }
+        
+        function clearProducts() {
+            document.getElementById('products-result').style.display = 'none';
+            document.getElementById('productsList').innerHTML = '';
+        }
+        
+        // Test complete flow
+        async function testCompleteFlow() {
+            showFlowResult('🔄 Testing complete product management flow...', 'info');
+            
+            try {
+                let message = 'Complete Flow Test Results:\n\n';
+                
+                // Step 1: Test database connection
+                message += '1. Testing database connection...\n';
+                const dbWorking = await testDatabaseConnection();
+                if (dbWorking) {
+                    message += '   ✅ Database connection successful\n';
+                } else {
+                    message += '   ❌ Database connection failed\n';
+                    showFlowResult(message, 'error');
+                    return;
+                }
+                
+                // Step 2: Test image upload
+                message += '\n2. Testing image upload...\n';
+                const simpleWorking = await testSimpleConnection();
+                if (simpleWorking) {
+                    message += '   ✅ Image upload server working\n';
+                } else {
+                    message += '   ❌ Image upload server failed\n';
+                    showFlowResult(message, 'error');
+                    return;
+                }
+                
+                // Step 3: Create a test product
+                message += '\n3. Creating test product...\n';
+                const productData = {
+                    name: 'Flow Test Product ' + new Date().getTime(),
+                    description: 'This product tests the complete management flow',
+                    price: 149.99,
+                    stock_quantity: 5,
+                    category: 'Test',
+                    is_active: true,
+                    created_by: 1,
+                    image_urls: []
+                };
+                
+                const createResponse = await fetch('http://127.0.0.1:8002/api/products', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(productData)
+                });
+                
+                if (createResponse.ok) {
+                    message += '   ✅ Product created successfully in Laravel database\n';
+                } else {
+                    message += '   ❌ Product creation failed\n';
+                    showFlowResult(message, 'error');
+                    return;
+                }
+                
+                // Step 4: Verify product appears in list
+                message += '\n4. Verifying product in database...\n';
+                const fetchResponse = await fetch('http://127.0.0.1:8002/api/products');
+                const products = await fetchResponse.json();
+                
+                if (Array.isArray(products) && products.length > 0) {
+                    message += `   ✅ Found ${products.length} products in database\n`;
+                    message += `   ✅ Latest product: ${products[0].name}\n`;
+                } else {
+                    message += '   ❌ No products found in database\n';
+                    showFlowResult(message, 'error');
+                    return;
+                }
+                
+                message += '\n🎉 Complete flow test successful!\n';
+                message += 'Product Management System is working correctly!\n';
+                message += 'Admin can create products → Laravel database → Customer can see them';
+                
+                showFlowResult(message, 'success');
+                
+                // Refresh the products list
+                setTimeout(loadProducts, 1000);
+                
+            } catch (error) {
+                showFlowResult(`❌ Flow test error: ${error.message}`, 'error');
+            }
+        }
+        
+        // Auto-run tests on page load
+        window.onload = function() {
+            setTimeout(testDatabaseConnection, 500);
+            setTimeout(testSimpleConnection, 1000);
+        };
+    </script>
+</body>
+</html>
+

@@ -13,6 +13,7 @@ class Appointment extends Model
     protected $fillable = [
         'patient_id',
         'optometrist_id',
+        'branch_id',
         'appointment_date',
         'start_time',
         'end_time',
@@ -23,8 +24,9 @@ class Appointment extends Model
 
     protected $casts = [
         'appointment_date' => 'date',
-        'start_time' => 'datetime',
-        'end_time' => 'datetime',
+        // Columns are stored as TIME in DB; cast to string to avoid datetime parsing errors
+        'start_time' => 'string',
+        'end_time' => 'string',
     ];
 
     // Relationships
@@ -36,6 +38,16 @@ class Appointment extends Model
     public function optometrist(): BelongsTo
     {
         return $this->belongsTo(User::class, 'optometrist_id');
+    }
+
+    public function branch(): BelongsTo
+    {
+        return $this->belongsTo(Branch::class);
+    }
+
+    public function feedback()
+    {
+        return $this->hasOne(Feedback::class);
     }
 
     // Scopes

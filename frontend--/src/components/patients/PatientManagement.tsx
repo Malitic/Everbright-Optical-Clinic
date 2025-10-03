@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Users, Search, Plus, Edit, Eye, Calendar, FileText, Phone, Mail } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Users, Search, Plus, Edit, Eye, Calendar, FileText, Phone, Mail, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -11,102 +11,119 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
+import { getPatients, getPatientDetails, updatePatient, Patient, PatientDetails, PatientUpdateData } from '@/services/patientApi';
 
-interface Patient {
-  id: string;
-  name: string;
-  email: string;
-  phone: string;
-  dateOfBirth: string;
-  address: string;
-  emergencyContact: string;
-  emergencyPhone: string;
-  lastVisit: string;
-  nextAppointment?: string;
-  prescriptions: number;
-  totalVisits: number;
-  avatar?: string;
-  medicalHistory: string[];
-  allergies: string[];
-  insurance: {
-    provider: string;
-    policyNumber: string;
-  };
-}
 
 const PatientManagement = () => {
   const { toast } = useToast();
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
+  const [selectedPatient, setSelectedPatient] = useState<PatientDetails | null>(null);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [patients, setPatients] = useState<Patient[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [pagination, setPagination] = useState({
+    current_page: 1,
+    last_page: 1,
+    per_page: 15,
+    total: 0
+  });
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [editFormData, setEditFormData] = useState<PatientUpdateData>({});
 
-  const [patients] = useState<Patient[]>([
-    {
-      id: '1',
-      name: 'Sarah Johnson',
-      email: 'sarah.johnson@email.com',
-      phone: '(555) 123-4567',
-      dateOfBirth: '1985-03-15',
-      address: '123 Main St, City, ST 12345',
-      emergencyContact: 'John Johnson (Spouse)',
-      emergencyPhone: '(555) 987-6543',
-      lastVisit: '2024-01-15',
-      nextAppointment: '2024-02-20',
-      prescriptions: 3,
-      totalVisits: 12,
-      medicalHistory: ['Myopia', 'Astigmatism'],
-      allergies: ['None reported'],
-      insurance: {
-        provider: 'Blue Cross Blue Shield',
-        policyNumber: 'BC123456789'
-      }
-    },
-    {
-      id: '2',
-      name: 'Michael Chen',
-      email: 'michael.chen@email.com',
-      phone: '(555) 234-5678',
-      dateOfBirth: '1978-07-22',
-      address: '456 Oak Ave, City, ST 12345',
-      emergencyContact: 'Lisa Chen (Wife)',
-      emergencyPhone: '(555) 876-5432',
-      lastVisit: '2024-02-01',
-      prescriptions: 2,
-      totalVisits: 8,
-      medicalHistory: ['Presbyopia', 'Dry Eyes'],
-      allergies: ['Latex'],
-      insurance: {
-        provider: 'Aetna',
-        policyNumber: 'AET987654321'
-      }
-    },
-    {
-      id: '3',
-      name: 'Emily Davis',
-      email: 'emily.davis@email.com',
-      phone: '(555) 345-6789',
-      dateOfBirth: '1992-11-08',
-      address: '789 Pine Rd, City, ST 12345',
-      emergencyContact: 'Robert Davis (Father)',
-      emergencyPhone: '(555) 765-4321',
-      lastVisit: '2023-12-10',
-      nextAppointment: '2024-02-25',
-      prescriptions: 1,
-      totalVisits: 5,
-      medicalHistory: ['Contact lens wearer'],
-      allergies: ['Pollen'],
-      insurance: {
-        provider: 'Cigna',
-        policyNumber: 'CIG456789123'
-      }
+  // Fetch patients on component mount
+  useEffect(() => {
+    fetchPatients();
+  }, []);
+
+  // Fetch patients when search term changes (with debounce)
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      fetchPatients();
+    }, 500);
+    return () => clearTimeout(timeoutId);
+  }, [searchTerm]);
+
+  const fetchPatients = async () => {
+    try {
+      setLoading(true);
+      const response = await getPatients({
+        search: searchTerm || undefined,
+        page: pagination.current_page,
+        per_page: pagination.per_page
+      });
+      setPatients(response.data);
+      setPagination(response.pagination);
+    } catch (error: any) {
+      console.error('Error fetching patients:', error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to fetch patients",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
     }
-  ]);
+  };
 
-  const filteredPatients = patients.filter(patient =>
-    patient.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    patient.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    patient.phone.includes(searchTerm)
-  );
+  const handlePatientSelect = async (patient: Patient) => {
+    try {
+      setLoading(true);
+      const response = await getPatientDetails(patient.id);
+      setSelectedPatient(response.patient);
+    } catch (error: any) {
+      console.error('Error fetching patient details:', error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to fetch patient details",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleEditPatient = (patient: PatientDetails) => {
+    setEditFormData({
+      name: patient.name,
+      email: patient.email,
+      phone: patient.phone,
+      date_of_birth: patient.date_of_birth,
+      address: patient.address,
+      emergency_contact: patient.emergency_contact,
+      emergency_phone: patient.emergency_phone,
+      insurance_provider: patient.insurance_provider,
+      insurance_policy: patient.insurance_policy,
+      medical_history: patient.medical_history,
+      allergies: patient.allergies,
+    });
+    setIsEditDialogOpen(true);
+  };
+
+  const handleUpdatePatient = async () => {
+    if (!selectedPatient) return;
+
+    try {
+      setLoading(true);
+      const response = await updatePatient(selectedPatient.id, editFormData);
+      toast({
+        title: "Success",
+        description: "Patient updated successfully",
+      });
+      setIsEditDialogOpen(false);
+      // Refresh patient details
+      await handlePatientSelect(response.patient);
+    } catch (error: any) {
+      console.error('Error updating patient:', error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to update patient",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
 
   const calculateAge = (dateOfBirth: string) => {
     const today = new Date();
@@ -119,7 +136,7 @@ const PatientManagement = () => {
     return age;
   };
 
-  const PatientDetails = ({ patient }: { patient: Patient }) => (
+  const PatientDetails = ({ patient }: { patient: PatientDetails }) => (
     <div className="space-y-6">
       <div className="flex items-center space-x-4">
         <Avatar className="h-16 w-16">
@@ -132,7 +149,7 @@ const PatientManagement = () => {
           <h2 className="text-2xl font-bold">{patient.name}</h2>
           <p className="text-muted-foreground">Patient ID: {patient.id}</p>
           <p className="text-sm text-muted-foreground">
-            Age: {calculateAge(patient.dateOfBirth)} years old
+            Age: {patient.date_of_birth ? calculateAge(patient.date_of_birth) : 'Not provided'} years old
           </p>
         </div>
       </div>
@@ -185,9 +202,9 @@ const PatientManagement = () => {
                 <CardTitle className="text-sm">Insurance Information</CardTitle>
               </CardHeader>
               <CardContent className="space-y-2">
-                <p className="font-medium text-sm">{patient.insurance.provider}</p>
+                <p className="font-medium text-sm">{patient.insurance_provider}</p>
                 <p className="text-sm text-muted-foreground">
-                  Policy: {patient.insurance.policyNumber}
+                  Policy: {patient.insurance_policy}
                 </p>
               </CardContent>
             </Card>
@@ -200,21 +217,21 @@ const PatientManagement = () => {
                 <div className="grid grid-cols-2 gap-4 text-sm">
                   <div>
                     <p className="font-medium">Total Visits</p>
-                    <p className="text-2xl font-bold">{patient.totalVisits}</p>
+                    <p className="text-2xl font-bold">{patient.statistics.total_appointments}</p>
                   </div>
                   <div>
                     <p className="font-medium">Prescriptions</p>
-                    <p className="text-2xl font-bold">{patient.prescriptions}</p>
+                    <p className="text-2xl font-bold">{patient.statistics.total_prescriptions}</p>
                   </div>
                 </div>
                 <div className="text-sm">
                   <p className="font-medium">Last Visit:</p>
-                  <p className="text-muted-foreground">{patient.lastVisit}</p>
+                  <p className="text-muted-foreground">{patient.statistics.last_visit || 'No visits'}</p>
                 </div>
-                {patient.nextAppointment && (
+                {patient.statistics.next_appointment && (
                   <div className="text-sm">
                     <p className="font-medium">Next Appointment:</p>
-                    <p className="text-muted-foreground">{patient.nextAppointment}</p>
+                    <p className="text-muted-foreground">{patient.statistics.next_appointment}</p>
                   </div>
                 )}
               </CardContent>
@@ -230,7 +247,7 @@ const PatientManagement = () => {
               </CardHeader>
               <CardContent>
                 <ul className="space-y-2">
-                  {patient.medicalHistory.map((condition, index) => (
+                  {patient.medical_history.map((condition, index) => (
                     <li key={index} className="flex items-center space-x-2">
                       <div className="w-2 h-2 bg-blue-500 rounded-full" />
                       <span className="text-sm">{condition}</span>
@@ -265,33 +282,35 @@ const PatientManagement = () => {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                <div className="flex items-center justify-between p-3 border rounded">
-                  <div className="flex items-center space-x-3">
-                    <Calendar className="h-4 w-4 text-muted-foreground" />
-                    <div>
-                      <p className="font-medium">Eye Examination</p>
-                      <p className="text-sm text-muted-foreground">Dr. Sarah Johnson</p>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-sm font-medium">2024-01-15</p>
-                    <Badge>Completed</Badge>
-                  </div>
-                </div>
-                {patient.nextAppointment && (
-                  <div className="flex items-center justify-between p-3 border rounded border-green-200 bg-green-50">
+                {patient.appointments.map((appointment) => (
+                  <div key={appointment.id} className="flex items-center justify-between p-3 border rounded">
                     <div className="flex items-center space-x-3">
-                      <Calendar className="h-4 w-4 text-green-600" />
+                      <Calendar className="h-4 w-4 text-muted-foreground" />
                       <div>
-                        <p className="font-medium">Follow-up Visit</p>
-                        <p className="text-sm text-muted-foreground">Dr. Sarah Johnson</p>
+                        <p className="font-medium">{appointment.type}</p>
+                        <p className="text-sm text-muted-foreground">
+                          {appointment.optometrist?.name || 'No optometrist assigned'}
+                        </p>
+                        {appointment.notes && (
+                          <p className="text-xs text-muted-foreground mt-1">{appointment.notes}</p>
+                        )}
                       </div>
                     </div>
                     <div className="text-right">
-                      <p className="text-sm font-medium">{patient.nextAppointment}</p>
-                      <Badge className="bg-green-500 text-white">Scheduled</Badge>
+                      <p className="text-sm font-medium">{appointment.date}</p>
+                      <Badge className={
+                        appointment.status === 'completed' ? 'bg-green-500 text-white' :
+                        appointment.status === 'scheduled' ? 'bg-blue-500 text-white' :
+                        appointment.status === 'cancelled' ? 'bg-red-500 text-white' :
+                        'bg-gray-500 text-white'
+                      }>
+                        {appointment.status}
+                      </Badge>
                     </div>
                   </div>
+                ))}
+                {patient.appointments.length === 0 && (
+                  <p className="text-muted-foreground text-center py-4">No appointments found</p>
                 )}
               </div>
             </CardContent>
@@ -305,19 +324,36 @@ const PatientManagement = () => {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                <div className="flex items-center justify-between p-3 border rounded">
+                {patient.prescriptions.map((prescription) => (
+                  <div key={prescription.id} className="flex items-center justify-between p-3 border rounded">
                   <div className="flex items-center space-x-3">
                     <FileText className="h-4 w-4 text-muted-foreground" />
                     <div>
-                      <p className="font-medium">RX-2024-001</p>
-                      <p className="text-sm text-muted-foreground">Progressive Lenses</p>
+                        <p className="font-medium">{prescription.prescription_number}</p>
+                        <p className="text-sm text-muted-foreground">
+                          {prescription.optometrist?.name || 'No optometrist assigned'}
+                        </p>
+                        {prescription.recommendations && (
+                          <p className="text-xs text-muted-foreground mt-1">{prescription.recommendations}</p>
+                        )}
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm font-medium">{prescription.issue_date}</p>
+                      <Badge className={
+                        prescription.status === 'active' ? 'bg-green-500 text-white' :
+                        prescription.status === 'expired' ? 'bg-red-500 text-white' :
+                        prescription.status === 'cancelled' ? 'bg-gray-500 text-white' :
+                        'bg-yellow-500 text-white'
+                      }>
+                        {prescription.status}
+                      </Badge>
                     </div>
                   </div>
-                  <div className="text-right">
-                    <p className="text-sm font-medium">2024-01-15</p>
-                    <Badge className="bg-green-500 text-white">Active</Badge>
-                  </div>
-                </div>
+                ))}
+                {patient.prescriptions.length === 0 && (
+                  <p className="text-muted-foreground text-center py-4">No prescriptions found</p>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -380,13 +416,21 @@ const PatientManagement = () => {
 
       {selectedPatient ? (
         <div>
-          <Button
-            variant="outline"
-            onClick={() => setSelectedPatient(null)}
-            className="mb-4"
-          >
-            ← Back to Patient List
-          </Button>
+          <div className="flex items-center justify-between mb-4">
+            <Button
+              variant="outline"
+              onClick={() => setSelectedPatient(null)}
+            >
+              ← Back to Patient List
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => handleEditPatient(selectedPatient)}
+            >
+              <Edit className="h-4 w-4 mr-2" />
+              Edit Patient
+            </Button>
+          </div>
           <PatientDetails patient={selectedPatient} />
         </div>
       ) : (
@@ -409,89 +453,207 @@ const PatientManagement = () => {
           {/* Patient List */}
           <Card>
             <CardHeader>
-              <CardTitle>Patients ({filteredPatients.length})</CardTitle>
+              <CardTitle>Patients ({pagination.total})</CardTitle>
               <CardDescription>
                 Manage patient records and information
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Patient</TableHead>
-                    <TableHead>Contact</TableHead>
-                    <TableHead>Last Visit</TableHead>
-                    <TableHead>Next Appointment</TableHead>
-                    <TableHead>Visits</TableHead>
-                    <TableHead>Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredPatients.map((patient) => (
-                    <TableRow key={patient.id}>
-                      <TableCell>
-                        <div className="flex items-center space-x-3">
-                          <Avatar>
-                            <AvatarImage src={patient.avatar} alt={patient.name} />
-                            <AvatarFallback>
-                              {patient.name.split(' ').map(n => n[0]).join('')}
-                            </AvatarFallback>
-                          </Avatar>
-                          <div>
-                            <div className="font-medium">{patient.name}</div>
-                            <div className="text-sm text-muted-foreground">
-                              Age: {calculateAge(patient.dateOfBirth)}
+              {loading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-8 w-8 animate-spin" />
+                  <span className="ml-2">Loading patients...</span>
+                </div>
+              ) : (
+                <>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Patient</TableHead>
+                        <TableHead>Contact</TableHead>
+                        <TableHead>Last Visit</TableHead>
+                        <TableHead>Next Appointment</TableHead>
+                        <TableHead>Visits</TableHead>
+                        <TableHead>Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {patients.map((patient) => (
+                        <TableRow key={patient.id}>
+                          <TableCell>
+                            <div className="flex items-center space-x-3">
+                              <Avatar>
+                                <AvatarImage src={patient.avatar} alt={patient.name} />
+                                <AvatarFallback>
+                                  {patient.name.split(' ').map(n => n[0]).join('')}
+                                </AvatarFallback>
+                              </Avatar>
+                              <div>
+                                <div className="font-medium">{patient.name}</div>
+                                <div className="text-sm text-muted-foreground">
+                                  Age: {patient.date_of_birth ? calculateAge(patient.date_of_birth) : 'Not provided'}
+                                </div>
+                              </div>
                             </div>
-                          </div>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="text-sm">
-                          <div>{patient.email}</div>
-                          <div className="text-muted-foreground">{patient.phone}</div>
-                        </div>
-                      </TableCell>
-                      <TableCell>{patient.lastVisit}</TableCell>
-                      <TableCell>
-                        {patient.nextAppointment ? (
-                          <Badge className="bg-green-500 text-white">
-                            {patient.nextAppointment}
-                          </Badge>
-                        ) : (
-                          <span className="text-muted-foreground">None scheduled</span>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <div className="text-center">
-                          <div className="font-medium">{patient.totalVisits}</div>
-                          <div className="text-xs text-muted-foreground">total</div>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex space-x-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => setSelectedPatient(patient)}
-                          >
-                            <Eye className="h-4 w-4" />
-                          </Button>
-                          <Button variant="outline" size="sm">
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                          <Button variant="outline" size="sm">
-                            <Calendar className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                          </TableCell>
+                          <TableCell>
+                            <div className="text-sm">
+                              <div>{patient.email}</div>
+                              <div className="text-muted-foreground">{patient.phone}</div>
+                            </div>
+                          </TableCell>
+                          <TableCell>{patient.last_visit}</TableCell>
+                          <TableCell>
+                            {patient.next_appointment ? (
+                              <Badge className="bg-green-500 text-white">
+                                {patient.next_appointment}
+                              </Badge>
+                            ) : (
+                              <span className="text-muted-foreground">None scheduled</span>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            <div className="text-center">
+                              <div className="font-medium">{patient.total_visits}</div>
+                              <div className="text-xs text-muted-foreground">total</div>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex space-x-2">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handlePatientSelect(patient)}
+                              >
+                                <Eye className="h-4 w-4" />
+                              </Button>
+                              <Button variant="outline" size="sm">
+                                <Calendar className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                  
+                  {patients.length === 0 && !loading && (
+                    <div className="text-center py-8">
+                      <Users className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                      <p className="text-muted-foreground">No patients found</p>
+                    </div>
+                  )}
+                </>
+              )}
             </CardContent>
           </Card>
         </>
       )}
+
+      {/* Edit Patient Dialog */}
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Edit Patient Information</DialogTitle>
+            <DialogDescription>
+              Update patient information and medical details.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="edit-name">Name</Label>
+                <Input
+                  id="edit-name"
+                  value={editFormData.name || ''}
+                  onChange={(e) => setEditFormData({ ...editFormData, name: e.target.value })}
+                />
+              </div>
+              <div>
+                <Label htmlFor="edit-email">Email</Label>
+                <Input
+                  id="edit-email"
+                  type="email"
+                  value={editFormData.email || ''}
+                  onChange={(e) => setEditFormData({ ...editFormData, email: e.target.value })}
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="edit-phone">Phone</Label>
+                <Input
+                  id="edit-phone"
+                  value={editFormData.phone || ''}
+                  onChange={(e) => setEditFormData({ ...editFormData, phone: e.target.value })}
+                />
+              </div>
+              <div>
+                <Label htmlFor="edit-dob">Date of Birth</Label>
+                <Input
+                  id="edit-dob"
+                  type="date"
+                  value={editFormData.date_of_birth || ''}
+                  onChange={(e) => setEditFormData({ ...editFormData, date_of_birth: e.target.value })}
+                />
+              </div>
+            </div>
+            <div>
+              <Label htmlFor="edit-address">Address</Label>
+              <Input
+                id="edit-address"
+                value={editFormData.address || ''}
+                onChange={(e) => setEditFormData({ ...editFormData, address: e.target.value })}
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="edit-emergency-contact">Emergency Contact</Label>
+                <Input
+                  id="edit-emergency-contact"
+                  value={editFormData.emergency_contact || ''}
+                  onChange={(e) => setEditFormData({ ...editFormData, emergency_contact: e.target.value })}
+                />
+              </div>
+              <div>
+                <Label htmlFor="edit-emergency-phone">Emergency Phone</Label>
+                <Input
+                  id="edit-emergency-phone"
+                  value={editFormData.emergency_phone || ''}
+                  onChange={(e) => setEditFormData({ ...editFormData, emergency_phone: e.target.value })}
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="edit-insurance-provider">Insurance Provider</Label>
+                <Input
+                  id="edit-insurance-provider"
+                  value={editFormData.insurance_provider || ''}
+                  onChange={(e) => setEditFormData({ ...editFormData, insurance_provider: e.target.value })}
+                />
+              </div>
+              <div>
+                <Label htmlFor="edit-insurance-policy">Insurance Policy</Label>
+                <Input
+                  id="edit-insurance-policy"
+                  value={editFormData.insurance_policy || ''}
+                  onChange={(e) => setEditFormData({ ...editFormData, insurance_policy: e.target.value })}
+                />
+              </div>
+            </div>
+            <div className="flex justify-end space-x-2">
+              <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button onClick={handleUpdatePatient} disabled={loading}>
+                {loading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                Update Patient
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

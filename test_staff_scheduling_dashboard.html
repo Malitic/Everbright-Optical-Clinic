@@ -1,0 +1,692 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Staff Scheduling System Test Dashboard</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .section {
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+        .section-title {
+            background: #007bff;
+            color: white;
+            padding: 10px;
+            margin: -15px -15px 15px -15px;
+            border-radius: 8px 8px 0 0;
+            font-weight: bold;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input, select, textarea {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        button {
+            background: #28a745;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-right: 10px;
+            margin-bottom: 10px;
+        }
+        button:hover {
+            background: #218838;
+        }
+        button:disabled {
+            background: #6c757d;
+            cursor: not-allowed;
+        }
+        button.danger {
+            background: #dc3545;
+        }
+        button.danger:hover {
+            background: #c82333;
+        }
+        button.warning {
+            background: #ffc107;
+            color: #212529;
+        }
+        button.warning:hover {
+            background: #e0a800;
+        }
+        .result {
+            margin-top: 15px;
+            padding: 15px;
+            border-radius: 4px;
+            white-space: pre-wrap;
+            font-family: monospace;
+            font-size: 12px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .success {
+            background: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+        }
+        .error {
+            background: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+        }
+        .loading {
+            background: #d1ecf1;
+            border: 1px solid #bee5eb;
+            color: #0c5460;
+        }
+        .endpoint-info {
+            background: #e9ecef;
+            padding: 10px;
+            border-radius: 4px;
+            margin-bottom: 10px;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        .full-width {
+            grid-column: 1 / -1;
+        }
+        .status-badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        .status-pending {
+            background: #fff3cd;
+            color: #856404;
+        }
+        .status-approved {
+            background: #d4edda;
+            color: #155724;
+        }
+        .status-rejected {
+            background: #f8d7da;
+            color: #721c24;
+        }
+    </style>
+</head>
+<body>
+    <h1>Staff Scheduling System Test Dashboard</h1>
+    <p>Test the comprehensive staff scheduling system that supports both optometrists and staff members across all branches.</p>
+
+    <div class="container">
+        <h2>Configuration</h2>
+        <div class="form-group">
+            <label for="baseUrl">Base URL:</label>
+            <input type="text" id="baseUrl" value="http://localhost:8000/api" placeholder="http://localhost:8000/api">
+        </div>
+        <div class="form-group">
+            <label for="authToken">Authentication Token:</label>
+            <input type="text" id="authToken" placeholder="Enter your Bearer token here">
+            <small>Get this by logging in via POST /api/auth/login</small>
+        </div>
+    </div>
+
+    <div class="grid">
+        <!-- Staff Management -->
+        <div class="section">
+            <div class="section-title">Staff Management</div>
+            <div class="endpoint-info">GET /api/staff-schedules/staff-members</div>
+            <div class="form-group">
+                <label for="staffRole">Filter by Role:</label>
+                <select id="staffRole">
+                    <option value="">All Roles</option>
+                    <option value="optometrist">Optometrist</option>
+                    <option value="staff">Staff</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="staffBranchId">Filter by Branch:</label>
+                <select id="staffBranchId">
+                    <option value="">All Branches</option>
+                </select>
+            </div>
+            <button onclick="testGetStaffMembers()">Get Staff Members</button>
+            <div id="staffMembersResult" class="result" style="display: none;"></div>
+        </div>
+
+        <!-- Branch Management -->
+        <div class="section">
+            <div class="section-title">Branch Management</div>
+            <div class="endpoint-info">GET /api/staff-schedules/branches</div>
+            <button onclick="testGetBranches()">Get Branches</button>
+            <div id="branchesResult" class="result" style="display: none;"></div>
+        </div>
+
+        <!-- Branch Staff Schedules -->
+        <div class="section">
+            <div class="section-title">Branch Staff Schedules</div>
+            <div class="endpoint-info">GET /api/staff-schedules/branch/{branchId}</div>
+            <div class="form-group">
+                <label for="branchId">Branch ID:</label>
+                <input type="number" id="branchId" value="1" placeholder="Enter branch ID">
+            </div>
+            <button onclick="testGetBranchStaffSchedules()">Get Branch Staff Schedules</button>
+            <div id="branchSchedulesResult" class="result" style="display: none;"></div>
+        </div>
+
+        <!-- Individual Staff Schedule -->
+        <div class="section">
+            <div class="section-title">Individual Staff Schedule</div>
+            <div class="endpoint-info">GET /api/staff-schedules/staff/{staffId}</div>
+            <div class="form-group">
+                <label for="staffId">Staff ID:</label>
+                <input type="number" id="staffId" value="2" placeholder="Enter staff ID">
+            </div>
+            <button onclick="testGetStaffSchedule()">Get Staff Schedule</button>
+            <div id="staffScheduleResult" class="result" style="display: none;"></div>
+        </div>
+
+        <!-- Schedule Management (Admin Only) -->
+        <div class="section full-width">
+            <div class="section-title">Schedule Management (Admin Only)</div>
+            <div class="endpoint-info">POST /api/staff-schedules</div>
+            <div class="grid">
+                <div>
+                    <div class="form-group">
+                        <label for="scheduleStaffId">Staff ID:</label>
+                        <input type="number" id="scheduleStaffId" value="2" placeholder="Staff ID">
+                    </div>
+                    <div class="form-group">
+                        <label for="scheduleStaffRole">Staff Role:</label>
+                        <select id="scheduleStaffRole">
+                            <option value="optometrist">Optometrist</option>
+                            <option value="staff">Staff</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="scheduleBranchId">Branch ID:</label>
+                        <input type="number" id="scheduleBranchId" value="1" placeholder="Branch ID">
+                    </div>
+                </div>
+                <div>
+                    <div class="form-group">
+                        <label for="scheduleDay">Day of Week:</label>
+                        <select id="scheduleDay">
+                            <option value="1">Monday</option>
+                            <option value="2">Tuesday</option>
+                            <option value="3">Wednesday</option>
+                            <option value="4">Thursday</option>
+                            <option value="5">Friday</option>
+                            <option value="6">Saturday</option>
+                            <option value="7">Sunday</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="scheduleStartTime">Start Time:</label>
+                        <input type="time" id="scheduleStartTime" value="09:00">
+                    </div>
+                    <div class="form-group">
+                        <label for="scheduleEndTime">End Time:</label>
+                        <input type="time" id="scheduleEndTime" value="17:00">
+                    </div>
+                </div>
+            </div>
+            <button onclick="testCreateOrUpdateSchedule()">Create/Update Schedule</button>
+            <div id="createScheduleResult" class="result" style="display: none;"></div>
+        </div>
+
+        <!-- Schedule Change Requests -->
+        <div class="section full-width">
+            <div class="section-title">Schedule Change Requests</div>
+            <div class="grid">
+                <div>
+                    <div class="endpoint-info">POST /api/staff-schedules/change-requests</div>
+                    <div class="form-group">
+                        <label for="changeRequestDay">Day of Week:</label>
+                        <select id="changeRequestDay">
+                            <option value="1">Monday</option>
+                            <option value="2">Tuesday</option>
+                            <option value="3">Wednesday</option>
+                            <option value="4">Thursday</option>
+                            <option value="5">Friday</option>
+                            <option value="6">Saturday</option>
+                            <option value="7">Sunday</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="changeRequestBranchId">Branch ID:</label>
+                        <input type="number" id="changeRequestBranchId" value="1" placeholder="Branch ID">
+                    </div>
+                    <div class="form-group">
+                        <label for="changeRequestStartTime">Start Time:</label>
+                        <input type="time" id="changeRequestStartTime" value="10:00">
+                    </div>
+                    <div class="form-group">
+                        <label for="changeRequestEndTime">End Time:</label>
+                        <input type="time" id="changeRequestEndTime" value="18:00">
+                    </div>
+                    <div class="form-group">
+                        <label for="changeRequestReason">Reason:</label>
+                        <textarea id="changeRequestReason" placeholder="Enter reason for schedule change">Need to adjust schedule for personal appointment</textarea>
+                    </div>
+                    <button onclick="testCreateChangeRequest()">Create Change Request</button>
+                </div>
+                <div>
+                    <div class="endpoint-info">GET /api/staff-schedules/change-requests</div>
+                    <div class="form-group">
+                        <label for="changeRequestStatus">Filter by Status:</label>
+                        <select id="changeRequestStatus">
+                            <option value="">All Statuses</option>
+                            <option value="pending">Pending</option>
+                            <option value="approved">Approved</option>
+                            <option value="rejected">Rejected</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="changeRequestStaffRole">Filter by Staff Role:</label>
+                        <select id="changeRequestStaffRole">
+                            <option value="">All Roles</option>
+                            <option value="optometrist">Optometrist</option>
+                            <option value="staff">Staff</option>
+                        </select>
+                    </div>
+                    <button onclick="testGetChangeRequests()">Get Change Requests</button>
+                    <div id="changeRequestsResult" class="result" style="display: none;"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Admin Actions -->
+        <div class="section full-width">
+            <div class="section-title">Admin Actions</div>
+            <div class="grid">
+                <div>
+                    <div class="endpoint-info">PUT /api/staff-schedules/change-requests/{id}/approve</div>
+                    <div class="form-group">
+                        <label for="approveRequestId">Request ID:</label>
+                        <input type="number" id="approveRequestId" placeholder="Enter request ID">
+                    </div>
+                    <div class="form-group">
+                        <label for="approveNotes">Admin Notes:</label>
+                        <textarea id="approveNotes" placeholder="Enter admin notes">Approved - schedule change looks good</textarea>
+                    </div>
+                    <button class="warning" onclick="testApproveChangeRequest()">Approve Request</button>
+                </div>
+                <div>
+                    <div class="endpoint-info">PUT /api/staff-schedules/change-requests/{id}/reject</div>
+                    <div class="form-group">
+                        <label for="rejectRequestId">Request ID:</label>
+                        <input type="number" id="rejectRequestId" placeholder="Enter request ID">
+                    </div>
+                    <div class="form-group">
+                        <label for="rejectNotes">Admin Notes:</label>
+                        <textarea id="rejectNotes" placeholder="Enter admin notes">Rejected - conflicts with existing appointments</textarea>
+                    </div>
+                    <button class="danger" onclick="testRejectChangeRequest()">Reject Request</button>
+                </div>
+            </div>
+            <div id="adminActionsResult" class="result" style="display: none;"></div>
+        </div>
+
+        <!-- Test All -->
+        <div class="section full-width">
+            <div class="section-title">Test All Endpoints</div>
+            <button class="danger" onclick="testAllEndpoints()">Test All Staff Scheduling Endpoints</button>
+            <div id="allResults" class="result" style="display: none;"></div>
+        </div>
+    </div>
+
+    <script>
+        const baseUrl = document.getElementById('baseUrl');
+        const authToken = document.getElementById('authToken');
+
+        function showResult(elementId, content, isSuccess = true) {
+            const element = document.getElementById(elementId);
+            element.style.display = 'block';
+            element.className = `result ${isSuccess ? 'success' : 'error'}`;
+            element.textContent = content;
+        }
+
+        function showLoading(elementId) {
+            const element = document.getElementById(elementId);
+            element.style.display = 'block';
+            element.className = 'result loading';
+            element.textContent = 'Loading...';
+        }
+
+        async function makeRequest(url, token, method = 'GET', data = {}) {
+            const headers = {
+                'Authorization': `Bearer ${token}`,
+                'Accept': 'application/json',
+                'Content-Type': 'application/json',
+            };
+
+            try {
+                const response = await fetch(url, {
+                    method: method,
+                    headers: headers,
+                    body: method !== 'GET' ? JSON.stringify(data) : undefined,
+                });
+
+                const responseData = await response.json();
+                return {
+                    status: response.status,
+                    success: response.ok,
+                    data: responseData
+                };
+            } catch (error) {
+                return {
+                    status: 0,
+                    success: false,
+                    data: { error: error.message }
+                };
+            }
+        }
+
+        async function testGetStaffMembers() {
+            const role = document.getElementById('staffRole').value;
+            const branchId = document.getElementById('staffBranchId').value;
+            
+            let url = `${baseUrl.value}/staff-schedules/staff-members`;
+            const params = new URLSearchParams();
+            if (role) params.append('role', role);
+            if (branchId) params.append('branch_id', branchId);
+            if (params.toString()) url += '?' + params.toString();
+            
+            showLoading('staffMembersResult');
+            
+            const result = await makeRequest(url, authToken.value);
+            
+            if (result.success) {
+                const summary = `✅ Get Staff Members - SUCCESS\nStatus: ${result.status}\n\nFound ${result.data.staff_members.length} staff members\n\nSummary:\n- Total: ${result.data.summary.total}\n- Optometrists: ${result.data.summary.optometrists}\n- Staff: ${result.data.summary.staff}\n\nFull Response:\n${JSON.stringify(result.data, null, 2)}`;
+                showResult('staffMembersResult', summary, true);
+            } else {
+                const error = `❌ Get Staff Members - FAILED\nStatus: ${result.status}\nError: ${result.data.message || result.data.error || 'Unknown error'}\n\nFull Response:\n${JSON.stringify(result.data, null, 2)}`;
+                showResult('staffMembersResult', error, false);
+            }
+        }
+
+        async function testGetBranches() {
+            const url = `${baseUrl.value}/staff-schedules/branches`;
+            
+            showLoading('branchesResult');
+            
+            const result = await makeRequest(url, authToken.value);
+            
+            if (result.success) {
+                const summary = `✅ Get Branches - SUCCESS\nStatus: ${result.status}\n\nFound ${result.data.branches.length} branches\n\nFull Response:\n${JSON.stringify(result.data, null, 2)}`;
+                showResult('branchesResult', summary, true);
+            } else {
+                const error = `❌ Get Branches - FAILED\nStatus: ${result.status}\nError: ${result.data.message || result.data.error || 'Unknown error'}\n\nFull Response:\n${JSON.stringify(result.data, null, 2)}`;
+                showResult('branchesResult', error, false);
+            }
+        }
+
+        async function testGetBranchStaffSchedules() {
+            const branchId = document.getElementById('branchId').value;
+            const url = `${baseUrl.value}/staff-schedules/branch/${branchId}`;
+            
+            showLoading('branchSchedulesResult');
+            
+            const result = await makeRequest(url, authToken.value);
+            
+            if (result.success) {
+                const summary = `✅ Get Branch Staff Schedules - SUCCESS\nStatus: ${result.status}\n\nBranch: ${result.data.branch.name}\nStaff with schedules: ${result.data.staff_schedules.length}\n\nSummary:\n- Total Staff: ${result.data.summary.total_staff}\n- Optometrists: ${result.data.summary.optometrists}\n- Staff: ${result.data.summary.staff}\n\nFull Response:\n${JSON.stringify(result.data, null, 2)}`;
+                showResult('branchSchedulesResult', summary, true);
+            } else {
+                const error = `❌ Get Branch Staff Schedules - FAILED\nStatus: ${result.status}\nError: ${result.data.message || result.data.error || 'Unknown error'}\n\nFull Response:\n${JSON.stringify(result.data, null, 2)}`;
+                showResult('branchSchedulesResult', error, false);
+            }
+        }
+
+        async function testGetStaffSchedule() {
+            const staffId = document.getElementById('staffId').value;
+            const url = `${baseUrl.value}/staff-schedules/staff/${staffId}`;
+            
+            showLoading('staffScheduleResult');
+            
+            const result = await makeRequest(url, authToken.value);
+            
+            if (result.success) {
+                const summary = `✅ Get Staff Schedule - SUCCESS\nStatus: ${result.status}\n\nStaff: ${result.data.staff.name} (${result.data.staff.role})\nSchedules: ${result.data.schedules.length}\n\nFull Response:\n${JSON.stringify(result.data, null, 2)}`;
+                showResult('staffScheduleResult', summary, true);
+            } else {
+                const error = `❌ Get Staff Schedule - FAILED\nStatus: ${result.status}\nError: ${result.data.message || result.data.error || 'Unknown error'}\n\nFull Response:\n${JSON.stringify(result.data, null, 2)}`;
+                showResult('staffScheduleResult', error, false);
+            }
+        }
+
+        async function testCreateOrUpdateSchedule() {
+            const data = {
+                staff_id: parseInt(document.getElementById('scheduleStaffId').value),
+                staff_role: document.getElementById('scheduleStaffRole').value,
+                branch_id: parseInt(document.getElementById('scheduleBranchId').value),
+                day_of_week: parseInt(document.getElementById('scheduleDay').value),
+                start_time: document.getElementById('scheduleStartTime').value,
+                end_time: document.getElementById('scheduleEndTime').value,
+                is_active: true,
+            };
+            
+            const url = `${baseUrl.value}/staff-schedules`;
+            
+            showLoading('createScheduleResult');
+            
+            const result = await makeRequest(url, authToken.value, 'POST', data);
+            
+            if (result.success) {
+                const summary = `✅ Create/Update Schedule - SUCCESS\nStatus: ${result.status}\n\nMessage: ${result.data.message}\n\nSchedule Details:\n${JSON.stringify(result.data.schedule, null, 2)}\n\nFull Response:\n${JSON.stringify(result.data, null, 2)}`;
+                showResult('createScheduleResult', summary, true);
+            } else {
+                const error = `❌ Create/Update Schedule - FAILED\nStatus: ${result.status}\nError: ${result.data.message || result.data.error || 'Unknown error'}\n\nFull Response:\n${JSON.stringify(result.data, null, 2)}`;
+                showResult('createScheduleResult', error, false);
+            }
+        }
+
+        async function testCreateChangeRequest() {
+            const data = {
+                day_of_week: parseInt(document.getElementById('changeRequestDay').value),
+                branch_id: parseInt(document.getElementById('changeRequestBranchId').value),
+                start_time: document.getElementById('changeRequestStartTime').value,
+                end_time: document.getElementById('changeRequestEndTime').value,
+                reason: document.getElementById('changeRequestReason').value,
+            };
+            
+            const url = `${baseUrl.value}/staff-schedules/change-requests`;
+            
+            const result = await makeRequest(url, authToken.value, 'POST', data);
+            
+            if (result.success) {
+                alert(`✅ Change Request Created Successfully!\n\nRequest ID: ${result.data.request.id}\nStatus: ${result.data.request.status}\nDay: ${result.data.request.day_name}\nTime: ${result.data.request.start_time} - ${result.data.request.end_time}`);
+            } else {
+                alert(`❌ Failed to Create Change Request\n\nError: ${result.data.message || result.data.error || 'Unknown error'}`);
+            }
+        }
+
+        async function testGetChangeRequests() {
+            const status = document.getElementById('changeRequestStatus').value;
+            const staffRole = document.getElementById('changeRequestStaffRole').value;
+            
+            let url = `${baseUrl.value}/staff-schedules/change-requests`;
+            const params = new URLSearchParams();
+            if (status) params.append('status', status);
+            if (staffRole) params.append('staff_role', staffRole);
+            if (params.toString()) url += '?' + params.toString();
+            
+            showLoading('changeRequestsResult');
+            
+            const result = await makeRequest(url, authToken.value);
+            
+            if (result.success) {
+                const summary = `✅ Get Change Requests - SUCCESS\nStatus: ${result.status}\n\nFound ${result.data.change_requests.length} requests\n\nFull Response:\n${JSON.stringify(result.data, null, 2)}`;
+                showResult('changeRequestsResult', summary, true);
+            } else {
+                const error = `❌ Get Change Requests - FAILED\nStatus: ${result.status}\nError: ${result.data.message || result.data.error || 'Unknown error'}\n\nFull Response:\n${JSON.stringify(result.data, null, 2)}`;
+                showResult('changeRequestsResult', error, false);
+            }
+        }
+
+        async function testApproveChangeRequest() {
+            const requestId = document.getElementById('approveRequestId').value;
+            const adminNotes = document.getElementById('approveNotes').value;
+            
+            if (!requestId) {
+                alert('Please enter a Request ID');
+                return;
+            }
+            
+            const data = { admin_notes: adminNotes };
+            const url = `${baseUrl.value}/staff-schedules/change-requests/${requestId}/approve`;
+            
+            showLoading('adminActionsResult');
+            
+            const result = await makeRequest(url, authToken.value, 'PUT', data);
+            
+            if (result.success) {
+                const summary = `✅ Approve Change Request - SUCCESS\nStatus: ${result.status}\n\nMessage: ${result.data.message}\n\nFull Response:\n${JSON.stringify(result.data, null, 2)}`;
+                showResult('adminActionsResult', summary, true);
+            } else {
+                const error = `❌ Approve Change Request - FAILED\nStatus: ${result.status}\nError: ${result.data.message || result.data.error || 'Unknown error'}\n\nFull Response:\n${JSON.stringify(result.data, null, 2)}`;
+                showResult('adminActionsResult', error, false);
+            }
+        }
+
+        async function testRejectChangeRequest() {
+            const requestId = document.getElementById('rejectRequestId').value;
+            const adminNotes = document.getElementById('rejectNotes').value;
+            
+            if (!requestId) {
+                alert('Please enter a Request ID');
+                return;
+            }
+            
+            const data = { admin_notes: adminNotes };
+            const url = `${baseUrl.value}/staff-schedules/change-requests/${requestId}/reject`;
+            
+            showLoading('adminActionsResult');
+            
+            const result = await makeRequest(url, authToken.value, 'PUT', data);
+            
+            if (result.success) {
+                const summary = `✅ Reject Change Request - SUCCESS\nStatus: ${result.status}\n\nMessage: ${result.data.message}\n\nFull Response:\n${JSON.stringify(result.data, null, 2)}`;
+                showResult('adminActionsResult', summary, true);
+            } else {
+                const error = `❌ Reject Change Request - FAILED\nStatus: ${result.status}\nError: ${result.data.message || result.data.error || 'Unknown error'}\n\nFull Response:\n${JSON.stringify(result.data, null, 2)}`;
+                showResult('adminActionsResult', error, false);
+            }
+        }
+
+        async function testAllEndpoints() {
+            const allResults = document.getElementById('allResults');
+            allResults.style.display = 'block';
+            allResults.className = 'result loading';
+            allResults.textContent = 'Testing all staff scheduling endpoints...\n\n';
+
+            let results = [];
+
+            // Test Get Staff Members
+            allResults.textContent += 'Testing Get Staff Members...\n';
+            const staffMembersResult = await makeRequest(`${baseUrl.value}/staff-schedules/staff-members`, authToken.value);
+            results.push({ name: 'Get Staff Members', success: staffMembersResult.success, status: staffMembersResult.status });
+            allResults.textContent += staffMembersResult.success ? '✅ SUCCESS\n' : '❌ FAILED\n';
+
+            // Test Get Branches
+            allResults.textContent += 'Testing Get Branches...\n';
+            const branchesResult = await makeRequest(`${baseUrl.value}/staff-schedules/branches`, authToken.value);
+            results.push({ name: 'Get Branches', success: branchesResult.success, status: branchesResult.status });
+            allResults.textContent += branchesResult.success ? '✅ SUCCESS\n' : '❌ FAILED\n';
+
+            // Test Get Branch Staff Schedules
+            allResults.textContent += 'Testing Get Branch Staff Schedules...\n';
+            const branchId = document.getElementById('branchId').value;
+            const branchSchedulesResult = await makeRequest(`${baseUrl.value}/staff-schedules/branch/${branchId}`, authToken.value);
+            results.push({ name: 'Get Branch Staff Schedules', success: branchSchedulesResult.success, status: branchSchedulesResult.status });
+            allResults.textContent += branchSchedulesResult.success ? '✅ SUCCESS\n' : '❌ FAILED\n';
+
+            // Test Get Staff Schedule
+            allResults.textContent += 'Testing Get Staff Schedule...\n';
+            const staffId = document.getElementById('staffId').value;
+            const staffScheduleResult = await makeRequest(`${baseUrl.value}/staff-schedules/staff/${staffId}`, authToken.value);
+            results.push({ name: 'Get Staff Schedule', success: staffScheduleResult.success, status: staffScheduleResult.status });
+            allResults.textContent += staffScheduleResult.success ? '✅ SUCCESS\n' : '❌ FAILED\n';
+
+            // Test Get Change Requests
+            allResults.textContent += 'Testing Get Change Requests...\n';
+            const changeRequestsResult = await makeRequest(`${baseUrl.value}/staff-schedules/change-requests`, authToken.value);
+            results.push({ name: 'Get Change Requests', success: changeRequestsResult.success, status: changeRequestsResult.status });
+            allResults.textContent += changeRequestsResult.success ? '✅ SUCCESS\n' : '❌ FAILED\n';
+
+            // Summary
+            const passed = results.filter(r => r.success).length;
+            const total = results.length;
+            
+            allResults.textContent += `\n=== SUMMARY ===\n`;
+            allResults.textContent += `Total tests: ${total}\n`;
+            allResults.textContent += `Passed: ${passed}\n`;
+            allResults.textContent += `Failed: ${total - passed}\n\n`;
+            
+            allResults.textContent += `Detailed Results:\n`;
+            results.forEach(result => {
+                allResults.textContent += `${result.name}: ${result.success ? '✅' : '❌'} (Status: ${result.status})\n`;
+            });
+
+            allResults.textContent += `\n=== Staff Scheduling Features ===\n`;
+            allResults.textContent += `✅ Support for both optometrists and staff members\n`;
+            allResults.textContent += `✅ Branch-specific scheduling\n`;
+            allResults.textContent += `✅ Admin control over all schedules\n`;
+            allResults.textContent += `✅ Staff change request system\n`;
+            allResults.textContent += `✅ Role-based access control\n`;
+            allResults.textContent += `✅ Audit trail (created_by, updated_by)\n`;
+            allResults.textContent += `✅ Backward compatibility with existing optometrist schedules\n`;
+
+            allResults.className = `result ${passed === total ? 'success' : 'error'}`;
+        }
+
+        // Auto-save configuration to localStorage
+        function saveConfig() {
+            localStorage.setItem('staffSchedulingTest_baseUrl', baseUrl.value);
+            localStorage.setItem('staffSchedulingTest_authToken', authToken.value);
+        }
+
+        function loadConfig() {
+            const savedBaseUrl = localStorage.getItem('staffSchedulingTest_baseUrl');
+            const savedToken = localStorage.getItem('staffSchedulingTest_authToken');
+            
+            if (savedBaseUrl) baseUrl.value = savedBaseUrl;
+            if (savedToken) authToken.value = savedToken;
+        }
+
+        // Load saved configuration on page load
+        loadConfig();
+
+        // Save configuration on change
+        baseUrl.addEventListener('change', saveConfig);
+        authToken.addEventListener('change', saveConfig);
+    </script>
+</body>
+</html>

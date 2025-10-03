@@ -2,171 +2,72 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Eye, Download, Calendar, AlertCircle, Loader2, FileText } from 'lucide-react';
+import { Eye, Download, Calendar, AlertCircle, Loader2, FileText, RefreshCw } from 'lucide-react';
 import { format } from 'date-fns';
 import { useAuth } from '@/contexts/AuthContext';
 import { Skeleton } from '@/components/ui/skeleton';
-
-interface Prescription {
-  id: string;
-  patient_id: string;
-  optometrist_id: string;
-  appointment_id?: string;
-  type: 'glasses' | 'contact_lenses' | 'sunglasses' | 'progressive' | 'bifocal';
-  prescription_data: {
-    sphere_od?: string;
-    cylinder_od?: string;
-    axis_od?: string;
-    add_od?: string;
-    sphere_os?: string;
-    cylinder_os?: string;
-    axis_os?: string;
-    add_os?: string;
-    pd?: string;
-  };
-  issue_date: string;
-  expiry_date: string;
-  notes?: string;
-  status: 'active' | 'expired' | 'cancelled';
-  created_at: string;
-  updated_at: string;
-  patient?: {
-    id: string;
-    name: string;
-    email: string;
-  };
-  optometrist?: {
-    id: string;
-    name: string;
-    email: string;
-  };
-  appointment?: {
-    id: string;
-    appointment_date: string;
-    start_time: string;
-    type: string;
-  };
-}
-
-const PRESCRIPTIONS_STORAGE_KEY = 'localStorage_prescriptions';
+import { prescriptionService } from '@/features/prescriptions/services/prescription.service';
+import { Prescription } from '@/features/prescriptions/services/prescription.service';
 
 export const CustomerPrescriptionsLocalStorage: React.FC = () => {
   const { user } = useAuth();
   const [prescriptions, setPrescriptions] = useState<Prescription[]>([]);
   const [selectedPrescription, setSelectedPrescription] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   // Load prescriptions on mount
   useEffect(() => {
-    loadPrescriptions();
-  }, []);
+    if (user?.id) {
+      loadPrescriptions();
+    } else if (user === null) {
+      // User is not authenticated, don't try to load prescriptions
+      setLoading(false);
+    }
+  }, [user?.id, user]);
 
-  const loadPrescriptions = () => {
-    try {
-      const stored = localStorage.getItem(PRESCRIPTIONS_STORAGE_KEY);
-      if (stored) {
-        const allPrescriptions = JSON.parse(stored);
-        // Filter prescriptions for current user
-        const userPrescriptions = allPrescriptions.filter((prescription: Prescription) => 
-          prescription.patient_id === user?.id
-        );
-        setPrescriptions(userPrescriptions);
-      } else {
-        // Create sample prescriptions if none exist
-        createSamplePrescriptions();
+  // Refresh when user returns to the page (focus event) - no auto-refresh
+  useEffect(() => {
+    const handleFocus = () => {
+      if (user?.id) {
+        loadPrescriptions();
       }
-    } catch (error) {
-      console.error('Error loading prescriptions:', error);
+    };
+
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
+  }, [user?.id]);
+
+  const loadPrescriptions = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const response = await prescriptionService.getPrescriptions();
+      // The API returns paginated data, so we need to access the 'data' property
+      const prescriptionsData = response.data?.data || response.data || [];
+      
+      // Sort prescriptions by appointment date (newest first) - issue date should match appointment date
+      const sortedPrescriptions = prescriptionsData.sort((a: Prescription, b: Prescription) => {
+        const dateA = new Date(a.appointment?.appointment_date || a.issue_date);
+        const dateB = new Date(b.appointment?.appointment_date || b.issue_date);
+        return dateB.getTime() - dateA.getTime();
+      });
+      
+      setPrescriptions(sortedPrescriptions);
+    } catch (err: any) {
+      console.error('Error loading prescriptions:', err);
+      if (err.response?.status === 401) {
+        setError('Please log in to view your prescriptions');
+      } else if (err.response?.status === 403) {
+        setError('You do not have permission to view prescriptions');
+      } else {
+        setError(err instanceof Error ? err.message : 'Failed to load prescriptions');
+      }
+    } finally {
+      setLoading(false);
     }
   };
 
-  const createSamplePrescriptions = () => {
-    if (!user) return;
-
-    const samplePrescriptions: Prescription[] = [
-      {
-        id: '1',
-        patient_id: user.id,
-        optometrist_id: '1',
-        appointment_id: '1',
-        type: 'glasses',
-        prescription_data: {
-          sphere_od: '-2.50',
-          cylinder_od: '-0.75',
-          axis_od: '180',
-          add_od: '+1.00',
-          sphere_os: '-2.25',
-          cylinder_os: '-0.50',
-          axis_os: '175',
-          add_os: '+1.00',
-          pd: '62'
-        },
-        issue_date: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 30 days ago
-        expiry_date: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 1 year from now
-        notes: 'For distance and reading. Progressive lenses recommended.',
-        status: 'active',
-        created_at: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(),
-        updated_at: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(),
-        patient: {
-          id: user.id,
-          name: user.name || '',
-          email: user.email || ''
-        },
-        optometrist: {
-          id: '1',
-          name: 'Dr. Sarah Johnson',
-          email: 'sarah.johnson@clinic.com'
-        },
-        appointment: {
-          id: '1',
-          appointment_date: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-          start_time: '10:00',
-          type: 'eye_exam'
-        }
-      },
-      {
-        id: '2',
-        patient_id: user.id,
-        optometrist_id: '2',
-        appointment_id: '2',
-        type: 'contact_lenses',
-        prescription_data: {
-          sphere_od: '-2.50',
-          cylinder_od: '-0.75',
-          axis_od: '180',
-          sphere_os: '-2.25',
-          cylinder_os: '-0.50',
-          axis_os: '175',
-          pd: '62'
-        },
-        issue_date: new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 15 days ago
-        expiry_date: new Date(Date.now() + 180 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 6 months from now
-        notes: 'Daily disposable contact lenses. Replace every day.',
-        status: 'active',
-        created_at: new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString(),
-        updated_at: new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString(),
-        patient: {
-          id: user.id,
-          name: user.name || '',
-          email: user.email || ''
-        },
-        optometrist: {
-          id: '2',
-          name: 'Dr. Michael Chen',
-          email: 'michael.chen@clinic.com'
-        },
-        appointment: {
-          id: '2',
-          appointment_date: new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-          start_time: '14:00',
-          type: 'contact_fitting'
-        }
-      }
-    ];
-
-    localStorage.setItem(PRESCRIPTIONS_STORAGE_KEY, JSON.stringify(samplePrescriptions));
-    setPrescriptions(samplePrescriptions);
-  };
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -215,20 +116,22 @@ Type: ${getTypeLabel(prescription.type)}
 
 PRESCRIPTION DATA:
 Right Eye (OD):
-  Sphere: ${prescription.prescription_data.sphere_od || 'N/A'}
-  Cylinder: ${prescription.prescription_data.cylinder_od || 'N/A'}
-  Axis: ${prescription.prescription_data.axis_od || 'N/A'}
-  Add: ${prescription.prescription_data.add_od || 'N/A'}
+  Sphere: ${prescription.right_eye?.sphere || 'N/A'}
+  Cylinder: ${prescription.right_eye?.cylinder || 'N/A'}
+  Axis: ${prescription.right_eye?.axis || 'N/A'}
+  PD: ${prescription.right_eye?.pd || 'N/A'}
 
 Left Eye (OS):
-  Sphere: ${prescription.prescription_data.sphere_os || 'N/A'}
-  Cylinder: ${prescription.prescription_data.cylinder_os || 'N/A'}
-  Axis: ${prescription.prescription_data.axis_os || 'N/A'}
-  Add: ${prescription.prescription_data.add_os || 'N/A'}
+  Sphere: ${prescription.left_eye?.sphere || 'N/A'}
+  Cylinder: ${prescription.left_eye?.cylinder || 'N/A'}
+  Axis: ${prescription.left_eye?.axis || 'N/A'}
+  PD: ${prescription.left_eye?.pd || 'N/A'}
 
-Pupillary Distance (PD): ${prescription.prescription_data.pd || 'N/A'}
+Vision Acuity: ${prescription.vision_acuity || 'N/A'}
 
-Notes: ${prescription.notes || 'None'}
+Notes: ${prescription.additional_notes || 'None'}
+
+Recommendations: ${prescription.recommendations || 'None'}
 
 Status: ${prescription.status.toUpperCase()}
     `.trim();
@@ -244,11 +147,44 @@ Status: ${prescription.status.toUpperCase()}
     URL.revokeObjectURL(url);
   };
 
+  if (loading) {
+    return (
+      <div className="p-6 flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin" />
+        <span className="ml-2">Loading prescriptions...</span>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="p-6">
+        <div className="flex items-center gap-2 text-red-600 mb-4">
+          <AlertCircle className="h-5 w-5" />
+          <span>Error: {error}</span>
+        </div>
+        <Button onClick={loadPrescriptions}>Retry</Button>
+      </div>
+    );
+  }
+
   return (
     <div className="p-6 space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold text-gray-900">My Prescriptions</h1>
-        <p className="text-gray-600 mt-2">View and manage your eye care prescriptions</p>
+      <div className="flex justify-between items-center">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900">My Prescriptions</h1>
+          <p className="text-gray-600 mt-2">View and manage your eye care prescriptions</p>
+        </div>
+        <Button
+          onClick={loadPrescriptions}
+          disabled={loading}
+          variant="outline"
+          size="sm"
+          className="flex items-center gap-2"
+        >
+          <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+          Refresh
+        </Button>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -287,7 +223,7 @@ Status: ${prescription.status.toUpperCase()}
                     <div className="flex items-center gap-2">
                       <Calendar className="w-4 h-4 text-gray-500" />
                       <span className="text-sm text-gray-600">
-                        Issued: {format(new Date(prescription.issue_date), 'MMMM d, yyyy')}
+                        Issued: {format(new Date(prescription.appointment?.appointment_date || prescription.issue_date), 'MMMM d, yyyy')}
                       </span>
                     </div>
 
@@ -305,42 +241,38 @@ Status: ${prescription.status.toUpperCase()}
                       </span>
                     </div>
 
-                    {prescription.appointment && (
-                      <div className="flex items-center gap-2">
-                        <Calendar className="w-4 h-4 text-gray-500" />
-                        <span className="text-sm text-gray-600">
-                          From appointment: {format(new Date(prescription.appointment.appointment_date), 'MMM d, yyyy')} at {prescription.appointment.start_time}
-                        </span>
-                      </div>
-                    )}
-
                     {selectedPrescription === prescription.id && (
                       <div className="mt-4 space-y-3 pt-3 border-t">
                         <h4 className="font-medium text-sm mb-2">Prescription Details:</h4>
                         <div className="grid grid-cols-2 gap-4 text-sm">
                           <div>
                             <h5 className="font-medium">Right Eye (OD)</h5>
-                            <p>Sphere: {prescription.prescription_data.sphere_od || 'N/A'}</p>
-                            <p>Cylinder: {prescription.prescription_data.cylinder_od || 'N/A'}</p>
-                            <p>Axis: {prescription.prescription_data.axis_od || 'N/A'}</p>
-                            <p>Add: {prescription.prescription_data.add_od || 'N/A'}</p>
+                            <p>Sphere: {prescription.prescription_data?.right_eye?.sphere || 'N/A'}</p>
+                            <p>Cylinder: {prescription.prescription_data?.right_eye?.cylinder || 'N/A'}</p>
+                            <p>Axis: {prescription.prescription_data?.right_eye?.axis || 'N/A'}</p>
+                            <p>PD: {prescription.prescription_data?.right_eye?.pd || 'N/A'}</p>
                           </div>
                           <div>
                             <h5 className="font-medium">Left Eye (OS)</h5>
-                            <p>Sphere: {prescription.prescription_data.sphere_os || 'N/A'}</p>
-                            <p>Cylinder: {prescription.prescription_data.cylinder_os || 'N/A'}</p>
-                            <p>Axis: {prescription.prescription_data.axis_os || 'N/A'}</p>
-                            <p>Add: {prescription.prescription_data.add_os || 'N/A'}</p>
+                            <p>Sphere: {prescription.prescription_data?.left_eye?.sphere || 'N/A'}</p>
+                            <p>Cylinder: {prescription.prescription_data?.left_eye?.cylinder || 'N/A'}</p>
+                            <p>Axis: {prescription.prescription_data?.left_eye?.axis || 'N/A'}</p>
+                            <p>PD: {prescription.prescription_data?.left_eye?.pd || 'N/A'}</p>
                           </div>
                         </div>
-                        {prescription.prescription_data.pd && (
+                        {prescription.prescription_data?.vision_acuity && (
                           <div className="text-sm">
-                            <p><strong>Pupillary Distance (PD):</strong> {prescription.prescription_data.pd}mm</p>
+                            <p><strong>Vision Acuity:</strong> {prescription.prescription_data.vision_acuity}</p>
                           </div>
                         )}
-                        {prescription.notes && (
+                        {prescription.prescription_data?.additional_notes && (
                           <div className="text-sm">
-                            <p><strong>Notes:</strong> {prescription.notes}</p>
+                            <p><strong>Notes:</strong> {prescription.prescription_data.additional_notes}</p>
+                          </div>
+                        )}
+                        {prescription.prescription_data?.recommendations && (
+                          <div className="text-sm">
+                            <p><strong>Recommendations:</strong> {prescription.prescription_data.recommendations}</p>
                           </div>
                         )}
                       </div>
@@ -438,3 +370,4 @@ Status: ${prescription.status.toUpperCase()}
     </div>
   );
 };
+

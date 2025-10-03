@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Clock, Users, FileText, Package, Calendar, User, AlertCircle, Eye, Receipt, TrendingUp, Activity, Plus, ShoppingBag } from 'lucide-react';
+import { Clock, Users, FileText, Package, Calendar, User, AlertCircle, Eye, Receipt, TrendingUp, Activity, Plus } from 'lucide-react';
 import { DashboardCard } from './DashboardCard';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -14,7 +14,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
-import { ProductGalleryLocalStorage } from '@/features/products/components/ProductGalleryLocalStorage';
 
 
 // Types
@@ -711,19 +710,7 @@ const OptometristDashboard = () => {
         </TabsContent>
       </Tabs>
 
-      {/* Product Gallery */}
-      <Card className="shadow-lg border-0">
-        <CardHeader>
-          <CardTitle className="flex items-center space-x-2">
-            <ShoppingBag className="h-5 w-5 text-purple-600" />
-            <span>Product Gallery Management</span>
-          </CardTitle>
-          <CardDescription>Manage products available for customer reservations</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <ProductGalleryLocalStorage />
-        </CardContent>
-      </Card>
+      
 
       {/* New Appointment Dialog */}
       <Dialog open={showNewAppointment} onOpenChange={setShowNewAppointment}>

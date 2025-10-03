@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Calendar, Clock, User, Eye, Phone, Mail, RefreshCw } from 'lucide-react';
+import { Calendar, Clock, User, Eye, Phone, Mail, RefreshCw, Building2 } from 'lucide-react';
 import {
   Table,
   TableBody,
@@ -21,18 +21,40 @@ import {
 import { useAppointments } from '../hooks/useAppointments';
 import { Appointment, APPOINTMENT_STATUSES, APPOINTMENT_TYPES } from '../types/appointment.types';
 import { useAuth } from '@/contexts/AuthContext';
+import BranchFilter from '@/components/common/BranchFilter';
+import PrescriptionForm from '@/components/prescriptions/PrescriptionForm';
 
 const OptometristAppointments: React.FC = () => {
   const { user } = useAuth();
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [filterType, setFilterType] = useState<string>('all');
+  const [filterBranch, setFilterBranch] = useState<string>('all');
+  const [showPrescriptionForm, setShowPrescriptionForm] = useState(false);
+  const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
 
-  // Get appointments for the current optometrist
+  // Get all appointments since there's only one doctor
   const { appointments, loading, error, refetch } = useAppointments({
     status: filterStatus !== 'all' ? filterStatus : undefined,
     type: filterType !== 'all' ? filterType : undefined,
-    my_appointments: true, // Only get appointments for this optometrist as boolean
+    branch_id: filterBranch !== 'all' ? filterBranch : undefined,
+    // Removed my_appointments filter to show all appointments
   });
+
+  const handleCreatePrescription = (appointment: Appointment) => {
+    setSelectedAppointment(appointment);
+    setShowPrescriptionForm(true);
+  };
+
+  const handlePrescriptionSuccess = () => {
+    setShowPrescriptionForm(false);
+    setSelectedAppointment(null);
+    refetch(); // Refresh appointments list
+  };
+
+  const handlePrescriptionCancel = () => {
+    setShowPrescriptionForm(false);
+    setSelectedAppointment(null);
+  };
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -114,8 +136,8 @@ const OptometristAppointments: React.FC = () => {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">My Appointments</h1>
-          <p className="text-gray-600">Manage your appointment schedule</p>
+          <h1 className="text-2xl font-bold text-gray-900">All Appointments</h1>
+          <p className="text-gray-600">Manage all appointments - you can proceed with any appointment</p>
         </div>
         <Button>
           <Calendar className="h-4 w-4 mr-2" />
@@ -132,7 +154,7 @@ const OptometristAppointments: React.FC = () => {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <Select value={filterStatus} onValueChange={setFilterStatus}>
               <SelectTrigger>
                 <SelectValue placeholder="Filter by status" />
@@ -161,9 +183,19 @@ const OptometristAppointments: React.FC = () => {
               </SelectContent>
             </Select>
 
+            <BranchFilter
+              selectedBranchId={filterBranch}
+              onBranchChange={setFilterBranch}
+              showAllOption={true}
+              label="Filter by Branch"
+              placeholder="All Branches"
+              useAdminData={false}
+            />
+
             <Button variant="outline" onClick={() => {
               setFilterStatus('all');
               setFilterType('all');
+              setFilterBranch('all');
             }}>
               Clear Filters
             </Button>
@@ -174,10 +206,12 @@ const OptometristAppointments: React.FC = () => {
       {/* Appointments Table */}
       <Card>
         <CardHeader>
-          <CardTitle>Appointments ({appointments.length})</CardTitle>
+          <CardTitle>All Appointments ({appointments.length})</CardTitle>
           <CardDescription>
-            {filterStatus !== 'all' && `Filtered by status: ${filterStatus}`}
-            {filterType !== 'all' && `, type: ${filterType}`}
+            Showing all appointments across all branches and optometrists
+            {filterStatus !== 'all' && ` • Filtered by status: ${filterStatus}`}
+            {filterType !== 'all' && ` • Filtered by type: ${filterType}`}
+            {filterBranch !== 'all' && ` • Filtered by branch: ${filterBranch}`}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -185,9 +219,11 @@ const OptometristAppointments: React.FC = () => {
             <TableHeader>
               <TableRow>
                 <TableHead>Patient</TableHead>
+                <TableHead>Branch</TableHead>
                 <TableHead>Date & Time</TableHead>
                 <TableHead>Type</TableHead>
                 <TableHead>Status</TableHead>
+                <TableHead>Assigned To</TableHead>
                 <TableHead>Actions</TableHead>
               </TableRow>
             </TableHeader>
@@ -197,26 +233,47 @@ const OptometristAppointments: React.FC = () => {
                   <TableCell>
                     <div className="flex items-center space-x-2">
                       <User className="h-4 w-4 text-gray-400" />
-                      <span className="font-medium">{appointment.patientName || 'Unknown Patient'}</span>
+                      <span className="font-medium">{appointment.patient?.name || 'Unknown Patient'}</span>
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center space-x-2">
+                      <Building2 className="h-4 w-4 text-gray-400" />
+                      <span className="font-medium">{appointment.branch?.name || 'Unknown Branch'}</span>
                     </div>
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center space-x-2">
                       <Calendar className="h-4 w-4 text-gray-400" />
-                      <span>{formatDate(appointment.appointmentDate)}</span>
+                      <span>{formatDate(appointment.appointment_date)}</span>
                       <Clock className="h-4 w-4 text-gray-400 ml-2" />
-                      <span>{formatTime(appointment.startTime)}</span>
+                      <span>{formatTime(appointment.start_time)}</span>
                     </div>
                   </TableCell>
                   <TableCell>
                     <Badge className={getTypeColor(appointment.type)}>
-                      {appointment.type.replace('_', ' ')}
+                      {String(appointment.type).replace('_', ' ')}
                     </Badge>
                   </TableCell>
                   <TableCell>
                     <Badge className={getStatusColor(appointment.status)}>
-                      {appointment.status.replace('_', ' ')}
+                      {String(appointment.status).replace('_', ' ')}
                     </Badge>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center space-x-2">
+                      <User className="h-4 w-4 text-gray-400" />
+                      <span className={`font-medium ${
+                        appointment.optometrist?.id === user?.id 
+                          ? 'text-green-600' 
+                          : appointment.optometrist 
+                            ? 'text-blue-600' 
+                            : 'text-gray-500'
+                      }`}>
+                        {appointment.optometrist?.name || 'Unassigned'}
+                        {appointment.optometrist?.id === user?.id && ' (You)'}
+                      </span>
+                    </div>
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center space-x-2">
@@ -224,9 +281,26 @@ const OptometristAppointments: React.FC = () => {
                         <Eye className="h-4 w-4 mr-1" />
                         View
                       </Button>
-                      <Button size="sm" variant="outline">
-                        Edit
-                      </Button>
+                      {appointment.status === 'scheduled' || appointment.status === 'confirmed' ? (
+                        <Button 
+                          size="sm" 
+                          variant="default"
+                          className="bg-blue-600 hover:bg-blue-700"
+                        >
+                          <User className="h-4 w-4 mr-1" />
+                          Take Over
+                        </Button>
+                      ) : appointment.status === 'in_progress' && (
+                        <Button 
+                          size="sm" 
+                          variant="default"
+                          onClick={() => handleCreatePrescription(appointment)}
+                          className="bg-green-600 hover:bg-green-700"
+                        >
+                          <Eye className="h-4 w-4 mr-1" />
+                          Create Prescription
+                        </Button>
+                      )}
                     </div>
                   </TableCell>
                 </TableRow>
@@ -242,6 +316,15 @@ const OptometristAppointments: React.FC = () => {
           )}
         </CardContent>
       </Card>
+
+      {/* Prescription Form Modal */}
+      {showPrescriptionForm && selectedAppointment && (
+        <PrescriptionForm
+          appointment={selectedAppointment}
+          onSuccess={handlePrescriptionSuccess}
+          onCancel={handlePrescriptionCancel}
+        />
+      )}
     </div>
   );
 };

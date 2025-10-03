@@ -124,7 +124,6 @@ export const ProductGalleryLocalStorage: React.FC = () => {
 
   // Delete product via API
   const deleteProductById = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this product?')) return;
     try {
       await deleteProduct(id);
       fetchProducts();
@@ -151,7 +150,8 @@ export const ProductGalleryLocalStorage: React.FC = () => {
     if (!newReservationProductId) return;
     try {
       await createReservation({
-        product_id: newReservationProductId,
+        product_id: parseInt(newReservationProductId),
+        branch_id: 1, // Default branch ID, you may want to make this dynamic
         quantity: reservationQuantity,
       });
       cancelReservation();

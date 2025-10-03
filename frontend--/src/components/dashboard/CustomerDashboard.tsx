@@ -1,14 +1,13 @@
 import React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Calendar, FileText, Plus, Eye, Clock, ShoppingBag } from 'lucide-react';
+import { Calendar, FileText, Plus, Eye, Clock, ShoppingBag, Package } from 'lucide-react';
 
 import { useAppointments } from '@/features/appointments/hooks/useAppointments';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import { ProductGallerySimple } from '@/features/products/components/ProductGallerySimple';
 
 
 const CustomerDashboard: React.FC = () => {
@@ -41,6 +40,8 @@ const CustomerDashboard: React.FC = () => {
   const handleViewProducts = () => {
     navigate('/customer/products');
   };
+
+  
 
   return (
     <div className="space-y-6">
@@ -135,40 +136,42 @@ const CustomerDashboard: React.FC = () => {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="bg-gradient-to-br from-orange-50 to-amber-50 border-orange-200">
           <CardHeader className="flex items-center justify-between">
             <div>
               <CardTitle className="flex items-center space-x-2">
                 <ShoppingBag className="h-5 w-5 text-orange-600" />
-                <span>Product Gallery</span>
+                <span>Eye Care Products</span>
               </CardTitle>
               <CardDescription>Browse and reserve products</CardDescription>
             </div>
+            <Package className="h-8 w-8 text-orange-300" />
           </CardHeader>
           <CardContent className="space-y-4">
-            <p className="text-center text-gray-500 py-4">Browse our product catalog</p>
-            <Button className="w-full" variant="outline" onClick={handleViewProducts}>
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 text-sm">
+                <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                <span className="text-gray-600">Glasses & Frames</span>
+              </div>
+              <div className="flex items-center gap-2 text-sm">
+                <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                <span className="text-gray-600">Contact Lenses</span>
+              </div>
+              <div className="flex items-center gap-2 text-sm">
+                <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
+                <span className="text-gray-600">Eye Care Solutions</span>
+              </div>
+            </div>
+            <Button className="w-full bg-orange-600 hover:bg-orange-700" onClick={handleViewProducts}>
               <ShoppingBag className="mr-2 h-4 w-4" />
-              View Products
+              Browse Products
             </Button>
           </CardContent>
         </Card>
 
       </div>
 
-      {/* Product Gallery Section */}
-      <Card className="shadow-lg border-0">
-        <CardHeader>
-          <CardTitle className="flex items-center space-x-2">
-            <ShoppingBag className="h-5 w-5 text-orange-600" />
-            <span>Featured Products</span>
-          </CardTitle>
-          <CardDescription>Browse our latest eye care products and accessories</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <ProductGallerySimple />
-        </CardContent>
-      </Card>
+      
 
     </div>
   );

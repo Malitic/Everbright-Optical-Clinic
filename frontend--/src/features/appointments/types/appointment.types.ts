@@ -2,6 +2,7 @@ export interface Appointment {
   id: number;
   patient_id: number;
   optometrist_id: number;
+  branch_id: number;
   appointment_date: string;
   start_time: string;
   end_time: string;
@@ -19,6 +20,10 @@ export interface Appointment {
     id: number;
     name: string;
     email: string;
+  };
+  branch?: {
+    id: number;
+    name: string;
   };
 }
 
@@ -46,6 +51,7 @@ export type AppointmentStatus = typeof AppointmentStatus[keyof typeof Appointmen
 export interface CreateAppointmentRequest {
   patient_id: number;
   optometrist_id: number;
+  branch_id: number;
   appointment_date: string;
   start_time: string;
   end_time: string;

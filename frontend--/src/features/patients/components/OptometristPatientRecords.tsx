@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
-import { Search, Eye, Calendar, Phone, Mail, User, FileText, Activity } from 'lucide-react';
+import { Search, Eye, Calendar, Phone, Mail, User, FileText, Activity, Loader2, AlertCircle } from 'lucide-react';
 import {
   Table,
   TableBody,
@@ -20,67 +20,114 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
+import { useAuth } from '@/contexts/AuthContext';
+import { prescriptionService } from '@/features/prescriptions/services/prescription.service';
+import { Prescription } from '@/features/prescriptions/services/prescription.service';
+import { format } from 'date-fns';
 
 interface Patient {
   id: string;
   name: string;
   email: string;
-  phone: string;
-  dateOfBirth: string;
-  lastVisit: string;
+  phone?: string;
+  dateOfBirth?: string;
+  lastVisit?: string;
   nextAppointment?: string;
-  medicalHistory: string[];
-  prescriptions: number;
+  medicalHistory?: string[];
+  prescriptions: Prescription[];
   status: 'active' | 'inactive';
 }
 
-const mockPatients: Patient[] = [
-  {
-    id: '1',
-    name: 'John Doe',
-    email: 'john.doe@email.com',
-    phone: '+1-555-0123',
-    dateOfBirth: '1985-06-15',
-    lastVisit: '2024-01-10',
-    nextAppointment: '2024-02-15',
-    medicalHistory: ['Myopia', 'Astigmatism'],
-    prescriptions: 12,
-    status: 'active'
-  },
-  {
-    id: '2',
-    name: 'Jane Smith',
-    email: 'jane.smith@email.com',
-    phone: '+1-555-0124',
-    dateOfBirth: '1990-03-22',
-    lastVisit: '2024-01-08',
-    nextAppointment: '2024-01-25',
-    medicalHistory: ['Hyperopia', 'Presbyopia'],
-    prescriptions: 8,
-    status: 'active'
-  },
-  {
-    id: '3',
-    name: 'Robert Johnson',
-    email: 'robert.j@email.com',
-    phone: '+1-555-0125',
-    dateOfBirth: '1978-11-30',
-    lastVisit: '2023-12-20',
-    medicalHistory: ['Glaucoma', 'Cataract'],
-    prescriptions: 15,
-    status: 'active'
-  }
-];
-
 const OptometristPatientRecords: React.FC = () => {
-  const [patients, setPatients] = useState<Patient[]>(mockPatients);
+  const { user } = useAuth();
+  const [patients, setPatients] = useState<Patient[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
+  const [patientPrescriptions, setPatientPrescriptions] = useState<Prescription[]>([]);
+  const [loadingPrescriptions, setLoadingPrescriptions] = useState(false);
+
+  // Load patients on component mount
+  useEffect(() => {
+    if (user?.id) {
+      loadPatients();
+    } else if (user === null) {
+      // User is not authenticated, don't try to load patients
+      setLoading(false);
+    }
+  }, [user?.id, user]);
+
+  const loadPatients = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      // Get all prescriptions first to extract unique patients
+      const response = await prescriptionService.getPrescriptions();
+      const prescriptions = response.data?.data || [];
+      
+      // Group prescriptions by patient
+      const patientMap = new Map<string, Patient>();
+      
+      prescriptions.forEach(prescription => {
+        if (prescription.patient) {
+          const patientId = prescription.patient.id.toString();
+          if (!patientMap.has(patientId)) {
+            patientMap.set(patientId, {
+              id: patientId,
+              name: prescription.patient.name,
+              email: prescription.patient.email,
+              prescriptions: [],
+              status: 'active'
+            });
+          }
+          patientMap.get(patientId)!.prescriptions.push(prescription);
+        }
+      });
+
+      // Convert map to array and sort by last prescription date
+      const patientsArray = Array.from(patientMap.values()).map(patient => {
+        const sortedPrescriptions = patient.prescriptions.sort((a, b) => 
+          new Date(b.issue_date).getTime() - new Date(a.issue_date).getTime()
+        );
+        return {
+          ...patient,
+          prescriptions: sortedPrescriptions,
+          lastVisit: sortedPrescriptions[0]?.issue_date
+        };
+      });
+
+      setPatients(patientsArray);
+    } catch (err: any) {
+      console.error('Error loading patients:', err);
+      if (err.response?.status === 401) {
+        setError('Please log in to view patient records');
+      } else if (err.response?.status === 403) {
+        setError('You do not have permission to view patient records');
+      } else {
+        setError(err instanceof Error ? err.message : 'Failed to load patients');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadPatientPrescriptions = async (patientId: string) => {
+    try {
+      setLoadingPrescriptions(true);
+      const prescriptions = await prescriptionService.getPatientPrescriptions(patientId);
+      setPatientPrescriptions(prescriptions);
+    } catch (err) {
+      console.error('Error loading patient prescriptions:', err);
+    } finally {
+      setLoadingPrescriptions(false);
+    }
+  };
 
   const filteredPatients = patients.filter(patient =>
     patient.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     patient.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    patient.phone.includes(searchTerm)
+    (patient.phone && patient.phone.includes(searchTerm))
   );
 
   const getStatusColor = (status: string) => {
@@ -97,6 +144,27 @@ const OptometristPatientRecords: React.FC = () => {
     }
     return age;
   };
+
+  if (loading) {
+    return (
+      <div className="p-6 flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin" />
+        <span className="ml-2">Loading patients...</span>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="p-6">
+        <div className="flex items-center gap-2 text-red-600 mb-4">
+          <AlertCircle className="h-5 w-5" />
+          <span>Error: {error}</span>
+        </div>
+        <Button onClick={loadPatients}>Retry</Button>
+      </div>
+    );
+  }
 
   return (
     <div className="p-6">
@@ -126,120 +194,166 @@ const OptometristPatientRecords: React.FC = () => {
             </div>
           </div>
 
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Patient</TableHead>
-                <TableHead>Age</TableHead>
-                <TableHead>Last Visit</TableHead>
-                <TableHead>Next Appointment</TableHead>
-                <TableHead>Medical History</TableHead>
-                <TableHead>Prescriptions</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredPatients.map((patient) => (
-                <TableRow key={patient.id}>
-                  <TableCell>
-                    <div>
-                      <p className="font-medium">{patient.name}</p>
-                      <p className="text-sm text-gray-500">{patient.email}</p>
-                    </div>
-                  </TableCell>
-                  <TableCell>{calculateAge(patient.dateOfBirth)}</TableCell>
-                  <TableCell>{patient.lastVisit}</TableCell>
-                  <TableCell>
-                    {patient.nextAppointment || (
-                      <span className="text-gray-400">Not scheduled</span>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex flex-wrap gap-1">
-                      {patient.medicalHistory.map((condition, index) => (
-                        <Badge key={index} variant="secondary" className="text-xs">
-                          {condition}
-                        </Badge>
-                      ))}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant="outline">{patient.prescriptions}</Badge>
-                  </TableCell>
-                  <TableCell>
-                    <Badge className={getStatusColor(patient.status)}>
-                      {patient.status}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    <Dialog>
-                      <DialogTrigger asChild>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => setSelectedPatient(patient)}
-                        >
-                          <FileText className="h-4 w-4" />
-                        </Button>
-                      </DialogTrigger>
-                      <DialogContent className="max-w-2xl">
-                        <DialogHeader>
-                          <DialogTitle>Patient Details</DialogTitle>
-                          <DialogDescription>
-                            Complete patient information and medical history
-                          </DialogDescription>
-                        </DialogHeader>
-                        {selectedPatient && (
-                          <div className="space-y-4">
-                            <div>
-                              <h3 className="font-semibold mb-2">Basic Information</h3>
-                              <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                  <p className="text-sm font-medium">Name</p>
-                                  <p>{selectedPatient.name}</p>
-                                </div>
-                                <div>
-                                  <p className="text-sm font-medium">Email</p>
-                                  <p>{selectedPatient.email}</p>
-                                </div>
-                                <div>
-                                  <p className="text-sm font-medium">Phone</p>
-                                  <p>{selectedPatient.phone}</p>
-                                </div>
-                                <div>
-                                  <p className="text-sm font-medium">Date of Birth</p>
-                                  <p>{selectedPatient.dateOfBirth}</p>
-                                </div>
-                              </div>
-                            </div>
-                            <div>
-                              <h3 className="font-semibold mb-2">Medical History</h3>
-                              <div className="flex flex-wrap gap-2">
-                                {selectedPatient.medicalHistory.map((condition, index) => (
-                                  <Badge key={index} variant="outline">
-                                    {condition}
-                                  </Badge>
-                                ))}
-                              </div>
-                            </div>
-                            <div>
-                              <h3 className="font-semibold mb-2">Recent Activity</h3>
-                              <div className="space-y-2">
-                                <p>Last Visit: {selectedPatient.lastVisit}</p>
-                                <p>Total Prescriptions: {selectedPatient.prescriptions}</p>
-                                <p>Status: {selectedPatient.status}</p>
-                              </div>
-                            </div>
-                          </div>
-                        )}
-                      </DialogContent>
-                    </Dialog>
-                  </TableCell>
+          {filteredPatients.length === 0 ? (
+            <div className="text-center py-8">
+              <User className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+              <h3 className="text-lg font-medium text-gray-900 mb-2">No Patients Found</h3>
+              <p className="text-gray-600">No patients match your search criteria.</p>
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Patient</TableHead>
+                  <TableHead>Last Visit</TableHead>
+                  <TableHead>Prescriptions</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Actions</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {filteredPatients.map((patient) => (
+                  <TableRow key={patient.id}>
+                    <TableCell>
+                      <div>
+                        <p className="font-medium">{patient.name}</p>
+                        <p className="text-sm text-gray-500">{patient.email}</p>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      {patient.lastVisit ? format(new Date(patient.lastVisit), 'MMM d, yyyy') : 'N/A'}
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="outline">{patient.prescriptions.length}</Badge>
+                    </TableCell>
+                    <TableCell>
+                      <Badge className={getStatusColor(patient.status)}>
+                        {patient.status}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <Dialog>
+                        <DialogTrigger asChild>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              setSelectedPatient(patient);
+                              loadPatientPrescriptions(patient.id);
+                            }}
+                          >
+                            <FileText className="h-4 w-4" />
+                          </Button>
+                        </DialogTrigger>
+                        <DialogContent className="max-w-4xl">
+                          <DialogHeader>
+                            <DialogTitle>Patient Details & Prescription History</DialogTitle>
+                            <DialogDescription>
+                              Complete patient information and prescription history
+                            </DialogDescription>
+                          </DialogHeader>
+                          {selectedPatient && (
+                            <div className="space-y-6">
+                              <div>
+                                <h3 className="font-semibold mb-2">Basic Information</h3>
+                                <div className="grid grid-cols-2 gap-4">
+                                  <div>
+                                    <p className="text-sm font-medium">Name</p>
+                                    <p>{selectedPatient.name}</p>
+                                  </div>
+                                  <div>
+                                    <p className="text-sm font-medium">Email</p>
+                                    <p>{selectedPatient.email}</p>
+                                  </div>
+                                  <div>
+                                    <p className="text-sm font-medium">Phone</p>
+                                    <p>{selectedPatient.phone || 'N/A'}</p>
+                                  </div>
+                                  <div>
+                                    <p className="text-sm font-medium">Date of Birth</p>
+                                    <p>{selectedPatient.dateOfBirth || 'N/A'}</p>
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div>
+                                <h3 className="font-semibold mb-4">Prescription History</h3>
+                                {loadingPrescriptions ? (
+                                  <div className="flex items-center justify-center py-4">
+                                    <Loader2 className="h-6 w-6 animate-spin" />
+                                    <span className="ml-2">Loading prescriptions...</span>
+                                  </div>
+                                ) : patientPrescriptions.length === 0 ? (
+                                  <p className="text-gray-500">No prescriptions found for this patient.</p>
+                                ) : (
+                                  <div className="space-y-3">
+                                    {patientPrescriptions.map((prescription) => (
+                                      <Card key={prescription.id}>
+                                        <CardContent className="p-4">
+                                          <div className="flex justify-between items-start mb-2">
+                                            <div>
+                                              <p className="font-medium">
+                                                {prescription.type?.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                                              </p>
+                                              <p className="text-sm text-gray-500">
+                                                {format(new Date(prescription.issue_date), 'MMM d, yyyy')}
+                                              </p>
+                                            </div>
+                                            <Badge className={getStatusColor(prescription.status)}>
+                                              {prescription.status}
+                                            </Badge>
+                                          </div>
+                                          
+                                          <div className="grid grid-cols-2 gap-4 text-sm">
+                                            <div>
+                                              <h5 className="font-medium">Right Eye (OD)</h5>
+                                              <p>S: {prescription.right_eye?.sphere || 'N/A'}</p>
+                                              <p>C: {prescription.right_eye?.cylinder || 'N/A'}</p>
+                                              <p>A: {prescription.right_eye?.axis || 'N/A'}</p>
+                                              <p>PD: {prescription.right_eye?.pd || 'N/A'}</p>
+                                            </div>
+                                            <div>
+                                              <h5 className="font-medium">Left Eye (OS)</h5>
+                                              <p>S: {prescription.left_eye?.sphere || 'N/A'}</p>
+                                              <p>C: {prescription.left_eye?.cylinder || 'N/A'}</p>
+                                              <p>A: {prescription.left_eye?.axis || 'N/A'}</p>
+                                              <p>PD: {prescription.left_eye?.pd || 'N/A'}</p>
+                                            </div>
+                                          </div>
+
+                                          {prescription.vision_acuity && (
+                                            <div className="mt-2 text-sm">
+                                              <p><strong>Vision Acuity:</strong> {prescription.vision_acuity}</p>
+                                            </div>
+                                          )}
+
+                                          {prescription.additional_notes && (
+                                            <div className="mt-2 text-sm">
+                                              <p><strong>Notes:</strong> {prescription.additional_notes}</p>
+                                            </div>
+                                          )}
+
+                                          {prescription.recommendations && (
+                                            <div className="mt-2 text-sm">
+                                              <p><strong>Recommendations:</strong> {prescription.recommendations}</p>
+                                            </div>
+                                          )}
+                                        </CardContent>
+                                      </Card>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                        </DialogContent>
+                      </Dialog>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
         </CardContent>
       </Card>
     </div>

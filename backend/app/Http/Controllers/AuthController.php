@@ -8,6 +8,8 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rules\Enum;
 use Laravel\Sanctum\HasApiTokens;
+use App\Helpers\Realtime;
+use App\Http\Controllers\NotificationController;
 
 class AuthController extends Controller
 {
@@ -20,7 +22,10 @@ class AuthController extends Controller
             'name' => 'required|string|max:255',
             'email' => 'required|string|email|max:255|unique:users',
             'password' => 'required|string|min:8',
+            'password_confirmation' => 'nullable|string|same:password',
+            // Allow user to choose desired role; actual account starts as customer
             'role' => ['required', 'string', new Enum(\App\Enums\UserRole::class)],
+            'branch_id' => 'nullable|exists:branches,id',
         ]);
 
         if ($validator->fails()) {
@@ -30,17 +35,71 @@ class AuthController extends Controller
             ], 422);
         }
 
+        // Check for existing staff per branch if role is staff
+        if ($request->role === \App\Enums\UserRole::STAFF->value) {
+            if (!$request->branch_id) {
+                return response()->json([
+                    'message' => 'Branch selection is required for staff registration',
+                    'errors' => ['branch_id' => ['Branch selection is required for staff registration']]
+                ], 422);
+            }
+
+            // Check if there's already a staff member for this branch
+            $existingStaff = User::where('role', \App\Enums\UserRole::STAFF->value)
+                ->where('branch_id', $request->branch_id)
+                ->where('is_approved', true)
+                ->first();
+
+            if ($existingStaff) {
+                return response()->json([
+                    'message' => 'This branch already has a staff account.',
+                    'errors' => ['branch_id' => ['This branch already has a staff account.']]
+                ], 422);
+            }
+        }
+
         $user = User::create([
             'name' => $request->name,
             'email' => $request->email,
             'password' => Hash::make($request->password),
-            'role' => $request->role,
+            // Always start as customer; admin can approve requested role
+            'role' => \App\Enums\UserRole::CUSTOMER->value,
+            'is_approved' => $request->role === \App\Enums\UserRole::CUSTOMER->value,
         ]);
 
-        $token = $user->createToken('auth_token')->plainTextToken;
+        // Create notification for user signup
+        NotificationController::createUserSignupNotification($user);
+
+        // If requested role is not customer, create a pending role request for admin approval
+        if ($request->role !== \App\Enums\UserRole::CUSTOMER->value) {
+            $roleRequest = \App\Models\RoleRequest::create([
+                'user_id' => $user->id,
+                'requested_role' => $request->role,
+                'branch_id' => $request->branch_id,
+                'status' => 'pending',
+            ]);
+
+            // Emit realtime event for admins
+            Realtime::emit('role_request.created', [
+                'id' => $roleRequest->id,
+                'user' => [
+                    'id' => $user->id,
+                    'name' => $user->name,
+                    'email' => $user->email,
+                    'role' => $user->role,
+                ],
+                'requested_role' => $roleRequest->requested_role,
+                'status' => $roleRequest->status,
+            ]);
+        }
+
+        // Only issue token immediately for auto-approved users (customers)
+        $token = $user->is_approved ? $user->createToken('auth_token')->plainTextToken : null;
 
         return response()->json([
-            'message' => 'User registered successfully',
+            'message' => $request->role !== \App\Enums\UserRole::CUSTOMER->value
+                ? 'Registration successful. Role upgrade pending admin approval.'
+                : 'User registered successfully',
             'user' => [
                 'id' => $user->id,
                 'name' => $user->name,
@@ -84,10 +143,18 @@ class AuthController extends Controller
             ], 401);
         }
 
-        if ($user->role->value !== $request->role) {
+        if (!$user->is_approved) {
             return response()->json([
-                'message' => 'Invalid role for this user'
-            ], 401);
+                'message' => 'Account pending admin approval'
+            ], 403);
+        }
+
+        // Ensure the requested role matches the user's actual role
+        $userRoleValue = $user->role->value ?? (string)$user->role;
+        if ($request->role !== $userRoleValue) {
+            return response()->json([
+                'message' => 'Role mismatch for this account'
+            ], 403);
         }
 
         $token = $user->createToken('auth_token')->plainTextToken;
@@ -99,6 +166,11 @@ class AuthController extends Controller
                 'name' => $user->name,
                 'email' => $user->email,
                 'role' => $user->role,
+                'branch' => $user->branch ? [
+                    'id' => $user->branch->id,
+                    'name' => $user->branch->name,
+                    'address' => $user->branch->address
+                ] : null
             ],
             'token' => $token
         ], 200);
@@ -125,7 +197,12 @@ class AuthController extends Controller
         
         return response()->json([
             'name' => $user->name,
-            'email' => $user->email
+            'email' => $user->email,
+            'branch' => $user->branch ? [
+                'id' => $user->branch->id,
+                'name' => $user->branch->name,
+                'address' => $user->branch->address
+            ] : null
         ], 200);
     }
 
@@ -161,7 +238,7 @@ class AuthController extends Controller
     {
         $user = $request->user();
 
-        if ($user->role !== 'admin') {
+        if (($user->role->value ?? (string)$user->role) !== 'admin') {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 
@@ -181,7 +258,7 @@ class AuthController extends Controller
     {
         $user = $request->user();
 
-        if ($user->role !== 'admin') {
+        if (($user->role->value ?? (string)$user->role) !== 'admin') {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 
@@ -189,7 +266,9 @@ class AuthController extends Controller
             'name' => 'required|string|max:255',
             'email' => 'required|string|email|max:255|unique:users',
             'password' => 'required|string|min:8',
+            'password_confirmation' => 'required|string|same:password',
             'role' => ['required', 'string', new Enum(\App\Enums\UserRole::class)],
+            'branch_id' => 'nullable|exists:branches,id',
         ]);
 
         if ($validator->fails()) {
@@ -204,6 +283,9 @@ class AuthController extends Controller
             'email' => $request->email,
             'password' => Hash::make($request->password),
             'role' => $request->role,
+            'branch_id' => $request->branch_id,
+            'is_approved' => true, // Admin-created users are automatically approved
+            'email_verified_at' => now(), // Admin-created users are email verified
         ]);
 
         return response()->json([
@@ -213,6 +295,12 @@ class AuthController extends Controller
                 'name' => $newUser->name,
                 'email' => $newUser->email,
                 'role' => $newUser->role,
+                'branch' => $newUser->branch ? [
+                    'id' => $newUser->branch->id,
+                    'name' => $newUser->branch->name,
+                    'address' => $newUser->branch->address
+                ] : null,
+                'is_approved' => $newUser->is_approved,
                 'created_at' => $newUser->created_at,
             ]
         ], 201);
@@ -225,7 +313,7 @@ class AuthController extends Controller
     {
         $user = $request->user();
 
-        if ($user->role !== 'admin') {
+        if (($user->role->value ?? (string)$user->role) !== 'admin') {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 
@@ -234,6 +322,8 @@ class AuthController extends Controller
             'email' => 'sometimes|required|string|email|max:255|unique:users,email,' . $targetUser->id,
             'password' => 'sometimes|required|string|min:8',
             'role' => ['sometimes', 'required', 'string', new Enum(\App\Enums\UserRole::class)],
+            'branch_id' => 'sometimes|nullable|exists:branches,id',
+            'is_approved' => 'sometimes|boolean',
         ]);
 
         if ($validator->fails()) {
@@ -258,6 +348,12 @@ class AuthController extends Controller
                 'name' => $targetUser->name,
                 'email' => $targetUser->email,
                 'role' => $targetUser->role,
+                'branch' => $targetUser->branch ? [
+                    'id' => $targetUser->branch->id,
+                    'name' => $targetUser->branch->name,
+                    'address' => $targetUser->branch->address
+                ] : null,
+                'is_approved' => $targetUser->is_approved,
                 'updated_at' => $targetUser->updated_at,
             ]
         ], 200);
@@ -270,7 +366,7 @@ class AuthController extends Controller
     {
         $user = $request->user();
 
-        if ($user->role !== 'admin') {
+        if (($user->role->value ?? (string)$user->role) !== 'admin') {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 

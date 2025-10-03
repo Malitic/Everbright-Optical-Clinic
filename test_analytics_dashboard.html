@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Role-based Analytics Dashboard Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .role-section {
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+        .role-title {
+            background: #007bff;
+            color: white;
+            padding: 10px;
+            margin: -15px -15px 15px -15px;
+            border-radius: 8px 8px 0 0;
+            font-weight: bold;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input, select, textarea {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        button {
+            background: #28a745;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-right: 10px;
+        }
+        button:hover {
+            background: #218838;
+        }
+        button:disabled {
+            background: #6c757d;
+            cursor: not-allowed;
+        }
+        .result {
+            margin-top: 15px;
+            padding: 15px;
+            border-radius: 4px;
+            white-space: pre-wrap;
+            font-family: monospace;
+            font-size: 12px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .success {
+            background: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+        }
+        .error {
+            background: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+        }
+        .loading {
+            background: #d1ecf1;
+            border: 1px solid #bee5eb;
+            color: #0c5460;
+        }
+        .endpoint-info {
+            background: #e9ecef;
+            padding: 10px;
+            border-radius: 4px;
+            margin-bottom: 10px;
+            font-family: monospace;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Role-based Analytics Dashboard Test</h1>
+    <p>Test the analytics endpoints for different user roles. Make sure your Laravel backend is running on <code>http://localhost:8000</code>.</p>
+
+    <div class="container">
+        <h2>Configuration</h2>
+        <div class="form-group">
+            <label for="baseUrl">Base URL:</label>
+            <input type="text" id="baseUrl" value="http://localhost:8000/api" placeholder="http://localhost:8000/api">
+        </div>
+        <div class="form-group">
+            <label for="authToken">Authentication Token:</label>
+            <input type="text" id="authToken" placeholder="Enter your Bearer token here">
+            <small>Get this by logging in via POST /api/auth/login</small>
+        </div>
+    </div>
+
+    <!-- Customer Analytics -->
+    <div class="role-section">
+        <div class="role-title">Customer Analytics</div>
+        <div class="endpoint-info">GET /api/customers/{id}/analytics</div>
+        <div class="form-group">
+            <label for="customerId">Customer ID:</label>
+            <input type="number" id="customerId" value="1" placeholder="Enter customer ID">
+        </div>
+        <button onclick="testCustomerAnalytics()">Test Customer Analytics</button>
+        <div id="customerResult" class="result" style="display: none;"></div>
+    </div>
+
+    <!-- Optometrist Analytics -->
+    <div class="role-section">
+        <div class="role-title">Optometrist Analytics</div>
+        <div class="endpoint-info">GET /api/optometrists/{id}/analytics</div>
+        <div class="form-group">
+            <label for="optometristId">Optometrist ID:</label>
+            <input type="number" id="optometristId" value="2" placeholder="Enter optometrist ID">
+        </div>
+        <div class="form-group">
+            <label for="optometristPeriod">Period (days):</label>
+            <select id="optometristPeriod">
+                <option value="7">7 days</option>
+                <option value="30" selected>30 days</option>
+                <option value="90">90 days</option>
+            </select>
+        </div>
+        <button onclick="testOptometristAnalytics()">Test Optometrist Analytics</button>
+        <div id="optometristResult" class="result" style="display: none;"></div>
+    </div>
+
+    <!-- Staff Analytics -->
+    <div class="role-section">
+        <div class="role-title">Staff Analytics</div>
+        <div class="endpoint-info">GET /api/staff/{id}/analytics</div>
+        <div class="form-group">
+            <label for="staffId">Staff ID:</label>
+            <input type="number" id="staffId" value="3" placeholder="Enter staff ID">
+        </div>
+        <div class="form-group">
+            <label for="staffPeriod">Period (days):</label>
+            <select id="staffPeriod">
+                <option value="7">7 days</option>
+                <option value="30" selected>30 days</option>
+                <option value="90">90 days</option>
+            </select>
+        </div>
+        <button onclick="testStaffAnalytics()">Test Staff Analytics</button>
+        <div id="staffResult" class="result" style="display: none;"></div>
+    </div>
+
+    <!-- Admin Analytics -->
+    <div class="role-section">
+        <div class="role-title">Admin Analytics</div>
+        <div class="endpoint-info">GET /api/admin/analytics</div>
+        <div class="form-group">
+            <label for="adminPeriod">Period (days):</label>
+            <select id="adminPeriod">
+                <option value="7">7 days</option>
+                <option value="30" selected>30 days</option>
+                <option value="90">90 days</option>
+            </select>
+        </div>
+        <button onclick="testAdminAnalytics()">Test Admin Analytics</button>
+        <div id="adminResult" class="result" style="display: none;"></div>
+    </div>
+
+    <!-- Test All -->
+    <div class="container">
+        <h2>Test All Endpoints</h2>
+        <button onclick="testAllEndpoints()" style="background: #dc3545;">Test All Analytics Endpoints</button>
+        <div id="allResults" class="result" style="display: none;"></div>
+    </div>
+
+    <script>
+        const baseUrl = document.getElementById('baseUrl');
+        const authToken = document.getElementById('authToken');
+
+        function showResult(elementId, content, isSuccess = true) {
+            const element = document.getElementById(elementId);
+            element.style.display = 'block';
+            element.className = `result ${isSuccess ? 'success' : 'error'}`;
+            element.textContent = content;
+        }
+
+        function showLoading(elementId) {
+            const element = document.getElementById(elementId);
+            element.style.display = 'block';
+            element.className = 'result loading';
+            element.textContent = 'Loading...';
+        }
+
+        async function makeRequest(url, token) {
+            const headers = {
+                'Authorization': `Bearer ${token}`,
+                'Accept': 'application/json',
+                'Content-Type': 'application/json',
+            };
+
+            try {
+                const response = await fetch(url, {
+                    method: 'GET',
+                    headers: headers,
+                });
+
+                const data = await response.json();
+                return {
+                    status: response.status,
+                    success: response.ok,
+                    data: data
+                };
+            } catch (error) {
+                return {
+                    status: 0,
+                    success: false,
+                    data: { error: error.message }
+                };
+            }
+        }
+
+        async function testCustomerAnalytics() {
+            const customerId = document.getElementById('customerId').value;
+            const url = `${baseUrl.value}/customers/${customerId}/analytics`;
+            
+            showLoading('customerResult');
+            
+            const result = await makeRequest(url, authToken.value);
+            
+            if (result.success) {
+                const summary = `✅ Customer Analytics - SUCCESS\nStatus: ${result.status}\n\nResponse includes:\n${Object.keys(result.data).join(', ')}\n\nFull Response:\n${JSON.stringify(result.data, null, 2)}`;
+                showResult('customerResult', summary, true);
+            } else {
+                const error = `❌ Customer Analytics - FAILED\nStatus: ${result.status}\nError: ${result.data.message || result.data.error || 'Unknown error'}\n\nFull Response:\n${JSON.stringify(result.data, null, 2)}`;
+                showResult('customerResult', error, false);
+            }
+        }
+
+        async function testOptometristAnalytics() {
+            const optometristId = document.getElementById('optometristId').value;
+            const period = document.getElementById('optometristPeriod').value;
+            const url = `${baseUrl.value}/optometrists/${optometristId}/analytics?period=${period}`;
+            
+            showLoading('optometristResult');
+            
+            const result = await makeRequest(url, authToken.value);
+            
+            if (result.success) {
+                const summary = `✅ Optometrist Analytics - SUCCESS\nStatus: ${result.status}\nPeriod: ${period} days\n\nResponse includes:\n${Object.keys(result.data).join(', ')}\n\nFull Response:\n${JSON.stringify(result.data, null, 2)}`;
+                showResult('optometristResult', summary, true);
+            } else {
+                const error = `❌ Optometrist Analytics - FAILED\nStatus: ${result.status}\nError: ${result.data.message || result.data.error || 'Unknown error'}\n\nFull Response:\n${JSON.stringify(result.data, null, 2)}`;
+                showResult('optometristResult', error, false);
+            }
+        }
+
+        async function testStaffAnalytics() {
+            const staffId = document.getElementById('staffId').value;
+            const period = document.getElementById('staffPeriod').value;
+            const url = `${baseUrl.value}/staff/${staffId}/analytics?period=${period}`;
+            
+            showLoading('staffResult');
+            
+            const result = await makeRequest(url, authToken.value);
+            
+            if (result.success) {
+                const summary = `✅ Staff Analytics - SUCCESS\nStatus: ${result.status}\nPeriod: ${period} days\n\nResponse includes:\n${Object.keys(result.data).join(', ')}\n\nFull Response:\n${JSON.stringify(result.data, null, 2)}`;
+                showResult('staffResult', summary, true);
+            } else {
+                const error = `❌ Staff Analytics - FAILED\nStatus: ${result.status}\nError: ${result.data.message || result.data.error || 'Unknown error'}\n\nFull Response:\n${JSON.stringify(result.data, null, 2)}`;
+                showResult('staffResult', error, false);
+            }
+        }
+
+        async function testAdminAnalytics() {
+            const period = document.getElementById('adminPeriod').value;
+            const url = `${baseUrl.value}/admin/analytics?period=${period}`;
+            
+            showLoading('adminResult');
+            
+            const result = await makeRequest(url, authToken.value);
+            
+            if (result.success) {
+                const summary = `✅ Admin Analytics - SUCCESS\nStatus: ${result.status}\nPeriod: ${period} days\n\nResponse includes:\n${Object.keys(result.data).join(', ')}\n\nFull Response:\n${JSON.stringify(result.data, null, 2)}`;
+                showResult('adminResult', summary, true);
+            } else {
+                const error = `❌ Admin Analytics - FAILED\nStatus: ${result.status}\nError: ${result.data.message || result.data.error || 'Unknown error'}\n\nFull Response:\n${JSON.stringify(result.data, null, 2)}`;
+                showResult('adminResult', error, false);
+            }
+        }
+
+        async function testAllEndpoints() {
+            const allResults = document.getElementById('allResults');
+            allResults.style.display = 'block';
+            allResults.className = 'result loading';
+            allResults.textContent = 'Testing all endpoints...\n\n';
+
+            let results = [];
+
+            // Test Customer Analytics
+            allResults.textContent += 'Testing Customer Analytics...\n';
+            const customerId = document.getElementById('customerId').value;
+            const customerResult = await makeRequest(`${baseUrl.value}/customers/${customerId}/analytics`, authToken.value);
+            results.push({ name: 'Customer', success: customerResult.success, status: customerResult.status });
+            allResults.textContent += customerResult.success ? '✅ SUCCESS\n' : '❌ FAILED\n';
+
+            // Test Optometrist Analytics
+            allResults.textContent += 'Testing Optometrist Analytics...\n';
+            const optometristId = document.getElementById('optometristId').value;
+            const optometristResult = await makeRequest(`${baseUrl.value}/optometrists/${optometristId}/analytics`, authToken.value);
+            results.push({ name: 'Optometrist', success: optometristResult.success, status: optometristResult.status });
+            allResults.textContent += optometristResult.success ? '✅ SUCCESS\n' : '❌ FAILED\n';
+
+            // Test Staff Analytics
+            allResults.textContent += 'Testing Staff Analytics...\n';
+            const staffId = document.getElementById('staffId').value;
+            const staffResult = await makeRequest(`${baseUrl.value}/staff/${staffId}/analytics`, authToken.value);
+            results.push({ name: 'Staff', success: staffResult.success, status: staffResult.status });
+            allResults.textContent += staffResult.success ? '✅ SUCCESS\n' : '❌ FAILED\n';
+
+            // Test Admin Analytics
+            allResults.textContent += 'Testing Admin Analytics...\n';
+            const adminResult = await makeRequest(`${baseUrl.value}/admin/analytics`, authToken.value);
+            results.push({ name: 'Admin', success: adminResult.success, status: adminResult.status });
+            allResults.textContent += adminResult.success ? '✅ SUCCESS\n' : '❌ FAILED\n';
+
+            // Summary
+            const passed = results.filter(r => r.success).length;
+            const total = results.length;
+            
+            allResults.textContent += `\n=== SUMMARY ===\n`;
+            allResults.textContent += `Total tests: ${total}\n`;
+            allResults.textContent += `Passed: ${passed}\n`;
+            allResults.textContent += `Failed: ${total - passed}\n\n`;
+            
+            allResults.textContent += `Detailed Results:\n`;
+            results.forEach(result => {
+                allResults.textContent += `${result.name}: ${result.success ? '✅' : '❌'} (Status: ${result.status})\n`;
+            });
+
+            allResults.className = `result ${passed === total ? 'success' : 'error'}`;
+        }
+
+        // Auto-save configuration to localStorage
+        function saveConfig() {
+            localStorage.setItem('analyticsTest_baseUrl', baseUrl.value);
+            localStorage.setItem('analyticsTest_authToken', authToken.value);
+        }
+
+        function loadConfig() {
+            const savedBaseUrl = localStorage.getItem('analyticsTest_baseUrl');
+            const savedToken = localStorage.getItem('analyticsTest_authToken');
+            
+            if (savedBaseUrl) baseUrl.value = savedBaseUrl;
+            if (savedToken) authToken.value = savedToken;
+        }
+
+        // Load saved configuration on page load
+        loadConfig();
+
+        // Save configuration on change
+        baseUrl.addEventListener('change', saveConfig);
+        authToken.addEventListener('change', saveConfig);
+    </script>
+</body>
+</html>

@@ -20,11 +20,15 @@ class ReservationController extends Controller
         $query = Reservation::with(['product', 'user']);
 
         // Filter based on user role
-        if ($user->role === 'customer') {
+        $userRole = $user->role->value ?? (string)$user->role;
+        if ($userRole === 'customer') {
             $query->where('user_id', $user->id);
-        } elseif (in_array($user->role, ['staff', 'admin'])) {
-            // Staff and admin can see all reservations
-        } elseif ($user->role === 'optometrist') {
+        } elseif ($userRole === 'staff') {
+            // Staff can only see reservations for their branch
+            $query->where('branch_id', $user->branch_id);
+        } elseif ($userRole === 'admin') {
+            // Admin can see all reservations
+        } elseif ($userRole === 'optometrist') {
             // Optometrists can see reservations for their patients
             // This would need additional logic based on patient relationships
             $query->where('user_id', $user->id); // Placeholder
@@ -35,7 +39,7 @@ class ReservationController extends Controller
             $query->where('status', $request->status);
         }
 
-        $reservations = $query->orderBy('created_at', 'desc')->get();
+        $reservations = $query->with('branch')->orderBy('created_at', 'desc')->get();
 
         return response()->json($reservations);
     }
@@ -48,7 +52,8 @@ class ReservationController extends Controller
         $user = Auth::user();
 
         // Only customers can create reservations
-        if ($user->role !== 'customer') {
+        $userRole = $user->role->value ?? (string)$user->role;
+        if ($userRole !== 'customer') {
             return response()->json([
                 'message' => 'Only customers can create reservations'
             ], 403);
@@ -56,6 +61,7 @@ class ReservationController extends Controller
 
         $validator = Validator::make($request->all(), [
             'product_id' => 'required|exists:products,id',
+            'branch_id' => 'required|exists:branches,id',
             'quantity' => 'required|integer|min:1',
             'notes' => 'nullable|string|max:500',
         ]);
@@ -76,10 +82,14 @@ class ReservationController extends Controller
             ], 400);
         }
 
-        // Check stock availability
-        if ($product->stock_quantity < $request->quantity) {
+        // Check branch stock availability
+        $branchStock = \App\Models\BranchStock::where('product_id', $request->product_id)
+            ->where('branch_id', $request->branch_id)
+            ->first();
+
+        if (!$branchStock || $branchStock->available_quantity < $request->quantity) {
             return response()->json([
-                'message' => 'Insufficient stock available'
+                'message' => 'Insufficient stock available at selected branch'
             ], 400);
         }
 
@@ -95,18 +105,27 @@ class ReservationController extends Controller
             ], 400);
         }
 
+        // Auto-assign customer to branch if they don't have one
+        if (!$user->branch_id) {
+            $user->update(['branch_id' => $request->branch_id]);
+        }
+
         $reservation = Reservation::create([
             'user_id' => $user->id,
             'product_id' => $request->product_id,
+            'branch_id' => $request->branch_id,
             'quantity' => $request->quantity,
             'notes' => $request->notes,
             'status' => 'pending',
             'reserved_at' => now(),
         ]);
 
+        // Update reserved quantity in branch stock
+        $branchStock->increment('reserved_quantity', $request->quantity);
+
         return response()->json([
             'message' => 'Reservation created successfully',
-            'reservation' => $reservation->load(['product', 'user'])
+            'reservation' => $reservation->load(['product', 'user', 'branch'])
         ], 201);
     }
 
@@ -118,7 +137,8 @@ class ReservationController extends Controller
         $user = Auth::user();
 
         // Check if user can view this reservation
-        if ($user->role === 'customer' && $reservation->user_id !== $user->id) {
+        $userRole = $user->role->value ?? (string)$user->role;
+        if ($userRole === 'customer' && $reservation->user_id !== $user->id) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 
@@ -133,11 +153,12 @@ class ReservationController extends Controller
         $user = Auth::user();
 
         // Only allow updates by the reservation owner or staff/admin
-        if ($user->role === 'customer' && $reservation->user_id !== $user->id) {
+        $userRole = $user->role->value ?? (string)$user->role;
+        if ($userRole === 'customer' && $reservation->user_id !== $user->id) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 
-        if ($user->role === 'customer' && $reservation->status !== 'pending') {
+        if ($userRole === 'customer' && $reservation->status !== 'pending') {
             return response()->json([
                 'message' => 'Cannot update reservation that is not pending'
             ], 400);
@@ -160,7 +181,7 @@ class ReservationController extends Controller
 
         // Handle status changes
         if (isset($data['status'])) {
-            if (!in_array($user->role, ['staff', 'admin'])) {
+            if (!in_array($userRole, ['staff', 'admin'])) {
                 return response()->json([
                     'message' => 'Only staff can change reservation status'
                 ], 403);
@@ -199,11 +220,12 @@ class ReservationController extends Controller
         $user = Auth::user();
 
         // Only allow deletion by the reservation owner or staff/admin
-        if ($user->role === 'customer' && $reservation->user_id !== $user->id) {
+        $userRole = $user->role->value ?? (string)$user->role;
+        if ($userRole === 'customer' && $reservation->user_id !== $user->id) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 
-        if ($user->role === 'customer' && $reservation->status !== 'pending') {
+        if ($userRole === 'customer' && $reservation->status !== 'pending') {
             return response()->json([
                 'message' => 'Cannot delete reservation that is not pending'
             ], 400);
@@ -224,7 +246,8 @@ class ReservationController extends Controller
         $user = Auth::user();
 
         // Only staff, admin, and optometrists can view other users' reservations
-        if (!in_array($user->role, ['staff', 'admin', 'optometrist'])) {
+        $userRole = $user->role->value ?? (string)$user->role;
+        if (!in_array($userRole, ['staff', 'admin', 'optometrist'])) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 
@@ -266,7 +289,8 @@ class ReservationController extends Controller
     {
         $user = Auth::user();
 
-        if (!in_array($user->role, ['staff', 'admin'])) {
+        $userRole = $user->role->value ?? (string)$user->role;
+        if (!in_array($userRole, ['staff', 'admin'])) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 
@@ -291,7 +315,8 @@ class ReservationController extends Controller
     {
         $user = Auth::user();
 
-        if (!in_array($user->role, ['staff', 'admin'])) {
+        $userRole = $user->role->value ?? (string)$user->role;
+        if (!in_array($userRole, ['staff', 'admin'])) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 
@@ -306,6 +331,50 @@ class ReservationController extends Controller
         return response()->json([
             'message' => 'Reservation rejected successfully',
             'reservation' => $reservation->load(['product', 'user'])
+        ]);
+    }
+
+    /**
+     * Complete a reservation (mark as completed and update stock).
+     */
+    public function completeReservation(Reservation $reservation): JsonResponse
+    {
+        $user = Auth::user();
+
+        $userRole = $user->role->value ?? (string)$user->role;
+        if (!in_array($userRole, ['staff', 'admin'])) {
+            return response()->json(['message' => 'Unauthorized'], 403);
+        }
+
+        // Staff can only complete reservations for their branch
+        if ($userRole === 'staff' && $reservation->branch_id !== $user->branch_id) {
+            return response()->json([
+                'message' => 'Unauthorized. Staff can only complete reservations for their branch.'
+            ], 403);
+        }
+
+        if ($reservation->status !== 'approved') {
+            return response()->json(['message' => 'Only approved reservations can be completed'], 400);
+        }
+
+        // Update reservation status
+        $reservation->status = 'completed';
+        $reservation->completed_at = now();
+        $reservation->save();
+
+        // Update branch stock (decrease stock and reserved quantities)
+        $branchStock = \App\Models\BranchStock::where('product_id', $reservation->product_id)
+            ->where('branch_id', $reservation->branch_id)
+            ->first();
+
+        if ($branchStock) {
+            $branchStock->decrement('stock_quantity', $reservation->quantity);
+            $branchStock->decrement('reserved_quantity', $reservation->quantity);
+        }
+
+        return response()->json([
+            'message' => 'Reservation completed successfully',
+            'reservation' => $reservation->load(['product', 'user', 'branch'])
         ]);
     }
 }

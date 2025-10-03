@@ -142,7 +142,16 @@ export const usePatientPrescriptions = (patientId: number | null) => {
     setError(null);
     try {
       const response = await getPatientPrescriptions(patientId);
-      setPrescriptions(response.data);
+      const prescriptionsData = response.data;
+      
+      // Sort prescriptions by appointment date (newest first) - issue date should match appointment date
+      const sortedPrescriptions = prescriptionsData.sort((a: Prescription, b: Prescription) => {
+        const dateA = new Date(a.appointment?.appointment_date || a.issue_date);
+        const dateB = new Date(b.appointment?.appointment_date || b.issue_date);
+        return dateB.getTime() - dateA.getTime();
+      });
+      
+      setPrescriptions(sortedPrescriptions);
     } catch (err: any) {
       setError(err.response?.data?.message || 'Failed to fetch patient prescriptions');
     } finally {

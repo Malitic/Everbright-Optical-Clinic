@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -8,6 +9,8 @@ import { Calendar, Clock, MapPin, User, Phone, Mail, Eye, AlertCircle, Plus } fr
 import { format } from 'date-fns';
 import { useAuth } from '@/contexts/AuthContext';
 import { Skeleton } from '@/components/ui/skeleton';
+import AppointmentBookingForm from '@/components/appointments/AppointmentBookingForm';
+import WeeklySchedule from '@/components/appointments/WeeklySchedule';
 
 interface Appointment {
   id: string;
@@ -45,6 +48,7 @@ const OPTOMETRISTS_STORAGE_KEY = 'localStorage_optometrists';
 
 export const CustomerAppointmentsLocalStorage: React.FC = () => {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [optometrists, setOptometrists] = useState<Optometrist[]>([]);
   const [selectedAppointment, setSelectedAppointment] = useState<string | null>(null);
@@ -73,7 +77,7 @@ export const CustomerAppointmentsLocalStorage: React.FC = () => {
         const allAppointments = JSON.parse(stored);
         // Filter appointments for current user
         const userAppointments = allAppointments.filter((apt: Appointment) => 
-          apt.patient_id === user?.id
+          apt.patient_id === user?.id?.toString()
         );
         setAppointments(userAppointments);
       }
@@ -105,7 +109,7 @@ export const CustomerAppointmentsLocalStorage: React.FC = () => {
   const saveAppointments = (newAppointments: Appointment[]) => {
     try {
       localStorage.setItem(APPOINTMENTS_STORAGE_KEY, JSON.stringify(newAppointments));
-      setAppointments(newAppointments.filter(apt => apt.patient_id === user?.id));
+      setAppointments(newAppointments.filter(apt => apt.patient_id === user?.id?.toString()));
     } catch (error) {
       console.error('Error saving appointments:', error);
     }
@@ -127,7 +131,7 @@ export const CustomerAppointmentsLocalStorage: React.FC = () => {
     
     const newAppointment: Appointment = {
       id: Date.now().toString(),
-      patient_id: user?.id || '',
+      patient_id: user?.id?.toString() || '',
       optometrist_id: formData.optometrist,
       appointment_date: formData.date,
       start_time: formData.time,
@@ -138,7 +142,7 @@ export const CustomerAppointmentsLocalStorage: React.FC = () => {
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
       patient: {
-        id: user?.id || '',
+        id: user?.id?.toString() || '',
         name: user?.name || '',
         email: user?.email || ''
       },
@@ -299,7 +303,7 @@ export const CustomerAppointmentsLocalStorage: React.FC = () => {
               <CardDescription>Manage your appointments</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
-              <Button className="w-full" size="sm" onClick={() => setShowBookingForm(true)}>
+              <Button className="w-full" size="sm" onClick={() => navigate('/customer/book-appointment')}>
                 <Calendar className="w-4 h-4 mr-2" />
                 Book New Appointment
               </Button>
@@ -338,88 +342,21 @@ export const CustomerAppointmentsLocalStorage: React.FC = () => {
         </div>
       </div>
 
+      {/* Weekly Schedule */}
+      <div className="mt-8">
+        <WeeklySchedule />
+      </div>
+
       {/* Appointment Booking Form */}
       {showBookingForm && (
-        <Card className="mt-6">
-          <CardHeader>
-            <CardTitle>Book New Appointment</CardTitle>
-            <CardDescription>Schedule your next eye care appointment</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium mb-1">Date</label>
-                  <Input
-                    type="date"
-                    value={formData.date}
-                    onChange={(e) => handleFormChange('date', e.target.value)}
-                    min={new Date().toISOString().split('T')[0]}
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-1">Time</label>
-                  <Select value={formData.time} onValueChange={(value) => handleFormChange('time', value)}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select time" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {timeSlots.map(time => (
-                        <SelectItem key={time} value={time}>{time}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-1">Optometrist</label>
-                  <Select value={formData.optometrist} onValueChange={(value) => handleFormChange('optometrist', value)}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select optometrist" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {optometrists.map(opt => (
-                        <SelectItem key={opt.id} value={opt.id}>
-                          {opt.name} - {opt.specialization}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-1">Appointment Type</label>
-                  <Select value={formData.appointmentType} onValueChange={(value) => handleFormChange('appointmentType', value)}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select type" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {appointmentTypes.map(type => (
-                        <SelectItem key={type.value} value={type.value}>{type.label}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">Notes (Optional)</label>
-                <Input
-                  value={formData.notes}
-                  onChange={(e) => handleFormChange('notes', e.target.value)}
-                  placeholder="Any special requests or notes..."
-                />
-              </div>
-              <div className="flex gap-2">
-                <Button type="submit">
-                  <Plus className="w-4 h-4 mr-2" />
-                  Book Appointment
-                </Button>
-                <Button type="button" variant="outline" onClick={() => setShowBookingForm(false)}>
-                  Cancel
-                </Button>
-              </div>
-            </form>
-          </CardContent>
-        </Card>
+        <div className="mt-6">
+          <AppointmentBookingForm />
+          <div className="mt-4 flex justify-end">
+            <Button type="button" variant="outline" onClick={() => setShowBookingForm(false)}>
+              Cancel
+            </Button>
+          </div>
+        </div>
       )}
     </div>
   );

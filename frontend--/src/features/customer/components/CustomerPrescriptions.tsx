@@ -102,7 +102,7 @@ const CustomerPrescriptions: React.FC = () => {
                         <div className="space-y-2">
                           <div className="flex items-center gap-2 text-sm text-gray-600">
                             <Calendar className="w-4 h-4" />
-                            <span>Issued: {format(new Date(prescription.issue_date), 'MMM d, yyyy')}</span>
+                            <span>Issued: {format(new Date(prescription.appointment?.appointment_date || prescription.issue_date), 'MMM d, yyyy')}</span>
                           </div>
                           <div className="flex items-center gap-2 text-sm text-gray-600">
                             <AlertCircle className="w-4 h-4" />
@@ -112,67 +112,142 @@ const CustomerPrescriptions: React.FC = () => {
                           {selectedPrescription === prescription.id && (
                             <div className="mt-4 space-y-3 pt-3 border-t">
                               <div>
-                                <h4 className="font-medium text-sm mb-2">Prescription Details:</h4>
-                                <div className="bg-gray-50 p-3 rounded-md text-sm">
-                                  <div className="grid grid-cols-2 gap-2">
-                                    {prescription.prescription_data.sphere_od && (
+                                <h4 className="font-medium text-sm mb-2">Eye Examination Results:</h4>
+                                <div className="bg-gray-50 p-3 rounded-md text-sm space-y-3">
+                                  {/* Right Eye */}
+                                  <div>
+                                    <h5 className="font-medium text-blue-700 mb-2">Right Eye (OD)</h5>
+                                    <div className="grid grid-cols-2 gap-2">
+                                      {(() => {
+                                        const rightEye = typeof prescription.right_eye === 'string' 
+                                          ? JSON.parse(prescription.right_eye) 
+                                          : prescription.right_eye || {};
+                                        return (
+                                          <>
+                                            {rightEye?.sphere && (
+                                              <div>
+                                                <span className="font-medium">Sphere:</span> {rightEye.sphere}
+                                              </div>
+                                            )}
+                                            {rightEye?.cylinder && (
+                                              <div>
+                                                <span className="font-medium">Cylinder:</span> {rightEye.cylinder}
+                                              </div>
+                                            )}
+                                            {rightEye?.axis && (
+                                              <div>
+                                                <span className="font-medium">Axis:</span> {rightEye.axis}°
+                                              </div>
+                                            )}
+                                            {rightEye?.pd && (
+                                              <div>
+                                                <span className="font-medium">PD:</span> {rightEye.pd}mm
+                                              </div>
+                                            )}
+                                          </>
+                                        );
+                                      })()}
+                                    </div>
+                                  </div>
+
+                                  {/* Left Eye */}
+                                  <div>
+                                    <h5 className="font-medium text-green-700 mb-2">Left Eye (OS)</h5>
+                                    <div className="grid grid-cols-2 gap-2">
+                                      {(() => {
+                                        const leftEye = typeof prescription.left_eye === 'string' 
+                                          ? JSON.parse(prescription.left_eye) 
+                                          : prescription.left_eye || {};
+                                        return (
+                                          <>
+                                            {leftEye?.sphere && (
+                                              <div>
+                                                <span className="font-medium">Sphere:</span> {leftEye.sphere}
+                                              </div>
+                                            )}
+                                            {leftEye?.cylinder && (
+                                              <div>
+                                                <span className="font-medium">Cylinder:</span> {leftEye.cylinder}
+                                              </div>
+                                            )}
+                                            {leftEye?.axis && (
+                                              <div>
+                                                <span className="font-medium">Axis:</span> {leftEye.axis}°
+                                              </div>
+                                            )}
+                                            {leftEye?.pd && (
+                                              <div>
+                                                <span className="font-medium">PD:</span> {leftEye.pd}mm
+                                              </div>
+                                            )}
+                                          </>
+                                        );
+                                      })()}
+                                    </div>
+                                  </div>
+
+                                  {/* Vision Acuity */}
+                                  {prescription.vision_acuity && (
+                                    <div>
+                                      <span className="font-medium">Vision Acuity:</span> {prescription.vision_acuity}
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+
+                              {/* Prescription Recommendations */}
+                              {(prescription.lens_type || prescription.coating || prescription.recommendations) && (
+                                <div>
+                                  <h4 className="font-medium text-sm mb-2">Prescription Recommendations:</h4>
+                                  <div className="bg-blue-50 p-3 rounded-md text-sm space-y-1">
+                                    {prescription.lens_type && (
                                       <div>
-                                        <span className="font-medium">Sphere (OD):</span> {prescription.prescription_data.sphere_od}
+                                        <span className="font-medium">Lens Type:</span> {prescription.lens_type}
                                       </div>
                                     )}
-                                    {prescription.prescription_data.cylinder_od && (
+                                    {prescription.coating && (
                                       <div>
-                                        <span className="font-medium">Cylinder (OD):</span> {prescription.prescription_data.cylinder_od}
+                                        <span className="font-medium">Coating:</span> {prescription.coating}
                                       </div>
                                     )}
-                                    {prescription.prescription_data.axis_od && (
+                                    {prescription.recommendations && (
                                       <div>
-                                        <span className="font-medium">Axis (OD):</span> {prescription.prescription_data.axis_od}°
-                                      </div>
-                                    )}
-                                    {prescription.prescription_data.add_od && (
-                                      <div>
-                                        <span className="font-medium">Add (OD):</span> {prescription.prescription_data.add_od}
-                                      </div>
-                                    )}
-                                    {prescription.prescription_data.sphere_os && (
-                                      <div>
-                                        <span className="font-medium">Sphere (OS):</span> {prescription.prescription_data.sphere_os}
-                                      </div>
-                                    )}
-                                    {prescription.prescription_data.cylinder_os && (
-                                      <div>
-                                        <span className="font-medium">Cylinder (OS):</span> {prescription.prescription_data.cylinder_os}
-                                      </div>
-                                    )}
-                                    {prescription.prescription_data.axis_os && (
-                                      <div>
-                                        <span className="font-medium">Axis (OS):</span> {prescription.prescription_data.axis_os}°
-                                      </div>
-                                    )}
-                                    {prescription.prescription_data.add_os && (
-                                      <div>
-                                        <span className="font-medium">Add (OS):</span> {prescription.prescription_data.add_os}
-                                      </div>
-                                    )}
-                                    {prescription.prescription_data.pd && (
-                                      <div>
-                                        <span className="font-medium">PD:</span> {prescription.prescription_data.pd}mm
+                                        <span className="font-medium">Recommendations:</span> {prescription.recommendations}
                                       </div>
                                     )}
                                   </div>
                                 </div>
-                              </div>
+                              )}
 
-                              <div>
-                                <h4 className="font-medium text-sm mb-1">Optometrist:</h4>
-                                <p className="text-sm text-gray-600">{prescription.optometrist?.name || 'Unknown'}</p>
-                              </div>
-
-                              {prescription.notes && (
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                                 <div>
-                                  <h4 className="font-medium text-sm mb-1">Notes:</h4>
-                                  <p className="text-sm text-gray-600">{prescription.notes}</p>
+                                  <h4 className="font-medium text-sm mb-1">Optometrist:</h4>
+                                  <p className="text-sm text-gray-600">{prescription.optometrist?.name || 'Unknown'}</p>
+                                </div>
+                                <div>
+                                  <h4 className="font-medium text-sm mb-1">Branch:</h4>
+                                  <p className="text-sm text-gray-600">{prescription.branch?.name || 'Unknown'}</p>
+                                </div>
+                              </div>
+
+                              {prescription.additional_notes && (
+                                <div>
+                                  <h4 className="font-medium text-sm mb-1">Additional Notes:</h4>
+                                  <p className="text-sm text-gray-600">{prescription.additional_notes}</p>
+                                </div>
+                              )}
+
+                              {prescription.follow_up_date && (
+                                <div>
+                                  <h4 className="font-medium text-sm mb-1">Follow-up Date:</h4>
+                                  <p className="text-sm text-gray-600">{format(new Date(prescription.follow_up_date), 'MMM d, yyyy')}</p>
+                                </div>
+                              )}
+
+                              {prescription.follow_up_notes && (
+                                <div>
+                                  <h4 className="font-medium text-sm mb-1">Follow-up Notes:</h4>
+                                  <p className="text-sm text-gray-600">{prescription.follow_up_notes}</p>
                                 </div>
                               )}
                             </div>

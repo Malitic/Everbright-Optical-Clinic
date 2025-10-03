@@ -1,6 +1,6 @@
 import React from 'react';
 import { Outlet, useNavigate } from 'react-router-dom';
-import { Bell, LogOut, Settings, User } from 'lucide-react';
+import { LogOut, Settings, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
@@ -14,6 +14,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { useAuth, UserRole } from '@/contexts/AuthContext';
 import { DashboardSidebar } from './DashboardSidebar';
+import NotificationBell from '@/components/common/NotificationBell';
 
 const DashboardLayout = () => {
   const { user, logout } = useAuth();
@@ -51,12 +52,7 @@ const DashboardLayout = () => {
 
         <div className="flex items-center space-x-4">
           {/* Notifications */}
-          <Button variant="ghost" size="icon" className="relative">
-            <Bell className="h-5 w-5" />
-            <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
-              3
-            </span>
-          </Button>
+          <NotificationBell />
 
           {/* User Menu */}
           <DropdownMenu>
@@ -77,6 +73,11 @@ const DashboardLayout = () => {
                   <p className="text-xs leading-none text-muted-foreground">
                     {user.email}
                   </p>
+                  {user.branch && (
+                    <p className="text-xs leading-none text-muted-foreground">
+                      Branch: {user.branch.name}
+                    </p>
+                  )}
                 </div>
               </DropdownMenuLabel>
               <DropdownMenuSeparator />

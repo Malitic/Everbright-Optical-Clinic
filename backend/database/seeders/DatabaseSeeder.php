@@ -3,6 +3,8 @@
 namespace Database\Seeders;
 
 use App\Models\User;
+use App\Enums\UserRole;
+use Illuminate\Support\Facades\Hash;
 // use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 
@@ -13,9 +15,13 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-        // No seed data - system ready for real data input
-        // Users will be created through registration
-        // Products will be added through admin interface
-        // Appointments will be created through booking system
+        // Note: Admin user should be created manually in production
+        // This seeder is disabled for security reasons
+
+        // Run other seeders
+        $this->call([
+            // ComprehensiveDummyDataSeeder::class, // Disabled to use real product data
+            ScheduleSeeder::class,
+        ]);
     }
 }

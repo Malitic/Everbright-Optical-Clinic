@@ -9,21 +9,46 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Validator;
 use App\Enums\UserRole;
+use App\Helpers\Realtime;
 
 class PrescriptionController extends Controller
 {
+    /**
+     * Test method to debug authentication
+     */
+    public function test()
+    {
+        $user = Auth::user();
+        return response()->json([
+            'message' => 'PrescriptionController test method',
+            'user' => $user ? $user->name : 'No user',
+            'authenticated' => $user !== null
+        ]);
+    }
+
     /**
      * Display a listing of prescriptions based on user role.
      */
     public function index(Request $request): JsonResponse
     {
-        $user = Auth::user();
-        $query = Prescription::with(['patient', 'optometrist', 'appointment']);
+        try {
+            $user = Auth::user();
+            
+            // Debug: Log user information
+            \Log::info('PrescriptionController index - User:', ['user' => $user]);
+            
+            if (!$user) {
+                \Log::error('No authenticated user found in index method');
+                return response()->json(['error' => 'User not authenticated'], 401);
+            }
+            
+            $query = Prescription::with(['patient', 'optometrist', 'appointment']);
 
-        // Filter based on user role
-        if (!$user->role) {
-            return response()->json(['error' => 'User role not found'], 400);
-        }
+            // Filter based on user role
+            if (!$user->role) {
+                \Log::error('User role not found for user: ' . $user->id);
+                return response()->json(['error' => 'User role not found'], 400);
+            }
         
         switch ($user->role->value) {
             case UserRole::CUSTOMER->value:
@@ -62,10 +87,16 @@ class PrescriptionController extends Controller
             });
         }
 
-        $prescriptions = $query->orderBy('issue_date', 'desc')
+        $prescriptions = $query->with(['patient', 'optometrist', 'appointment', 'branch'])
+                              ->orderBy('issue_date', 'desc')
                               ->paginate($request->get('per_page', 15));
 
         return response()->json($prescriptions);
+        
+        } catch (\Exception $e) {
+            \Log::error('Error in PrescriptionController index: ' . $e->getMessage());
+            return response()->json(['error' => 'Internal server error'], 500);
+        }
     }
 
     /**
@@ -73,42 +104,113 @@ class PrescriptionController extends Controller
      */
     public function store(Request $request): JsonResponse
     {
-        $user = Auth::user();
+        try {
+            $user = Auth::user();
 
-        // Check if user has permission to create prescriptions
-        if (!in_array($user->role->value, [UserRole::OPTOMETRIST->value, UserRole::STAFF->value, UserRole::ADMIN->value])) {
-            return response()->json(['error' => 'Unauthorized to create prescriptions'], 403);
-        }
+            if (!$user) {
+                return response()->json(['error' => 'User not authenticated'], 401);
+            }
+
+            // Only optometrists can create prescriptions
+            if (!$user->role || $user->role->value !== UserRole::OPTOMETRIST->value) {
+                return response()->json(['error' => 'Only optometrists can create prescriptions'], 403);
+            }
 
         $validator = Validator::make($request->all(), [
-            'patient_id' => 'required|exists:users,id',
-            'appointment_id' => 'nullable|exists:appointments,id',
-            'type' => 'required|in:glasses,contact_lenses,sunglasses,progressive,bifocal',
-            'prescription_data' => 'required|array',
-            'prescription_data.sphere_od' => 'nullable|string',
-            'prescription_data.cylinder_od' => 'nullable|string',
-            'prescription_data.axis_od' => 'nullable|string',
-            'prescription_data.add_od' => 'nullable|string',
-            'prescription_data.sphere_os' => 'nullable|string',
-            'prescription_data.cylinder_os' => 'nullable|string',
-            'prescription_data.axis_os' => 'nullable|string',
-            'prescription_data.add_os' => 'nullable|string',
-            'prescription_data.pd' => 'nullable|string',
-            'issue_date' => 'required|date',
-            'expiry_date' => 'required|date|after:issue_date',
-            'notes' => 'nullable|string|max:1000',
+            'appointment_id' => 'required|exists:appointments,id',
+            'right_eye' => 'required|array',
+            'right_eye.sphere' => 'nullable|numeric',
+            'right_eye.cylinder' => 'nullable|numeric',
+            'right_eye.axis' => 'nullable|numeric|between:0,180',
+            'right_eye.pd' => 'nullable|numeric|min:0',
+            'left_eye' => 'required|array',
+            'left_eye.sphere' => 'nullable|numeric',
+            'left_eye.cylinder' => 'nullable|numeric',
+            'left_eye.axis' => 'nullable|numeric|between:0,180',
+            'left_eye.pd' => 'nullable|numeric|min:0',
+            'vision_acuity' => 'nullable|string|max:50',
+            'additional_notes' => 'nullable|string|max:1000',
+            'recommendations' => 'nullable|string|max:1000',
+            'lens_type' => 'nullable|string|max:100',
+            'coating' => 'nullable|string|max:100',
+            'follow_up_date' => 'nullable|date|after:today',
+            'follow_up_notes' => 'nullable|string|max:1000',
         ]);
 
         if ($validator->fails()) {
             return response()->json(['errors' => $validator->errors()], 422);
         }
 
-        $prescriptionData = $validator->validated();
-        $prescriptionData['optometrist_id'] = $user->id;
+        // Get appointment details
+        $appointment = \App\Models\Appointment::with(['patient', 'branch'])->findOrFail($request->appointment_id);
+        
+        // Since there's only one optometrist, they can create prescriptions for any appointment
+        // Assign the optometrist to the appointment if not already assigned
+        if ($appointment->optometrist_id !== $user->id) {
+            $appointment->update(['optometrist_id' => $user->id]);
+        }
 
-        $prescription = Prescription::create($prescriptionData);
+        // Verify appointment is in progress
+        if ($appointment->status !== 'in_progress') {
+            return response()->json(['error' => 'Can only create prescriptions for appointments in progress'], 422);
+        }
+
+        // Create prescription
+        $prescription = Prescription::create([
+            'appointment_id' => $request->appointment_id,
+            'patient_id' => $appointment->patient_id,
+            'optometrist_id' => $user->id,
+            'type' => 'glasses', // Use valid enum value
+            'prescription_data' => [
+                'right_eye' => $request->right_eye,
+                'left_eye' => $request->left_eye,
+                'vision_acuity' => $request->vision_acuity,
+                'additional_notes' => $request->additional_notes,
+                'recommendations' => $request->recommendations,
+                'lens_type' => $request->lens_type,
+                'coating' => $request->coating,
+                'follow_up_date' => $request->follow_up_date,
+                'follow_up_notes' => $request->follow_up_notes,
+                'prescription_number' => Prescription::generatePrescriptionNumber(),
+            ],
+            'issue_date' => now()->toDateString(),
+            'expiry_date' => now()->addYear()->toDateString(),
+            'status' => 'active',
+            'notes' => $request->additional_notes, // Store additional notes in the notes field
+        ]);
+
+        // Update appointment status to completed
+        $appointment->update(['status' => 'completed']);
+
+        // Create notifications
+        try {
+            \App\Http\Controllers\NotificationController::createPrescriptionNotification(
+                $prescription,
+                'created',
+                "Your prescription has been created and is ready for pickup at {$appointment->branch->name}"
+            );
+        } catch (\Exception $e) {
+            \Log::error('Failed to create prescription notification: ' . $e->getMessage());
+        }
+
+        // Emit realtime event
+        try {
+            Realtime::emit('prescription.created', [
+                'prescription' => $prescription->load(['patient:id,name', 'optometrist:id,name', 'appointment:id']),
+            ], null, $prescription->patient_id);
+        } catch (\Exception $e) {
+            \Log::error('Failed to emit realtime event: ' . $e->getMessage());
+        }
 
         return response()->json($prescription->load(['patient', 'optometrist', 'appointment']), 201);
+        
+        } catch (\Exception $e) {
+            \Log::error('Prescription store error: ' . $e->getMessage(), [
+                'trace' => $e->getTraceAsString(),
+                'request_data' => $request->all()
+            ]);
+            return response()->json(['error' => 'Server error: ' . $e->getMessage()], 500);
+        }
     }
 
     /**
@@ -203,8 +305,8 @@ class PrescriptionController extends Controller
                 return $prescription->patient_id === $user->id;
 
             case UserRole::OPTOMETRIST->value:
-                return $prescription->optometrist_id === $user->id || 
-                       $prescription->patient_id === $user->id;
+                // Since there's only one optometrist, they can view all prescriptions
+                return true;
 
             case UserRole::STAFF->value:
             case UserRole::ADMIN->value:
@@ -225,7 +327,8 @@ class PrescriptionController extends Controller
                 return false; // Customers cannot update prescriptions
 
             case UserRole::OPTOMETRIST->value:
-                return $prescription->optometrist_id === $user->id;
+                // Since there's only one optometrist, they can update all prescriptions
+                return true;
 
             case UserRole::STAFF->value:
             case UserRole::ADMIN->value:

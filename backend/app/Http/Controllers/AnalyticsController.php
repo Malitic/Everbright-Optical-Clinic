@@ -1,0 +1,648 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Models\User;
+use App\Models\Appointment;
+use App\Models\Prescription;
+use App\Models\Branch;
+use App\Models\Reservation;
+use App\Models\BranchStock;
+use App\Models\Product;
+use Illuminate\Http\Request;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
+use Carbon\Carbon;
+use App\Enums\UserRole;
+
+class AnalyticsController extends Controller
+{
+    /**
+     * Get customer analytics
+     * GET /api/customers/{id}/analytics
+     */
+    public function getCustomerAnalytics(Request $request, $customerId): JsonResponse
+    {
+        $user = Auth::user();
+        
+        // Check if user can access this customer's data
+        if (!$user || 
+            ($user->role->value !== 'admin' && 
+             $user->role->value !== 'optometrist' && 
+             $user->role->value !== 'staff' && 
+             $user->id != $customerId)) {
+            return response()->json(['message' => 'Unauthorized'], 403);
+        }
+
+        $customer = User::find($customerId);
+        if (!$customer || $customer->role->value !== 'customer') {
+            return response()->json(['message' => 'Customer not found'], 404);
+        }
+
+        // Get vision history data (SPH, CYL, Axis trends)
+        $prescriptions = Prescription::where('patient_id', $customerId)
+            ->orderBy('issue_date', 'desc')
+            ->get();
+
+        $visionHistory = $prescriptions->map(function ($prescription) {
+            $rightEye = $prescription->right_eye ?? [];
+            $leftEye = $prescription->left_eye ?? [];
+            
+            return [
+                'date' => $prescription->issue_date->format('Y-m-d'),
+                'prescription_number' => $prescription->prescription_number,
+                'right_eye' => [
+                    'sph' => $rightEye['sph'] ?? null,
+                    'cyl' => $rightEye['cyl'] ?? null,
+                    'axis' => $rightEye['axis'] ?? null,
+                ],
+                'left_eye' => [
+                    'sph' => $leftEye['sph'] ?? null,
+                    'cyl' => $leftEye['cyl'] ?? null,
+                    'axis' => $leftEye['axis'] ?? null,
+                ],
+                'expiry_date' => $prescription->expiry_date->format('Y-m-d'),
+                'status' => $prescription->status,
+                'is_expired' => $prescription->isExpired(),
+            ];
+        });
+
+        // Get appointment history
+        $appointments = Appointment::where('patient_id', $customerId)
+            ->with(['optometrist', 'branch'])
+            ->orderBy('appointment_date', 'desc')
+            ->get();
+
+        $appointmentHistory = $appointments->map(function ($appointment) {
+            return [
+                'id' => $appointment->id,
+                'date' => $appointment->appointment_date->format('Y-m-d'),
+                'time' => $appointment->start_time,
+                'type' => $appointment->type,
+                'status' => $appointment->status,
+                'optometrist' => $appointment->optometrist ? [
+                    'name' => $appointment->optometrist->name,
+                    'id' => $appointment->optometrist->id,
+                ] : null,
+                'branch' => $appointment->branch ? [
+                    'name' => $appointment->branch->name,
+                    'address' => $appointment->branch->address,
+                ] : null,
+            ];
+        });
+
+        // Calculate statistics
+        $totalAppointments = $appointments->count();
+        $completedAppointments = $appointments->where('status', 'completed')->count();
+        $missedAppointments = $appointments->where('status', 'cancelled')->count();
+        $upcomingAppointments = $appointments->where('status', 'scheduled')
+            ->where('appointment_date', '>=', now())->count();
+
+        $totalPrescriptions = $prescriptions->count();
+        $activePrescriptions = $prescriptions->where('status', 'active')->count();
+        $expiredPrescriptions = $prescriptions->filter(function ($prescription) {
+            return $prescription->isExpired();
+        })->count();
+
+        // Vision trends analysis
+        $visionTrends = $this->analyzeVisionTrends($prescriptions);
+
+        return response()->json([
+            'customer' => [
+                'id' => $customer->id,
+                'name' => $customer->name,
+                'email' => $customer->email,
+            ],
+            'vision_history' => $visionHistory,
+            'appointment_history' => $appointmentHistory,
+            'statistics' => [
+                'appointments' => [
+                    'total' => $totalAppointments,
+                    'completed' => $completedAppointments,
+                    'missed' => $missedAppointments,
+                    'upcoming' => $upcomingAppointments,
+                    'completion_rate' => $totalAppointments > 0 ? round(($completedAppointments / $totalAppointments) * 100, 1) : 0,
+                ],
+                'prescriptions' => [
+                    'total' => $totalPrescriptions,
+                    'active' => $activePrescriptions,
+                    'expired' => $expiredPrescriptions,
+                    'expiry_rate' => $totalPrescriptions > 0 ? round(($expiredPrescriptions / $totalPrescriptions) * 100, 1) : 0,
+                ],
+            ],
+            'vision_trends' => $visionTrends,
+        ]);
+    }
+
+    /**
+     * Get optometrist analytics
+     * GET /api/optometrists/{id}/analytics
+     */
+    public function getOptometristAnalytics(Request $request, $optometristId): JsonResponse
+    {
+        $user = Auth::user();
+        
+        // Check if user can access this optometrist's data
+        if (!$user || 
+            ($user->role->value !== 'admin' && 
+             $user->role->value !== 'staff' && 
+             $user->id != $optometristId)) {
+            return response()->json(['message' => 'Unauthorized'], 403);
+        }
+
+        $optometrist = User::find($optometristId);
+        if (!$optometrist || $optometrist->role->value !== 'optometrist') {
+            return response()->json(['message' => 'Optometrist not found'], 404);
+        }
+
+        $period = $request->get('period', '30'); // days
+        $startDate = Carbon::now()->subDays($period);
+
+        // Get daily/weekly appointments count
+        $appointments = Appointment::where('optometrist_id', $optometristId)
+            ->where('appointment_date', '>=', $startDate)
+            ->get();
+
+        $dailyAppointments = $appointments->groupBy(function ($appointment) {
+            return $appointment->appointment_date->format('Y-m-d');
+        })->map(function ($dayAppointments) {
+            return [
+                'date' => $dayAppointments->first()->appointment_date->format('Y-m-d'),
+                'total' => $dayAppointments->count(),
+                'completed' => $dayAppointments->where('status', 'completed')->count(),
+                'cancelled' => $dayAppointments->where('status', 'cancelled')->count(),
+                'scheduled' => $dayAppointments->where('status', 'scheduled')->count(),
+            ];
+        })->values();
+
+        // Get prescriptions issued per period
+        $prescriptions = Prescription::where('optometrist_id', $optometristId)
+            ->where('issue_date', '>=', $startDate)
+            ->get();
+
+        $prescriptionStats = [
+            'total_issued' => $prescriptions->count(),
+            'by_type' => $prescriptions->groupBy('type')->map->count(),
+            'by_status' => $prescriptions->groupBy('status')->map->count(),
+        ];
+
+        // Get follow-up compliance (patients who returned vs missed)
+        $followUpCompliance = $this->calculateFollowUpCompliance($optometristId, $startDate);
+
+        // Get workload distribution
+        $workloadDistribution = $this->calculateWorkloadDistribution($optometristId, $startDate);
+
+        return response()->json([
+            'optometrist' => [
+                'id' => $optometrist->id,
+                'name' => $optometrist->name,
+                'email' => $optometrist->email,
+                'branch' => $optometrist->branch ? [
+                    'name' => $optometrist->branch->name,
+                    'address' => $optometrist->branch->address,
+                ] : null,
+            ],
+            'period' => [
+                'days' => $period,
+                'start_date' => $startDate->format('Y-m-d'),
+                'end_date' => Carbon::now()->format('Y-m-d'),
+            ],
+            'appointments' => [
+                'daily' => $dailyAppointments,
+                'total' => $appointments->count(),
+                'completed' => $appointments->where('status', 'completed')->count(),
+                'cancelled' => $appointments->where('status', 'cancelled')->count(),
+                'scheduled' => $appointments->where('status', 'scheduled')->count(),
+            ],
+            'prescriptions' => $prescriptionStats,
+            'follow_up_compliance' => $followUpCompliance,
+            'workload_distribution' => $workloadDistribution,
+        ]);
+    }
+
+    /**
+     * Get staff analytics
+     * GET /api/staff/{id}/analytics
+     */
+    public function getStaffAnalytics(Request $request, $staffId): JsonResponse
+    {
+        $user = Auth::user();
+        
+        // Check if user can access this staff's data
+        if (!$user || 
+            ($user->role->value !== 'admin' && $user->id != $staffId)) {
+            return response()->json(['message' => 'Unauthorized'], 403);
+        }
+
+        $staff = User::find($staffId);
+        if (!$staff || $staff->role->value !== 'staff') {
+            return response()->json(['message' => 'Staff not found'], 404);
+        }
+
+        if (!$staff->branch_id) {
+            return response()->json(['message' => 'Staff member not assigned to a branch'], 400);
+        }
+
+        $period = $request->get('period', '30'); // days
+        $startDate = Carbon::now()->subDays($period);
+
+        // Get appointments count for their branch
+        $appointments = Appointment::where('branch_id', $staff->branch_id)
+            ->where('appointment_date', '>=', $startDate)
+            ->get();
+
+        $appointmentStats = [
+            'total' => $appointments->count(),
+            'completed' => $appointments->where('status', 'completed')->count(),
+            'cancelled' => $appointments->where('status', 'cancelled')->count(),
+            'scheduled' => $appointments->where('status', 'scheduled')->count(),
+            'no_show_rate' => $appointments->count() > 0 ? 
+                round(($appointments->where('status', 'cancelled')->count() / $appointments->count()) * 100, 1) : 0,
+        ];
+
+        // Get branch-level sales report (reservations)
+        $reservations = Reservation::where('branch_id', $staff->branch_id)
+            ->where('created_at', '>=', $startDate)
+            ->get();
+
+        $salesStats = [
+            'total_reservations' => $reservations->count(),
+            'completed_reservations' => $reservations->where('status', 'completed')->count(),
+            'total_revenue' => $reservations->where('status', 'completed')->sum('total_price'),
+            'average_order_value' => $reservations->where('status', 'completed')->count() > 0 ? 
+                round($reservations->where('status', 'completed')->avg('total_price'), 2) : 0,
+        ];
+
+        // Get inventory usage (products sold vs stock left)
+        $inventoryStats = $this->calculateInventoryStats($staff->branch_id, $startDate);
+
+        // Get daily performance
+        $dailyPerformance = $this->calculateDailyPerformance($staff->branch_id, $startDate);
+
+        return response()->json([
+            'staff' => [
+                'id' => $staff->id,
+                'name' => $staff->name,
+                'email' => $staff->email,
+                'branch' => [
+                    'id' => $staff->branch->id,
+                    'name' => $staff->branch->name,
+                    'address' => $staff->branch->address,
+                ],
+            ],
+            'period' => [
+                'days' => $period,
+                'start_date' => $startDate->format('Y-m-d'),
+                'end_date' => Carbon::now()->format('Y-m-d'),
+            ],
+            'appointments' => $appointmentStats,
+            'sales' => $salesStats,
+            'inventory' => $inventoryStats,
+            'daily_performance' => $dailyPerformance,
+        ]);
+    }
+
+    /**
+     * Get admin analytics
+     * GET /api/admin/analytics
+     */
+    public function getAdminAnalytics(Request $request): JsonResponse
+    {
+        $user = Auth::user();
+        
+        if (!$user || $user->role->value !== 'admin') {
+            return response()->json(['message' => 'Unauthorized. Admin access required.'], 403);
+        }
+
+        $period = $request->get('period', '30'); // days
+        $startDate = Carbon::now()->subDays($period);
+
+        // Get comparison of branch performance
+        $branchPerformance = $this->getBranchPerformanceComparison($startDate);
+
+        // Get optometrist workload report
+        $optometristWorkload = $this->getOptometristWorkloadReport($startDate);
+
+        // Get staff activity logs
+        $staffActivity = $this->getStaffActivityReport($startDate);
+
+        // Get system-wide inventory + sales trends
+        $systemWideStats = $this->getSystemWideStats($startDate);
+
+        // Get most common diagnoses/prescriptions
+        $commonDiagnoses = $this->getCommonDiagnoses($startDate);
+
+        return response()->json([
+            'period' => [
+                'days' => $period,
+                'start_date' => $startDate->format('Y-m-d'),
+                'end_date' => Carbon::now()->format('Y-m-d'),
+            ],
+            'branch_performance' => $branchPerformance,
+            'optometrist_workload' => $optometristWorkload,
+            'staff_activity' => $staffActivity,
+            'system_wide_stats' => $systemWideStats,
+            'common_diagnoses' => $commonDiagnoses,
+        ]);
+    }
+
+    /**
+     * Analyze vision trends from prescriptions
+     */
+    private function analyzeVisionTrends($prescriptions)
+    {
+        if ($prescriptions->count() < 2) {
+            return [
+                'trend_available' => false,
+                'message' => 'Insufficient data for trend analysis'
+            ];
+        }
+
+        $rightEyeSph = $prescriptions->pluck('right_eye.sph')->filter()->values();
+        $leftEyeSph = $prescriptions->pluck('left_eye.sph')->filter()->values();
+        $rightEyeCyl = $prescriptions->pluck('right_eye.cyl')->filter()->values();
+        $leftEyeCyl = $prescriptions->pluck('left_eye.cyl')->filter()->values();
+
+        return [
+            'trend_available' => true,
+            'right_eye' => [
+                'sph_trend' => $this->calculateTrend($rightEyeSph),
+                'cyl_trend' => $this->calculateTrend($rightEyeCyl),
+            ],
+            'left_eye' => [
+                'sph_trend' => $this->calculateTrend($leftEyeSph),
+                'cyl_trend' => $this->calculateTrend($leftEyeCyl),
+            ],
+        ];
+    }
+
+    /**
+     * Calculate trend direction and magnitude
+     */
+    private function calculateTrend($values)
+    {
+        if ($values->count() < 2) {
+            return 'insufficient_data';
+        }
+
+        $first = $values->first();
+        $last = $values->last();
+        $change = $last - $first;
+        
+        if (abs($change) < 0.25) {
+            return 'stable';
+        } elseif ($change > 0) {
+            return 'increasing';
+        } else {
+            return 'decreasing';
+        }
+    }
+
+    /**
+     * Calculate follow-up compliance for optometrist
+     */
+    private function calculateFollowUpCompliance($optometristId, $startDate)
+    {
+        $appointments = Appointment::where('optometrist_id', $optometristId)
+            ->where('appointment_date', '>=', $startDate)
+            ->get();
+
+        $totalAppointments = $appointments->count();
+        $completedAppointments = $appointments->where('status', 'completed')->count();
+        $cancelledAppointments = $appointments->where('status', 'cancelled')->count();
+
+        return [
+            'total_appointments' => $totalAppointments,
+            'completed' => $completedAppointments,
+            'cancelled' => $cancelledAppointments,
+            'compliance_rate' => $totalAppointments > 0 ? 
+                round(($completedAppointments / $totalAppointments) * 100, 1) : 0,
+        ];
+    }
+
+    /**
+     * Calculate workload distribution for optometrist
+     */
+    private function calculateWorkloadDistribution($optometristId, $startDate)
+    {
+        $appointments = Appointment::where('optometrist_id', $optometristId)
+            ->where('appointment_date', '>=', $startDate)
+            ->get();
+
+        return [
+            'by_type' => $appointments->groupBy('type')->map->count(),
+            'by_status' => $appointments->groupBy('status')->map->count(),
+            'by_weekday' => $appointments->groupBy(function ($appointment) {
+                return $appointment->appointment_date->format('l');
+            })->map->count(),
+        ];
+    }
+
+    /**
+     * Calculate inventory stats for staff branch
+     */
+    private function calculateInventoryStats($branchId, $startDate)
+    {
+        $branchStock = BranchStock::where('branch_id', $branchId)->get();
+        
+        // Get products sold in the period (from reservations)
+        $soldProducts = DB::table('reservation_items')
+            ->join('reservations', 'reservation_items.reservation_id', '=', 'reservations.id')
+            ->where('reservations.branch_id', $branchId)
+            ->where('reservations.created_at', '>=', $startDate)
+            ->where('reservations.status', 'completed')
+            ->select('reservation_items.product_id', DB::raw('SUM(reservation_items.quantity) as sold_quantity'))
+            ->groupBy('reservation_items.product_id')
+            ->get()
+            ->keyBy('product_id');
+
+        $totalStock = $branchStock->sum('stock_quantity');
+        $lowStockItems = $branchStock->where('available_quantity', '<', 5)->count();
+        $outOfStockItems = $branchStock->where('available_quantity', '<=', 0)->count();
+
+        return [
+            'total_items' => $branchStock->count(),
+            'total_stock' => $totalStock,
+            'low_stock_items' => $lowStockItems,
+            'out_of_stock_items' => $outOfStockItems,
+            'sold_products' => $soldProducts,
+        ];
+    }
+
+    /**
+     * Calculate daily performance for staff branch
+     */
+    private function calculateDailyPerformance($branchId, $startDate)
+    {
+        $appointments = Appointment::where('branch_id', $branchId)
+            ->where('appointment_date', '>=', $startDate)
+            ->get()
+            ->groupBy(function ($appointment) {
+                return $appointment->appointment_date->format('Y-m-d');
+            });
+
+        $reservations = Reservation::where('branch_id', $branchId)
+            ->where('created_at', '>=', $startDate)
+            ->get()
+            ->groupBy(function ($reservation) {
+                return $reservation->created_at->format('Y-m-d');
+            });
+
+        $dailyData = [];
+        $currentDate = $startDate->copy();
+        
+        while ($currentDate->lte(Carbon::now())) {
+            $dateStr = $currentDate->format('Y-m-d');
+            $dayAppointments = $appointments->get($dateStr, collect());
+            $dayReservations = $reservations->get($dateStr, collect());
+
+            $dailyData[] = [
+                'date' => $dateStr,
+                'appointments' => $dayAppointments->count(),
+                'completed_appointments' => $dayAppointments->where('status', 'completed')->count(),
+                'reservations' => $dayReservations->count(),
+                'revenue' => $dayReservations->where('status', 'completed')->sum('total_price'),
+            ];
+
+            $currentDate->addDay();
+        }
+
+        return $dailyData;
+    }
+
+    /**
+     * Get branch performance comparison for admin
+     */
+    private function getBranchPerformanceComparison($startDate)
+    {
+        $branches = Branch::where('is_active', true)->get();
+        $branchPerformance = [];
+
+        foreach ($branches as $branch) {
+            $appointments = Appointment::where('branch_id', $branch->id)
+                ->where('appointment_date', '>=', $startDate)
+                ->get();
+
+            $reservations = Reservation::where('branch_id', $branch->id)
+                ->where('created_at', '>=', $startDate)
+                ->get();
+
+            $branchPerformance[] = [
+                'branch_id' => $branch->id,
+                'branch_name' => $branch->name,
+                'appointments' => $appointments->count(),
+                'completed_appointments' => $appointments->where('status', 'completed')->count(),
+                'revenue' => $reservations->where('status', 'completed')->sum('total_price'),
+                'unique_patients' => $appointments->pluck('patient_id')->unique()->count(),
+            ];
+        }
+
+        return $branchPerformance;
+    }
+
+    /**
+     * Get optometrist workload report for admin
+     */
+    private function getOptometristWorkloadReport($startDate)
+    {
+        $optometrists = User::where('role', 'optometrist')->get();
+        $workloadReport = [];
+
+        foreach ($optometrists as $optometrist) {
+            $appointments = Appointment::where('optometrist_id', $optometrist->id)
+                ->where('appointment_date', '>=', $startDate)
+                ->get();
+
+            $prescriptions = Prescription::where('optometrist_id', $optometrist->id)
+                ->where('issue_date', '>=', $startDate)
+                ->get();
+
+            $workloadReport[] = [
+                'optometrist_id' => $optometrist->id,
+                'optometrist_name' => $optometrist->name,
+                'branch' => $optometrist->branch ? $optometrist->branch->name : 'No Branch',
+                'appointments' => $appointments->count(),
+                'prescriptions_issued' => $prescriptions->count(),
+                'unique_patients' => $appointments->pluck('patient_id')->unique()->count(),
+            ];
+        }
+
+        return $workloadReport;
+    }
+
+    /**
+     * Get staff activity report for admin
+     */
+    private function getStaffActivityReport($startDate)
+    {
+        $staff = User::where('role', 'staff')->get();
+        $activityReport = [];
+
+        foreach ($staff as $staffMember) {
+            if (!$staffMember->branch_id) continue;
+
+            $appointments = Appointment::where('branch_id', $staffMember->branch_id)
+                ->where('appointment_date', '>=', $startDate)
+                ->get();
+
+            $reservations = Reservation::where('branch_id', $staffMember->branch_id)
+                ->where('created_at', '>=', $startDate)
+                ->get();
+
+            $activityReport[] = [
+                'staff_id' => $staffMember->id,
+                'staff_name' => $staffMember->name,
+                'branch' => $staffMember->branch->name,
+                'appointments_managed' => $appointments->count(),
+                'reservations_processed' => $reservations->count(),
+                'revenue_generated' => $reservations->where('status', 'completed')->sum('total_price'),
+            ];
+        }
+
+        return $activityReport;
+    }
+
+    /**
+     * Get system-wide stats for admin
+     */
+    private function getSystemWideStats($startDate)
+    {
+        $totalAppointments = Appointment::where('appointment_date', '>=', $startDate)->count();
+        $totalReservations = Reservation::where('created_at', '>=', $startDate)->count();
+        $totalRevenue = Reservation::where('created_at', '>=', $startDate)
+            ->where('status', 'completed')
+            ->sum('total_price');
+
+        $totalProducts = Product::count();
+        $totalBranches = Branch::where('is_active', true)->count();
+        $totalUsers = User::count();
+
+        return [
+            'appointments' => $totalAppointments,
+            'reservations' => $totalReservations,
+            'revenue' => $totalRevenue,
+            'products' => $totalProducts,
+            'branches' => $totalBranches,
+            'users' => $totalUsers,
+        ];
+    }
+
+    /**
+     * Get most common diagnoses/prescriptions for admin
+     */
+    private function getCommonDiagnoses($startDate)
+    {
+        $prescriptions = Prescription::where('issue_date', '>=', $startDate)->get();
+
+        $commonTypes = $prescriptions->groupBy('type')->map->count()->sortDesc();
+        $commonLensTypes = $prescriptions->groupBy('lens_type')->map->count()->sortDesc();
+        $commonCoatings = $prescriptions->groupBy('coating')->map->count()->sortDesc();
+
+        return [
+            'by_type' => $commonTypes,
+            'by_lens_type' => $commonLensTypes,
+            'by_coating' => $commonCoatings,
+        ];
+    }
+}

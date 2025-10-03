@@ -9,6 +9,8 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Validator;
 use App\Enums\UserRole;
+use App\Helpers\Realtime;
+use App\Http\Controllers\NotificationController;
 
 class AppointmentController extends Controller
 {
@@ -18,7 +20,12 @@ class AppointmentController extends Controller
     public function index(Request $request): JsonResponse
     {
         $user = Auth::user();
-        $query = Appointment::with(['patient', 'optometrist']);
+        
+        if (!$user) {
+            return response()->json(['error' => 'User not authenticated'], 401);
+        }
+        
+        $query = Appointment::with(['patient', 'optometrist', 'branch']);
 
         // Filter based on user role
         if (!$user->role) {
@@ -32,15 +39,17 @@ class AppointmentController extends Controller
                 break;
 
             case UserRole::OPTOMETRIST->value:
-                // Optometrists can see all appointments (their own and others)
-                // They can filter by their own appointments if needed
-                if ($request->has('my_appointments') && $request->boolean('my_appointments')) {
-                    $query->where('optometrist_id', $user->id);
+                // Optometrists can see ALL appointments across ALL branches since there's only one doctor
+                // Apply branch filter if specifically requested
+                if ($request->has('branch_id') && $request->branch_id !== 'all') {
+                    $query->where('branch_id', $request->branch_id);
                 }
+                // No other restrictions - can see all appointments
                 break;
 
             case UserRole::STAFF->value:
-                // Staff can see all appointments
+                // Staff limited to their branch
+                $query->where('branch_id', $user->branch_id);
                 break;
 
             case UserRole::ADMIN->value:
@@ -84,9 +93,17 @@ class AppointmentController extends Controller
     {
         $user = Auth::user();
 
+        // Debug logging
+        \Log::info('Appointment creation request:', [
+            'user_id' => $user ? $user->id : 'null',
+            'user_role' => $user ? $user->role->value : 'null',
+            'request_data' => $request->all()
+        ]);
+
         $validator = Validator::make($request->all(), [
             'patient_id' => 'required|exists:users,id',
             'optometrist_id' => 'required|exists:users,id',
+            'branch_id' => 'required|exists:branches,id',
             'appointment_date' => 'required|date|after_or_equal:today',
             'start_time' => 'required|date_format:H:i',
             'end_time' => 'required|date_format:H:i|after:start_time',
@@ -99,7 +116,7 @@ class AppointmentController extends Controller
         }
 
         // Check if user has permission to create appointments
-        if (!in_array($user->role->value, [UserRole::OPTOMETRIST->value, UserRole::STAFF->value, UserRole::ADMIN->value])) {
+        if (!in_array($user->role->value, [UserRole::OPTOMETRIST->value, UserRole::STAFF->value, UserRole::ADMIN->value, UserRole::CUSTOMER->value])) {
             return response()->json(['error' => 'Unauthorized to create appointments'], 403);
         }
 
@@ -112,6 +129,23 @@ class AppointmentController extends Controller
         $optometrist = User::find($request->optometrist_id);
         if (!$optometrist || $optometrist->role->value !== UserRole::OPTOMETRIST->value) {
             return response()->json(['error' => 'Invalid optometrist selected'], 422);
+        }
+
+        // Verify the appointment is valid according to schedule
+        $date = \Carbon\Carbon::parse($request->appointment_date);
+        $dayOfWeek = $date->dayOfWeekIso;
+        
+        $schedule = \App\Models\Schedule::where('staff_id', $request->optometrist_id)
+            ->where('staff_role', 'optometrist')
+            ->where('branch_id', $request->branch_id)
+            ->where('day_of_week', $dayOfWeek)
+            ->where('is_active', true)
+            ->first();
+
+        if (!$schedule) {
+            return response()->json([
+                'error' => 'Invalid appointment: Optometrist is not available at this branch on this day'
+            ], 400);
         }
 
         // Check for scheduling conflicts
@@ -132,9 +166,37 @@ class AppointmentController extends Controller
             return response()->json(['error' => 'Time slot is not available'], 422);
         }
 
+        // Enforce branch scoping for staff/optometrist creating appointments
+        if (in_array($user->role->value, [UserRole::STAFF->value, UserRole::OPTOMETRIST->value])) {
+            if ((int)$request->branch_id !== (int)$user->branch_id) {
+                return response()->json(['error' => 'Cannot create appointment for another branch'], 403);
+            }
+        }
+
+        // Auto-assign customer to branch if they don't have one
+        $patient = User::find($request->patient_id);
+        if ($patient && $patient->role->value === UserRole::CUSTOMER->value && !$patient->branch_id) {
+            $patient->update(['branch_id' => $request->branch_id]);
+        }
+
         $appointment = Appointment::create($request->all());
 
-        return response()->json($appointment->load(['patient', 'optometrist']), 201);
+        // Load relationships for notifications
+        $appointment->load(['patient', 'optometrist', 'branch']);
+
+        // Create notifications for appointment booking
+        NotificationController::createAppointmentNotification(
+            $appointment,
+            'booked',
+            "Your appointment has been booked for {$appointment->appointment_date} at {$appointment->start_time} at {$appointment->branch->name}"
+        );
+
+        // Emit realtime event for staff and optometrists
+        Realtime::emit('appointment.created', [
+            'appointment' => $appointment->load(['patient:id,name', 'optometrist:id,name']),
+        ], null, $user->id);
+
+        return response()->json($appointment, 201);
     }
 
     /**
@@ -177,9 +239,30 @@ class AppointmentController extends Controller
             return response()->json(['errors' => $validator->errors()], 422);
         }
 
+        $oldStatus = $appointment->status;
         $appointment->update($request->all());
+        $appointment->load(['patient', 'optometrist', 'branch']);
 
-        return response()->json($appointment->load(['patient', 'optometrist']));
+        // Create notifications for status changes
+        if ($request->has('status') && $request->status !== $oldStatus) {
+            $statusMessages = [
+                'confirmed' => 'Your appointment has been confirmed',
+                'cancelled' => 'Your appointment has been cancelled',
+                'completed' => 'Your appointment has been completed',
+                'no_show' => 'You were marked as no-show for your appointment',
+                'in_progress' => 'Your appointment is now in progress'
+            ];
+
+            $message = $statusMessages[$request->status] ?? "Your appointment status has been updated to {$request->status}";
+            
+            NotificationController::createAppointmentNotification(
+                $appointment,
+                $request->status,
+                $message
+            );
+        }
+
+        return response()->json($appointment);
     }
 
     /**
@@ -210,10 +293,15 @@ class AppointmentController extends Controller
             return response()->json(['error' => 'Unauthorized'], 403);
         }
 
-        $appointments = Appointment::with(['patient', 'optometrist'])
-            ->where('appointment_date', today())
-            ->orderBy('start_time')
-            ->get();
+        $query = Appointment::with(['patient', 'optometrist', 'branch'])
+            ->where('appointment_date', today());
+
+        // Branch scoping for staff only (optometrists can see all branches)
+        if ($user->role->value === UserRole::STAFF->value) {
+            $query->where('branch_id', $user->branch_id);
+        }
+
+        $appointments = $query->orderBy('start_time')->get();
 
         return response()->json($appointments);
     }

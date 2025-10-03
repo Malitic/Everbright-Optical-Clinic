@@ -1,5 +1,5 @@
 import React from 'react';
-import { Calendar, Package, Users, Bell, Clock, AlertTriangle, ShoppingBag } from 'lucide-react';
+import { Calendar, Package, Users, Clock, ShoppingBag } from 'lucide-react';
 import { DashboardCard } from './DashboardCard';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -25,11 +25,6 @@ const StaffDashboard = () => {
     { time: '3:30 PM', patient: 'David Wilson', type: 'Emergency', status: 'urgent' }
   ];
 
-  const pendingNotifications = [
-    { type: 'reminder', message: 'Follow-up reminder for John Doe', priority: 'medium' },
-    { type: 'stock', message: 'Contact lenses running low', priority: 'high' },
-    { type: 'appointment', message: '3 appointment confirmations needed', priority: 'low' }
-  ];
 
   const getInventoryStatus = (status: string) => {
     switch (status) {
@@ -59,18 +54,6 @@ const StaffDashboard = () => {
     }
   };
 
-  const getPriorityColor = (priority: string) => {
-    switch (priority) {
-      case 'high':
-        return 'bg-red-100 text-red-800';
-      case 'medium':
-        return 'bg-yellow-100 text-yellow-800';
-      case 'low':
-        return 'bg-blue-100 text-blue-800';
-      default:
-        return 'bg-gray-100 text-gray-800';
-    }
-  };
 
   return (
     <div className="space-y-6">
@@ -195,48 +178,6 @@ const StaffDashboard = () => {
         </Card>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Pending Notifications */}
-        <Card className="shadow-lg border-0">
-          <CardHeader>
-            <CardTitle className="flex items-center space-x-2">
-              <Bell className="h-5 w-5 text-staff" />
-              <span>Pending Notifications</span>
-            </CardTitle>
-            <CardDescription>Actions requiring attention</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {pendingNotifications.map((notification, index) => (
-                <div key={index} className="flex items-start space-x-3 p-3 bg-slate-50 rounded-lg">
-                  <div className="flex-shrink-0 mt-1">
-                    {notification.priority === 'high' && (
-                      <AlertTriangle className="h-4 w-4 text-red-500" />
-                    )}
-                    {notification.priority === 'medium' && (
-                      <Clock className="h-4 w-4 text-yellow-500" />
-                    )}
-                    {notification.priority === 'low' && (
-                      <Bell className="h-4 w-4 text-blue-500" />
-                    )}
-                  </div>
-                  <div className="flex-1">
-                    <div className="flex items-center justify-between mb-1">
-                      <p className="text-sm text-slate-900">{notification.message}</p>
-                      <Badge className={getPriorityColor(notification.priority)}>
-                        {notification.priority}
-                      </Badge>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-            <Button variant="staff" size="sm" className="w-full mt-4">
-              Send Notifications
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
 
       {/* Product Gallery */}
       <Card className="shadow-lg border-0">

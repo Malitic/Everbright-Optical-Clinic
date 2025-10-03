@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { Eye, Users, Calendar, BarChart3, ArrowRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import everbrightBg from '@/assets/everbright-bg.png';
 
 const Index = () => {
   const roleCards = [
@@ -41,7 +42,21 @@ const Index = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
+    <div 
+      className="min-h-screen relative"
+      style={{
+        backgroundImage: `url(${everbrightBg})`,
+        backgroundSize: 'cover',
+        backgroundRepeat: 'no-repeat',
+        backgroundPosition: 'center',
+        backgroundAttachment: 'fixed'
+      }}
+    >
+      {/* Overlay for better readability */}
+      <div className="absolute inset-0 bg-white/80 backdrop-blur-sm"></div>
+      
+      {/* Content */}
+      <div className="relative z-10">
       {/* Header */}
       <header className="bg-white shadow-sm border-b">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
@@ -186,6 +201,7 @@ const Index = () => {
           </p>
         </div>
       </footer>
+      </div>
     </div>
   );
 };

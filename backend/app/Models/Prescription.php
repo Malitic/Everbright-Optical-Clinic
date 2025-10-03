@@ -2,24 +2,22 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Carbon\Carbon;
 
 class Prescription extends Model
 {
-    use HasFactory;
-
     protected $fillable = [
+        'appointment_id',
         'patient_id',
         'optometrist_id',
-        'appointment_id',
         'type',
         'prescription_data',
         'issue_date',
         'expiry_date',
-        'notes',
         'status',
+        'notes',
     ];
 
     protected $casts = [
@@ -28,41 +26,102 @@ class Prescription extends Model
         'expiry_date' => 'date',
     ];
 
-    // Relationships
-    public function patient(): BelongsTo
-    {
-        return $this->belongsTo(User::class, 'patient_id');
-    }
-
-    public function optometrist(): BelongsTo
-    {
-        return $this->belongsTo(User::class, 'optometrist_id');
-    }
-
+    /**
+     * Get the appointment that owns the prescription.
+     */
     public function appointment(): BelongsTo
     {
         return $this->belongsTo(Appointment::class);
     }
 
-    // Scopes
+    /**
+     * Get the patient that owns the prescription.
+     */
+    public function patient(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'patient_id');
+    }
+
+    /**
+     * Get the optometrist that created the prescription.
+     */
+    public function optometrist(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'optometrist_id');
+    }
+
+    /**
+     * Get the branch where the prescription was created.
+     */
+    public function branch(): BelongsTo
+    {
+        return $this->belongsTo(Branch::class);
+    }
+
+    /**
+     * Check if prescription is expired.
+     */
+    public function isExpired(): bool
+    {
+        return $this->expiry_date < now();
+    }
+
+    /**
+     * Check if prescription is active.
+     */
+    public function isActive(): bool
+    {
+        return $this->status === 'active' && !$this->isExpired();
+    }
+
+    /**
+     * Get formatted prescription number.
+     */
+    public function getFormattedNumberAttribute(): string
+    {
+        return 'RX-' . str_pad($this->id, 6, '0', STR_PAD_LEFT);
+    }
+
+    /**
+     * Generate prescription number.
+     */
+    public static function generatePrescriptionNumber(): string
+    {
+        $lastPrescription = self::orderBy('id', 'desc')->first();
+        $nextId = $lastPrescription ? $lastPrescription->id + 1 : 1;
+        return 'RX-' . str_pad($nextId, 6, '0', STR_PAD_LEFT);
+    }
+
+    /**
+     * Scope for active prescriptions.
+     */
     public function scopeActive($query)
     {
-        return $query->where('status', 'active');
+        return $query->where('status', 'active')
+                    ->where('expiry_date', '>=', now());
     }
 
+    /**
+     * Scope for expired prescriptions.
+     */
     public function scopeExpired($query)
     {
-        return $query->where('status', 'expired');
+        return $query->where('expiry_date', '<', now());
     }
 
-    public function scopeForPatient($query, $patientId)
+    /**
+     * Scope for prescriptions by patient.
+     */
+    public function scopeForPatient($query, int $patientId)
     {
         return $query->where('patient_id', $patientId);
     }
 
-    public function scopeExpiringSoon($query, $days = 30)
+    /**
+     * Scope for prescriptions by optometrist.
+     */
+    public function scopeByOptometrist($query, int $optometristId)
     {
-        return $query->where('expiry_date', '<=', now()->addDays($days))
-                    ->where('status', 'active');
+        return $query->where('optometrist_id', $optometristId);
     }
 }

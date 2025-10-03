@@ -24,6 +24,8 @@ class User extends Authenticatable
         'email',
         'password',
         'role',
+        'branch_id',
+        'is_approved',
     ];
 
     /**
@@ -47,6 +49,55 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'role' => UserRole::class,
+            'is_approved' => 'boolean',
         ];
+    }
+
+    /**
+     * Get the branch this user belongs to
+     */
+    public function branch()
+    {
+        return $this->belongsTo(Branch::class);
+    }
+
+    /**
+     * Check if user is assigned to a branch
+     */
+    public function hasBranch(): bool
+    {
+        return !is_null($this->branch_id);
+    }
+
+    /**
+     * Get branch name for display
+     */
+    public function getBranchNameAttribute(): string
+    {
+        return $this->branch ? $this->branch->name : 'No Branch Assigned';
+    }
+
+    /**
+     * Get appointments for this user (as patient)
+     */
+    public function appointments()
+    {
+        return $this->hasMany(Appointment::class, 'patient_id');
+    }
+
+    /**
+     * Get prescriptions for this user (as patient)
+     */
+    public function prescriptions()
+    {
+        return $this->hasMany(Prescription::class, 'patient_id');
+    }
+
+    /**
+     * Get prescriptions created by this user (as optometrist)
+     */
+    public function createdPrescriptions()
+    {
+        return $this->hasMany(Prescription::class, 'optometrist_id');
     }
 }

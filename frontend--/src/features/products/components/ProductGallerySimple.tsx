@@ -228,7 +228,6 @@ export const ProductGallerySimple: React.FC = () => {
 
   // Delete product
   const deleteProduct = async (productId: string) => {
-    if (!window.confirm('Are you sure you want to delete this product?')) return;
     const newProducts = products.filter(p => p.id !== productId);
     saveProductsLocal(newProducts);
   };

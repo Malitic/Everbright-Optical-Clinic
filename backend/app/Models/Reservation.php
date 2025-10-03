@@ -18,12 +18,14 @@ class Reservation extends Model
     protected $fillable = [
         'user_id',
         'product_id',
+        'branch_id',
         'quantity',
         'status',
         'notes',
         'reserved_at',
         'approved_at',
         'rejected_at',
+        'completed_at',
     ];
 
     /**
@@ -36,6 +38,7 @@ class Reservation extends Model
         'reserved_at' => 'datetime',
         'approved_at' => 'datetime',
         'rejected_at' => 'datetime',
+        'completed_at' => 'datetime',
     ];
 
     /**
@@ -52,6 +55,14 @@ class Reservation extends Model
     public function product(): BelongsTo
     {
         return $this->belongsTo(Product::class);
+    }
+
+    /**
+     * Get the branch where the product is reserved.
+     */
+    public function branch(): BelongsTo
+    {
+        return $this->belongsTo(Branch::class);
     }
 
     /**
@@ -84,5 +95,13 @@ class Reservation extends Model
     public function isRejected(): bool
     {
         return $this->status === 'rejected';
+    }
+
+    /**
+     * Check if the reservation is completed.
+     */
+    public function isCompleted(): bool
+    {
+        return $this->status === 'completed';
     }
 }

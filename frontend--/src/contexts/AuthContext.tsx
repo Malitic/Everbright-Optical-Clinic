@@ -2,20 +2,13 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { login as apiLogin, register as apiRegister, logout as apiLogout, getProfile, User as ApiUser } from '../services/authApi';
 
 export type UserRole = 'customer' | 'optometrist' | 'staff' | 'admin';
-
-export interface User {
-  id: string;
-  name: string;
-  email: string;
-  role: UserRole;
-  avatar?: string;
-}
+export type User = ApiUser;
 
 interface AuthContextType {
   user: User | null;
-  login: (email: string, password: string, role: UserRole) => Promise<void>;
+  login: (email: string, password: string, role: UserRole) => Promise<User>;
   logout: () => void;
-  register: (name: string, email: string, password: string, confirmPassword: string, role: UserRole) => Promise<void>;
+  register: (name: string, email: string, password: string, confirmPassword: string, role: UserRole, branchId?: string) => Promise<void>;
   isLoading: boolean;
 }
 
@@ -68,33 +61,46 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   useEffect(() => {
     // Check for stored auth data
-    const token = localStorage.getItem(TOKEN_KEY);
-    const storedUser = localStorage.getItem(CURRENT_USER_KEY);
+    const token = sessionStorage.getItem(TOKEN_KEY);
+    const storedUser = sessionStorage.getItem(CURRENT_USER_KEY);
+
+    console.log('AuthContext: useEffect - checking stored auth data', { token: !!token, storedUser: !!storedUser });
 
     if (token && storedUser) {
-      setUser(JSON.parse(storedUser));
+      const userData = JSON.parse(storedUser);
+      console.log('AuthContext: Found stored user:', userData);
+      setUser(userData);
     }
     setIsLoading(false);
   }, []);
 
-  const login = async (email: string, password: string, role: UserRole) => {
+  // Monitor user state changes
+  useEffect(() => {
+    console.log('AuthContext: User state changed:', user);
+  }, [user]);
+
+  const login = async (email: string, password: string, role: UserRole): Promise<User> => {
     try {
+      console.log('AuthContext: Starting login process');
       setIsLoading(true);
 
       // Use real API authentication
+      console.log('AuthContext: Calling API login');
       const response = await apiLogin({ email, password, role });
-      
-      // Check if the user's role matches the expected role
-      if (response.user.role !== role) {
-        throw new Error(`Invalid role. Expected ${role}, but user has role ${response.user.role}.`);
-      }
+      console.log('AuthContext: API response received:', response);
 
       // Store auth data
-      localStorage.setItem(TOKEN_KEY, response.token);
-      localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(response.user));
+      sessionStorage.setItem(TOKEN_KEY, response.token);
+      sessionStorage.setItem(CURRENT_USER_KEY, JSON.stringify(response.user));
+      console.log('AuthContext: Auth data stored in sessionStorage');
 
+      console.log('AuthContext: Setting user state to:', response.user);
       setUser(response.user);
+      console.log('AuthContext: User state updated');
+      
+      return response.user;
     } catch (error: any) {
+      console.error('AuthContext: Login error:', error);
       // Handle API errors
       if (error.response?.data?.message) {
         throw new Error(error.response.data.message);
@@ -104,11 +110,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         throw new Error('Login failed. Please try again.');
       }
     } finally {
+      console.log('AuthContext: Setting isLoading to false');
       setIsLoading(false);
     }
   };
 
-  const register = async (name: string, email: string, password: string, confirmPassword: string, role: UserRole) => {
+  const register = async (name: string, email: string, password: string, confirmPassword: string, role: UserRole, branchId?: string) => {
     try {
       setIsLoading(true);
 
@@ -128,14 +135,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         email: email.toLowerCase().trim(),
         password,
         password_confirmation: confirmPassword,
-        role
+        role,
+        ...(branchId ? { branch_id: parseInt(branchId) } : {}),
       });
 
-      // Store auth data
-      localStorage.setItem(TOKEN_KEY, response.token);
-      localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(response.user));
-
-      setUser(response.user);
+      // Only store auth data if a token is issued (customer). Pending roles get no token
+      if (response.token) {
+        sessionStorage.setItem(TOKEN_KEY, response.token);
+        sessionStorage.setItem(CURRENT_USER_KEY, JSON.stringify(response.user));
+        setUser(response.user);
+      }
     } catch (error: any) {
       // Handle API errors
       if (error.response?.data?.message) {
@@ -161,8 +170,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch (error) {
       console.error('Logout API error:', error);
     } finally {
-      localStorage.removeItem(TOKEN_KEY);
-      localStorage.removeItem(CURRENT_USER_KEY);
+      sessionStorage.removeItem(TOKEN_KEY);
+      sessionStorage.removeItem(CURRENT_USER_KEY);
       setUser(null);
     }
   };
