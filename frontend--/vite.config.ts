@@ -33,11 +33,19 @@ export default defineConfig(async ({ mode }) => {
       outDir: "dist",
       assetsDir: "assets",
       sourcemap: false,
+      minify: "terser",
       rollupOptions: {
         output: {
-          manualChunks: undefined,
+          manualChunks: {
+            vendor: ['react', 'react-dom'],
+            router: ['react-router-dom'],
+            ui: ['@radix-ui/react-dialog', '@radix-ui/react-dropdown-menu'],
+          },
         },
       },
+    },
+    define: {
+      'process.env.NODE_ENV': JSON.stringify(mode),
     },
   };
 });
