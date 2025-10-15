@@ -15,6 +15,7 @@ export default defineConfig(async ({ mode }) => {
   }
 
   return {
+    base: "/",
     server: {
       host: "::",
       port: 5173,
@@ -26,6 +27,16 @@ export default defineConfig(async ({ mode }) => {
     resolve: {
       alias: {
         "@": path.resolve(__dirname, "./src"),
+      },
+    },
+    build: {
+      outDir: "dist",
+      assetsDir: "assets",
+      sourcemap: false,
+      rollupOptions: {
+        output: {
+          manualChunks: undefined,
+        },
       },
     },
   };
