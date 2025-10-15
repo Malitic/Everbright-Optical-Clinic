@@ -42,6 +42,9 @@ return [
         'http://10.173.7.92:8080',
         'http://10.173.7.92:8081',
         'http://10.173.7.92:8082',
+        // Production URLs - will be updated after deployment
+        'https://everbright-optical-frontend.vercel.app',
+        'https://everbright-optical-frontend.vercel.app/',
     ],
 
     'allowed_origins_patterns' => [],
