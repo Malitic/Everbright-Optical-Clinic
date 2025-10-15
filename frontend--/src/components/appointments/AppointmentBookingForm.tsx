@@ -327,7 +327,7 @@ const AppointmentBookingForm: React.FC = () => {
                 ) : doctorSchedule ? (
                   <div className="space-y-3">
                     <div className="text-center mb-4">
-                      <h4 className="font-medium text-gray-900">Dr. {doctorSchedule.doctor.name}'s Weekly Rotation</h4>
+                      <h4 className="font-medium text-gray-900">{doctorSchedule.doctor.name}'s Weekly Rotation</h4>
                     </div>
                     <div className="overflow-x-auto">
                       <Table>
@@ -428,7 +428,7 @@ const AppointmentBookingForm: React.FC = () => {
                       <SelectValue placeholder="Choose a time slot" />
                     </SelectTrigger>
                     <SelectContent>
-                      {availableTimes.map((time) => (
+                      {availableTimes.filter(time => time && String(time).trim() !== '').map((time) => (
                         <SelectItem key={time} value={time}>
                           <div className="flex items-center gap-2">
                             <Clock className="h-4 w-4" />
@@ -452,7 +452,7 @@ const AppointmentBookingForm: React.FC = () => {
                       <SelectValue placeholder="Select appointment type" />
                     </SelectTrigger>
                     <SelectContent>
-                      {services.map((service) => (
+                      {services.filter(service => service && String(service).trim() !== '').map((service) => (
                         <SelectItem key={service} value={service}>
                           <div className="flex items-center gap-2">
                             <Stethoscope className="h-4 w-4" />

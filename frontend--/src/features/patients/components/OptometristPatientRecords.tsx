@@ -21,32 +21,18 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import { useAuth } from '@/contexts/AuthContext';
-import { prescriptionService } from '@/features/prescriptions/services/prescription.service';
-import { Prescription } from '@/features/prescriptions/services/prescription.service';
+import { getOptometristPatients, getOptometristPatient, OptometristPatient, OptometristPatientDetails } from '@/services/optometristApi';
 import { format } from 'date-fns';
-
-interface Patient {
-  id: string;
-  name: string;
-  email: string;
-  phone?: string;
-  dateOfBirth?: string;
-  lastVisit?: string;
-  nextAppointment?: string;
-  medicalHistory?: string[];
-  prescriptions: Prescription[];
-  status: 'active' | 'inactive';
-}
 
 const OptometristPatientRecords: React.FC = () => {
   const { user } = useAuth();
-  const [patients, setPatients] = useState<Patient[]>([]);
+  const [patients, setPatients] = useState<OptometristPatient[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
-  const [patientPrescriptions, setPatientPrescriptions] = useState<Prescription[]>([]);
-  const [loadingPrescriptions, setLoadingPrescriptions] = useState(false);
+  const [selectedPatient, setSelectedPatient] = useState<OptometristPatient | null>(null);
+  const [patientDetails, setPatientDetails] = useState<OptometristPatientDetails | null>(null);
+  const [loadingDetails, setLoadingDetails] = useState(false);
 
   // Load patients on component mount
   useEffect(() => {
@@ -62,42 +48,8 @@ const OptometristPatientRecords: React.FC = () => {
     try {
       setLoading(true);
       setError(null);
-      // Get all prescriptions first to extract unique patients
-      const response = await prescriptionService.getPrescriptions();
-      const prescriptions = response.data?.data || [];
-      
-      // Group prescriptions by patient
-      const patientMap = new Map<string, Patient>();
-      
-      prescriptions.forEach(prescription => {
-        if (prescription.patient) {
-          const patientId = prescription.patient.id.toString();
-          if (!patientMap.has(patientId)) {
-            patientMap.set(patientId, {
-              id: patientId,
-              name: prescription.patient.name,
-              email: prescription.patient.email,
-              prescriptions: [],
-              status: 'active'
-            });
-          }
-          patientMap.get(patientId)!.prescriptions.push(prescription);
-        }
-      });
-
-      // Convert map to array and sort by last prescription date
-      const patientsArray = Array.from(patientMap.values()).map(patient => {
-        const sortedPrescriptions = patient.prescriptions.sort((a, b) => 
-          new Date(b.issue_date).getTime() - new Date(a.issue_date).getTime()
-        );
-        return {
-          ...patient,
-          prescriptions: sortedPrescriptions,
-          lastVisit: sortedPrescriptions[0]?.issue_date
-        };
-      });
-
-      setPatients(patientsArray);
+      const response = await getOptometristPatients();
+      setPatients(response.data);
     } catch (err: any) {
       console.error('Error loading patients:', err);
       if (err.response?.status === 401) {
@@ -112,15 +64,15 @@ const OptometristPatientRecords: React.FC = () => {
     }
   };
 
-  const loadPatientPrescriptions = async (patientId: string) => {
+  const loadPatientDetails = async (patientId: number) => {
     try {
-      setLoadingPrescriptions(true);
-      const prescriptions = await prescriptionService.getPatientPrescriptions(patientId);
-      setPatientPrescriptions(prescriptions);
+      setLoadingDetails(true);
+      const details = await getOptometristPatient(patientId);
+      setPatientDetails(details);
     } catch (err) {
-      console.error('Error loading patient prescriptions:', err);
+      console.error('Error loading patient details:', err);
     } finally {
-      setLoadingPrescriptions(false);
+      setLoadingDetails(false);
     }
   };
 
@@ -221,10 +173,10 @@ const OptometristPatientRecords: React.FC = () => {
                       </div>
                     </TableCell>
                     <TableCell>
-                      {patient.lastVisit ? format(new Date(patient.lastVisit), 'MMM d, yyyy') : 'N/A'}
+                      {patient.last_visit ? format(new Date(patient.last_visit), 'MMM d, yyyy') : 'N/A'}
                     </TableCell>
                     <TableCell>
-                      <Badge variant="outline">{patient.prescriptions.length}</Badge>
+                      <Badge variant="outline">{patient.total_prescriptions}</Badge>
                     </TableCell>
                     <TableCell>
                       <Badge className={getStatusColor(patient.status)}>
@@ -239,7 +191,7 @@ const OptometristPatientRecords: React.FC = () => {
                             variant="outline"
                             onClick={() => {
                               setSelectedPatient(patient);
-                              loadPatientPrescriptions(patient.id);
+                              loadPatientDetails(patient.id);
                             }}
                           >
                             <FileText className="h-4 w-4" />
@@ -252,42 +204,75 @@ const OptometristPatientRecords: React.FC = () => {
                               Complete patient information and prescription history
                             </DialogDescription>
                           </DialogHeader>
-                          {selectedPatient && (
+                          {selectedPatient && patientDetails && (
                             <div className="space-y-6">
                               <div>
                                 <h3 className="font-semibold mb-2">Basic Information</h3>
                                 <div className="grid grid-cols-2 gap-4">
                                   <div>
                                     <p className="text-sm font-medium">Name</p>
-                                    <p>{selectedPatient.name}</p>
+                                    <p>{patientDetails.patient.name}</p>
                                   </div>
                                   <div>
                                     <p className="text-sm font-medium">Email</p>
-                                    <p>{selectedPatient.email}</p>
+                                    <p>{patientDetails.patient.email}</p>
                                   </div>
                                   <div>
                                     <p className="text-sm font-medium">Phone</p>
-                                    <p>{selectedPatient.phone || 'N/A'}</p>
+                                    <p>{patientDetails.patient.phone || 'N/A'}</p>
                                   </div>
                                   <div>
                                     <p className="text-sm font-medium">Date of Birth</p>
-                                    <p>{selectedPatient.dateOfBirth || 'N/A'}</p>
+                                    <p>{patientDetails.patient.date_of_birth || 'N/A'}</p>
                                   </div>
                                 </div>
                               </div>
 
                               <div>
+                                <h3 className="font-semibold mb-4">Appointment History</h3>
+                                {patientDetails.appointments.length === 0 ? (
+                                  <p className="text-gray-500">No appointments found for this patient.</p>
+                                ) : (
+                                  <div className="space-y-2">
+                                    {patientDetails.appointments.map((appointment) => (
+                                      <Card key={appointment.id}>
+                                        <CardContent className="p-3">
+                                          <div className="flex justify-between items-start">
+                                            <div>
+                                              <p className="font-medium">{appointment.type}</p>
+                                              <p className="text-sm text-gray-500">
+                                                {format(new Date(appointment.date), 'MMM d, yyyy')} at {appointment.time}
+                                              </p>
+                                              {appointment.branch && (
+                                                <p className="text-sm text-gray-500">{appointment.branch.name}</p>
+                                              )}
+                                            </div>
+                                            <Badge className={getStatusColor(appointment.status)}>
+                                              {appointment.status}
+                                            </Badge>
+                                          </div>
+                                          {appointment.notes && (
+                                            <p className="text-sm mt-2 text-gray-600">{appointment.notes}</p>
+                                          )}
+                                        </CardContent>
+                                      </Card>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+
+                              <div>
                                 <h3 className="font-semibold mb-4">Prescription History</h3>
-                                {loadingPrescriptions ? (
+                                {loadingDetails ? (
                                   <div className="flex items-center justify-center py-4">
                                     <Loader2 className="h-6 w-6 animate-spin" />
                                     <span className="ml-2">Loading prescriptions...</span>
                                   </div>
-                                ) : patientPrescriptions.length === 0 ? (
+                                ) : patientDetails.prescriptions.length === 0 ? (
                                   <p className="text-gray-500">No prescriptions found for this patient.</p>
                                 ) : (
                                   <div className="space-y-3">
-                                    {patientPrescriptions.map((prescription) => (
+                                    {patientDetails.prescriptions.map((prescription) => (
                                       <Card key={prescription.id}>
                                         <CardContent className="p-4">
                                           <div className="flex justify-between items-start mb-2">

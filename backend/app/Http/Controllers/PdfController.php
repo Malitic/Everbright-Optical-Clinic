@@ -32,50 +32,82 @@ class PdfController extends Controller
                 return response()->json(['message' => 'Unauthorized'], 403);
             }
 
+            // Load stored receipt data if available
+            $receipt = \App\Models\Receipt::with('items')->where('appointment_id', $appointment->id)->first();
+
             // Generate invoice number in format like 0601
             $invoiceNumber = str_pad($appointment->id, 4, '0', STR_PAD_LEFT);
-            
-            // Sample data - you'll need to get this from your actual data
-            $baseAmount = 500.00; // Base service amount
-            $vatRate = 0.12; // 12% VAT
-            $vatableAmount = $baseAmount / (1 + $vatRate);
-            $vatAmount = $baseAmount - $vatableAmount;
-            
-            $data = [
-                'invoice_no' => $invoiceNumber,
-                'date' => $appointment->appointment_date->format('Y-m-d'),
-                'sales_type' => 'cash', // You can determine this based on your business logic
-                'customer_name' => $appointment->patient->name,
-                'tin' => 'N/A', // Add TIN field to users table if needed
-                'address' => $appointment->patient->address ?? 'N/A',
-                'items' => [
-                    [
+
+            if ($receipt) {
+                $data = [
+                    'invoice_no' => $invoiceNumber,
+                    'date' => $receipt->date->format('Y-m-d'),
+                    'sales_type' => $receipt->sales_type,
+                    'customer_name' => $receipt->customer_name,
+                    'tin' => $receipt->tin ?? 'N/A',
+                    'address' => $receipt->address ?? ($appointment->patient->address ?? 'N/A'),
+                    'items' => $receipt->items->map(function ($item) {
+                        return [
+                            'description' => $item->description,
+                            'qty' => $item->qty,
+                            'unit_price' => (float) $item->unit_price,
+                            'amount' => (float) $item->amount,
+                        ];
+                    })->toArray(),
+                    'vatable_sales' => (float) $receipt->vatable_sales,
+                    'less_vat' => (float) $receipt->less_vat,
+                    'add_vat' => (float) $receipt->add_vat,
+                    'zero_rated_sales' => (float) $receipt->zero_rated_sales,
+                    'net_of_vat' => (float) $receipt->net_of_vat,
+                    'vat_exempt_sales' => (float) $receipt->vat_exempt_sales,
+                    'discount' => (float) $receipt->discount,
+                    'withholding_tax' => (float) $receipt->withholding_tax,
+                    'total_due' => (float) $receipt->total_due,
+                ];
+            } else {
+                // Fallback minimal document
+                $baseAmount = 500.00;
+                $vatRate = 0.12;
+                $vatableAmount = $baseAmount / (1 + $vatRate);
+                $vatAmount = $baseAmount - $vatableAmount;
+                $data = [
+                    'invoice_no' => $invoiceNumber,
+                    'date' => $appointment->appointment_date->format('Y-m-d'),
+                    'sales_type' => 'cash',
+                    'customer_name' => $appointment->patient->name,
+                    'tin' => 'N/A',
+                    'address' => $appointment->patient->address ?? 'N/A',
+                    'items' => [[
                         'description' => 'Eye Examination',
                         'qty' => 1,
                         'unit_price' => $baseAmount,
-                        'amount' => $baseAmount
-                    ],
-                    // Add more items as needed
-                ],
-                'total_sales' => $baseAmount,
-                'vatable_sales' => $vatableAmount,
-                'less_vat' => $vatAmount,
-                'add_vat' => $vatAmount,
-                'zero_rated_sales' => 0.00,
-                'net_of_vat' => $vatableAmount,
-                'vat_exempt_sales' => 0.00,
-                'discount' => 0.00,
-                'withholding_tax' => 0.00,
-                'total_due' => $baseAmount
-            ];
+                        'amount' => $baseAmount,
+                    ]],
+                    'vatable_sales' => $vatableAmount,
+                    'less_vat' => $vatAmount,
+                    'add_vat' => $vatAmount,
+                    'zero_rated_sales' => 0.00,
+                    'net_of_vat' => $vatableAmount,
+                    'vat_exempt_sales' => 0.00,
+                    'discount' => 0.00,
+                    'withholding_tax' => 0.00,
+                    'total_due' => $baseAmount,
+                ];
+            }
 
             $pdf = Pdf::loadView('pdf.receipt', $data);
             
-            // Save to storage
+            // Generate filename
             $filename = 'receipt_' . $invoiceNumber . '_' . time() . '.pdf';
-            $pdf->save(storage_path('app/receipts/' . $filename));
             
-            return $pdf->download($filename);
+            // Set proper headers for PDF download
+            return response($pdf->output(), 200, [
+                'Content-Type' => 'application/pdf',
+                'Content-Disposition' => 'attachment; filename="' . $filename . '"',
+                'Cache-Control' => 'no-cache, no-store, must-revalidate',
+                'Pragma' => 'no-cache',
+                'Expires' => '0',
+            ]);
             
         } catch (\Exception $e) {
             \Log::error('PDF generation error: ' . $e->getMessage());

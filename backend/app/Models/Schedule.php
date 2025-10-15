@@ -25,8 +25,6 @@ class Schedule extends Model
     protected $casts = [
         'day_of_week' => 'integer',
         'is_active' => 'boolean',
-        'start_time' => 'datetime:H:i',
-        'end_time' => 'datetime:H:i',
     ];
 
     /**
@@ -141,7 +139,14 @@ class Schedule extends Model
     public function getFormattedStartTimeAttribute(): string
     {
         try {
-            return date('g:i A', strtotime($this->start_time));
+            // Extract just the time part if it's a datetime string
+            $time = $this->start_time;
+            if (strpos($time, ' ') !== false) {
+                // If it contains a space, it's a datetime string, extract time part
+                $parts = explode(' ', $time);
+                $time = $parts[1];
+            }
+            return date('g:i A', strtotime($time));
         } catch (\Exception $e) {
             return $this->start_time;
         }
@@ -153,7 +158,14 @@ class Schedule extends Model
     public function getFormattedEndTimeAttribute(): string
     {
         try {
-            return date('g:i A', strtotime($this->end_time));
+            // Extract just the time part if it's a datetime string
+            $time = $this->end_time;
+            if (strpos($time, ' ') !== false) {
+                // If it contains a space, it's a datetime string, extract time part
+                $parts = explode(' ', $time);
+                $time = $parts[1];
+            }
+            return date('g:i A', strtotime($time));
         } catch (\Exception $e) {
             return $this->end_time;
         }

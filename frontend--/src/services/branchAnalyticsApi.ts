@@ -54,38 +54,86 @@ export interface ProductAvailabilityResponse {
 
 export const getBranchPerformance = async (): Promise<BranchAnalyticsResponse> => {
   const token = sessionStorage.getItem('auth_token');
-  const response = await api.get('/analytics/branch-performance', {
-    headers: {
-      'Authorization': `Bearer ${token}`,
-      'Accept': 'application/json',
-    },
-  });
-  return response.data;
+  
+  if (!token) {
+    throw new Error('No authentication token found');
+  }
+  
+  try {
+    const response = await api.get('/analytics/branch-performance', {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Accept': 'application/json',
+      },
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching branch performance:', error);
+    // Return empty data structure to prevent crashes
+    return {
+      branches: [],
+      summary: {
+        total_revenue: 0,
+        total_patients: 0,
+        total_appointments: 0,
+        average_growth: 0,
+        total_branches: 0
+      }
+    };
+  }
 };
 
 export const getBranchAnalytics = async (branchId: number): Promise<any> => {
   const token = sessionStorage.getItem('auth_token');
-  const response = await api.get(`/analytics/branches/${branchId}`, {
-    headers: {
-      'Authorization': `Bearer ${token}`,
-      'Accept': 'application/json',
-    },
-  });
-  return response.data;
+  
+  if (!token) {
+    throw new Error('No authentication token found');
+  }
+  
+  try {
+    const response = await api.get(`/analytics/branches/${branchId}`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Accept': 'application/json',
+      },
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching branch analytics:', error);
+    throw error;
+  }
 };
 
 export const getProductAvailability = async (productId?: number, branchId?: number): Promise<ProductAvailabilityResponse> => {
   const token = sessionStorage.getItem('auth_token');
+  
+  if (!token) {
+    throw new Error('No authentication token found');
+  }
+  
   const params = new URLSearchParams();
   
   if (productId) params.append('product_id', productId.toString());
   if (branchId) params.append('branch_id', branchId.toString());
   
-  const response = await api.get(`/analytics/product-availability?${params.toString()}`, {
-    headers: {
-      'Authorization': `Bearer ${token}`,
-      'Accept': 'application/json',
-    },
-  });
-  return response.data;
+  try {
+    const response = await api.get(`/analytics/product-availability?${params.toString()}`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Accept': 'application/json',
+      },
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching product availability:', error);
+    // Return empty data structure to prevent crashes
+    return {
+      availability: [],
+      summary: {
+        total_products: 0,
+        total_branches: 0,
+        in_stock_items: 0
+      }
+    };
+  }
 };

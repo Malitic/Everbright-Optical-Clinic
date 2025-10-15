@@ -16,9 +16,15 @@ import AdminDashboard from "@/components/dashboard/AdminDashboard";
 import AppointmentBooking from "@/components/appoinments/AppointmentBooking";
 import PrescriptionViewer from "@/components/prescriptions/PrescriptionViewer";
 import InventoryManagement from "@/components/inventory/InventoryManagement";
+import RoleBasedInventoryManagement from "@/features/inventory/components/RoleBasedInventoryManagement";
+import StaffInventoryManagement from "@/features/inventory/components/StaffInventoryManagement";
+import UnifiedStaffInventory from "@/features/inventory/components/UnifiedStaffInventory";
+import AdminCentralInventory from "@/features/inventory/components/AdminCentralInventory";
+import AdminConsolidatedInventory from "@/features/inventory/components/AdminConsolidatedInventory";
 import NotificationCenter from "@/components/notifications/NotificationCenter";
 import PatientManagement from "@/components/patients/PatientManagement";
 import AnalyticsDashboard from "@/components/analytics/AnalyticsDashboard";
+import OptometristAnalytics from "@/features/analytics/components/OptometristAnalytics";
 import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
 import BookAppointmentPage from "./pages/BookAppointmentPage";
@@ -32,6 +38,8 @@ import CustomerReceipts from "@/features/customer/components/CustomerReceipts";
 import { CustomerAppointmentsLocalStorage } from "@/features/customer/components/CustomerAppointmentsLocalStorage";
 import { CustomerPrescriptionsLocalStorage } from "@/features/customer/components/CustomerPrescriptionsLocalStorage";
 
+// Inquiry Components
+
 // Product Components
 import ProductGallery from "@/features/products/components/MultiBranchProductGallery";
 import ProductDetails from "@/features/products/components/ProductDetails";
@@ -44,12 +52,14 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 
 // Staff Components
 import StaffReservationDashboard from "@/features/staff/components/StaffReservationDashboard";
+import UnifiedReservationsDashboard from "@/features/staff/components/UnifiedReservationsDashboard";
 import StaffRestockRequests from "@/features/staff/components/StaffRestockRequests";
+import StaffCreateReceipt from "@/features/receipts/components/StaffCreateReceipt";
 
 // Admin Components
 import AdminStockManagement from "@/features/admin/components/AdminStockManagement";
 import AdminProductManagement from "@/features/admin/components/AdminProductManagement";
-import RoleRequestsDashboard from "@/components/admin/RoleRequestsDashboard";
+import ImageAnalyzer from "@/features/admin/components/ImageAnalyzer";
 import { RealtimeProvider } from "@/contexts/RealtimeProvider";
 
 // Optometrist Components
@@ -63,6 +73,12 @@ import AdminUserManagement from "@/components/admin/AdminUserManagement";
 import BranchManagement from "@/components/admin/BranchManagement";
 import EmployeeScheduleManagement from "@/components/admin/EmployeeScheduleManagement";
 import { BranchProvider } from "@/contexts/BranchContext";
+import { useParams } from "react-router-dom";
+import React from "react";
+import { useAuth } from "@/contexts/AuthContext";
+import { useQuery } from "@tanstack/react-query";
+import { getApiUrl, getAuthHeaders } from "@/config/api";
+import { TransactionDashboard } from "@/components/transactions/TransactionDashboard";
 
 const queryClient = new QueryClient();
 
@@ -133,10 +149,13 @@ const App = () => (
             }>
               <Route path="dashboard" element={<StaffDashboard />} />
               <Route path="appointments" element={<StaffAppointments />} />
-              {/* Remove product gallery for staff */}
-              <Route path="reservations" element={<StaffReservationDashboard />} />
+              {/* Unified Reservations & Transactions Dashboard */}
+              <Route path="reservations" element={<UnifiedReservationsDashboard />} />
+              {/* Provide appointmentId via URL; wrapper component extracts param */}
+              <Route path="create-receipt/:appointmentId" element={<CreateReceiptRouteWrapper />} />
               <Route path="restock-requests" element={<StaffRestockRequests />} />
-              <Route path="inventory" element={<InventoryManagement />} />
+              <Route path="inventory" element={<UnifiedStaffInventory />} />
+              <Route path="inventory/legacy" element={<StaffInventoryManagement />} />
               <Route path="patients" element={<PatientManagement />} />
               <Route path="profile" element={<UserProfile />} />
               <Route path="notifications" element={<NotificationCenter />} />
@@ -152,18 +171,20 @@ const App = () => (
               <Route path="analytics" element={<AnalyticsDashboard />} />
               <Route path="users" element={<AdminUserManagement />} />
               <Route path="branches" element={<BranchManagement />} />
-              <Route path="inventory" element={<InventoryManagement />} />
+              <Route path="inventory" element={<AdminCentralInventory />} />
+              <Route path="inventory/consolidated" element={<AdminConsolidatedInventory />} />
               <Route path="stock-management" element={<AdminStockManagement />} />
               <Route path="products" element={
                 <ErrorBoundary>
                   <AdminProductManagement />
                 </ErrorBoundary>
               } />
-              <Route path="role-requests" element={<RoleRequestsDashboard />} />
+              <Route path="image-analyzer" element={<ImageAnalyzer />} />
               <Route path="notifications" element={<NotificationCenter />} />
               <Route path="patients" element={<PatientManagement />} />
               <Route path="sales" element={<AnalyticsDashboard />} />
               <Route path="employee-schedules" element={<EmployeeScheduleManagement />} />
+              <Route path="transactions" element={<TransactionDashboard />} />
               <Route path="profile" element={<UserProfile />} />
             </Route>
 
@@ -186,3 +207,25 @@ const App = () => (
 );
 
 export default App;
+
+// Wrapper to map URL param to component props and fetch defaults
+function CreateReceiptRouteWrapper() {
+  const { appointmentId } = useParams();
+  const id = Number(appointmentId);
+  const { user } = useAuth();
+  const { data } = useQuery({
+    queryKey: ['appointment', id],
+    enabled: !!id,
+    queryFn: async () => {
+      const resp = await fetch(getApiUrl(`/appointments/${id}`), { 
+        headers: getAuthHeaders() 
+      });
+      if (!resp.ok) throw new Error('Failed to load appointment');
+      return resp.json();
+    }
+  });
+  const defaultName = data?.patient?.name || '';
+  const defaultAddress = data?.patient?.address || '';
+  const customerId = data?.patient?.id || data?.customer_id;
+  return <StaffCreateReceipt appointmentId={id} defaultCustomerName={defaultName} defaultAddress={defaultAddress} customerId={customerId} />;
+}

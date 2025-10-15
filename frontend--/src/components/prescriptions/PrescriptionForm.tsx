@@ -60,8 +60,6 @@ const PrescriptionForm: React.FC<PrescriptionFormProps> = ({ appointment, onSucc
   // Condition tracking state
   const [condition, setCondition] = useState('');
   const [trackable, setTrackable] = useState(false);
-  const [progressStatus, setProgressStatus] = useState('');
-  const [progressNotes, setProgressNotes] = useState('');
   const [referralNotes, setReferralNotes] = useState('');
   const [suggestedCondition, setSuggestedCondition] = useState('');
 
@@ -198,8 +196,6 @@ const PrescriptionForm: React.FC<PrescriptionFormProps> = ({ appointment, onSucc
         // Condition tracking data
         condition,
         trackable,
-        progress_status: progressStatus,
-        progress_notes: progressNotes,
         referral_notes: referralNotes
       };
 
@@ -448,8 +444,6 @@ const PrescriptionForm: React.FC<PrescriptionFormProps> = ({ appointment, onSucc
                     ];
                     setTrackable(trackableConditions.includes(value));
                     // Reset dependent fields when condition changes
-                    setProgressStatus('');
-                    setProgressNotes('');
                     setReferralNotes('');
                   }}
                 >
@@ -488,38 +482,6 @@ const PrescriptionForm: React.FC<PrescriptionFormProps> = ({ appointment, onSucc
                 )}
               </div>
 
-              {/* Progress Status for trackable conditions */}
-              {condition && trackable && (
-                <>
-                  <div>
-                    <Label htmlFor="progress_status">Progress Status</Label>
-                    <Select 
-                      value={progressStatus} 
-                      onValueChange={setProgressStatus}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="-- Select Status --" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Stable">Stable (no significant change)</SelectItem>
-                        <SelectItem value="Clearer">Clearer (improved vision)</SelectItem>
-                        <SelectItem value="Worse">Worse (declined vision)</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div>
-                    <Label htmlFor="progress_notes">Progress Notes (Optional)</Label>
-                    <Textarea
-                      id="progress_notes"
-                      value={progressNotes}
-                      onChange={(e) => setProgressNotes(e.target.value)}
-                      placeholder="Add details about stability, clarity, or worsening..."
-                      rows={2}
-                    />
-                  </div>
-                </>
-              )}
 
               {/* Referral Notes for non-trackable conditions */}
               {condition && !trackable && (

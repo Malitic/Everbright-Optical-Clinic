@@ -1,5 +1,5 @@
 import React from 'react';
-import { Calendar, Package, Users, Clock, ShoppingBag } from 'lucide-react';
+import { Calendar, Package, Users, Clock, ShoppingBag, FileText } from 'lucide-react';
 import { DashboardCard } from './DashboardCard';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -7,23 +7,86 @@ import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { useNavigate } from 'react-router-dom';
 import { ProductGalleryLocalStorage } from '@/features/products/components/ProductGalleryLocalStorage';
+import { useAppointments } from '@/features/appointments/hooks/useAppointments';
+import { useAuth } from '@/contexts/AuthContext';
+import { useQuery } from '@tanstack/react-query';
+import axios from 'axios';
 
 const StaffDashboard = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  
+  // Fetch appointments data
+  const { appointments, loading: appointmentsLoading } = useAppointments();
+  
+  // Fetch inventory data
+  const { data: inventoryData, isLoading: inventoryLoading } = useQuery({
+    queryKey: ['staff-inventory', user?.branch?.id],
+    queryFn: async () => {
+      if (!user?.branch?.id) return null;
+      const response = await axios.get(`http://127.0.0.1:8000/api/enhanced-inventory/branch/${user.branch.id}`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        },
+      });
+      return response.data;
+    },
+    enabled: !!user?.branch?.id,
+  });
 
-  const inventoryData = [
-    { category: 'Contact Lenses', current: 75, max: 100, status: 'good' },
-    { category: 'Frames', current: 45, max: 80, status: 'low' },
-    { category: 'Eye Drops', current: 20, max: 50, status: 'critical' },
-    { category: 'Cleaning Solutions', current: 60, max: 70, status: 'good' }
-  ];
+  // Fetch reservations data
+  const { data: reservationsData, isLoading: reservationsLoading } = useQuery({
+    queryKey: ['staff-reservations', user?.branch?.id],
+    queryFn: async () => {
+      const response = await axios.get('http://127.0.0.1:8000/api/reservations', {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        },
+      });
+      return response.data;
+    },
+  });
 
-  const todayAppointments = [
-    { time: '9:00 AM', patient: 'Alice Johnson', type: 'Checkup', status: 'completed' },
-    { time: '10:30 AM', patient: 'Bob Smith', type: 'Fitting', status: 'in-progress' },
-    { time: '2:00 PM', patient: 'Carol Davis', type: 'Follow-up', status: 'pending' },
-    { time: '3:30 PM', patient: 'David Wilson', type: 'Emergency', status: 'urgent' }
-  ];
+  // Process today's appointments
+  const today = new Date().toISOString().split('T')[0];
+  const todayAppointments = appointments?.filter(apt => 
+    apt.appointment_date === today
+  ).map(apt => ({
+    time: new Date(`1970-01-01T${apt.start_time}`).toLocaleTimeString('en-US', {
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+    }),
+    patient: apt.patient?.name || 'Unknown Patient',
+    type: apt.type.replace('_', ' '),
+    status: apt.status
+  })) || [];
+
+  // Process completed appointments that need receipts
+  const completedAppointments = appointments?.filter(apt => 
+    apt.status === 'completed'
+  ) || [];
+
+  // Process inventory data for dashboard
+  const processedInventoryData = inventoryData?.inventories?.reduce((acc: any[], item: any) => {
+    const category = item.product_name.split(' ')[0]; // Simple category extraction
+    const existing = acc.find(cat => cat.category === category);
+    
+    if (existing) {
+      existing.current += item.quantity;
+      existing.max += item.quantity + 20; // Estimate max based on current + buffer
+    } else {
+      acc.push({
+        category,
+        current: item.quantity,
+        max: item.quantity + 20,
+        status: item.quantity < item.min_threshold ? 'critical' : 
+                item.quantity < item.min_threshold * 1.5 ? 'low' : 'good'
+      });
+    }
+    
+    return acc;
+  }, []) || [];
 
 
   const getInventoryStatus = (status: string) => {
@@ -82,10 +145,14 @@ const StaffDashboard = () => {
         
         <DashboardCard
           title="Inventory Items"
-          value="156"
+          value={inventoryData?.inventories?.length || 0}
           description="Items in stock"
           icon={Package}
-          trend={{ value: -5, label: 'items low', isPositive: false }}
+          trend={{ 
+            value: processedInventoryData.filter(item => item.status === 'low' || item.status === 'critical').length, 
+            label: 'items need attention', 
+            isPositive: false 
+          }}
           action={{
             label: 'Update Stock',
             onClick: () => navigate('/staff/inventory'),
@@ -95,13 +162,26 @@ const StaffDashboard = () => {
         />
         
         <DashboardCard
-          title="Active Patients"
-          value="89"
-          description="Currently registered"
+          title="Pending Reservations"
+          value={reservationsData?.filter((r: any) => r.status === 'pending').length || 0}
+          description="Awaiting approval"
           icon={Users}
           action={{
             label: 'View All',
-            onClick: () => navigate('/staff/patients'),
+            onClick: () => navigate('/staff/reservations'),
+            variant: 'staff'
+          }}
+          gradient
+        />
+
+        <DashboardCard
+          title="Completed Appointments"
+          value={completedAppointments.length}
+          description="Ready for receipts"
+          icon={FileText}
+          action={{
+            label: 'Create Receipts',
+            onClick: () => navigate('/staff/appointments'),
             variant: 'staff'
           }}
           gradient
@@ -119,30 +199,47 @@ const StaffDashboard = () => {
             <CardDescription>Current stock levels by category</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {inventoryData.map((item, index) => {
-              const percentage = (item.current / item.max) * 100;
-              const status = getInventoryStatus(item.status);
-              return (
-                <div key={index} className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="font-medium text-slate-900">{item.category}</span>
-                    <div className="flex items-center space-x-2">
-                      <span className="text-sm text-slate-600">
-                        {item.current}/{item.max}
-                      </span>
-                      <Badge className={`${status.textColor} bg-opacity-10`}>
-                        {item.status}
-                      </Badge>
+            {inventoryLoading ? (
+              <div className="text-center py-4">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+                <p className="mt-2 text-sm text-gray-600">Loading inventory...</p>
+              </div>
+            ) : processedInventoryData.length > 0 ? (
+              processedInventoryData.map((item, index) => {
+                const percentage = (item.current / item.max) * 100;
+                const status = getInventoryStatus(item.status);
+                return (
+                  <div key={index} className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="font-medium text-slate-900">{item.category}</span>
+                      <div className="flex items-center space-x-2">
+                        <span className="text-sm text-slate-600">
+                          {item.current}/{item.max}
+                        </span>
+                        <Badge className={`${status.textColor} bg-opacity-10`}>
+                          {item.status}
+                        </Badge>
+                      </div>
                     </div>
+                    <Progress 
+                      value={percentage} 
+                      className="h-2"
+                    />
                   </div>
-                  <Progress 
-                    value={percentage} 
-                    className="h-2"
-                  />
-                </div>
-              );
-            })}
-            <Button variant="outline" size="sm" className="w-full">
+                );
+              })
+            ) : (
+              <div className="text-center py-4">
+                <Package className="h-8 w-8 text-gray-400 mx-auto mb-2" />
+                <p className="text-sm text-gray-600">No inventory data available</p>
+              </div>
+            )}
+            <Button 
+              variant="outline" 
+              size="sm" 
+              className="w-full"
+              onClick={() => navigate('/staff/inventory')}
+            >
               View Full Inventory
             </Button>
           </CardContent>
@@ -158,21 +255,97 @@ const StaffDashboard = () => {
             <CardDescription>Appointment status overview</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="space-y-3">
-              {todayAppointments.map((appointment, index) => (
-                <div key={index} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
-                  <div>
-                    <h4 className="font-medium text-slate-900">{appointment.patient}</h4>
-                    <p className="text-sm text-slate-600">{appointment.time} • {appointment.type}</p>
+            {appointmentsLoading ? (
+              <div className="text-center py-4">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+                <p className="mt-2 text-sm text-gray-600">Loading appointments...</p>
+              </div>
+            ) : todayAppointments.length > 0 ? (
+              <div className="space-y-3">
+                {todayAppointments.map((appointment, index) => (
+                  <div key={index} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
+                    <div>
+                      <h4 className="font-medium text-slate-900">{appointment.patient}</h4>
+                      <p className="text-sm text-slate-600">{appointment.time} • {appointment.type}</p>
+                    </div>
+                    <Badge className={getStatusColor(appointment.status)}>
+                      {appointment.status}
+                    </Badge>
                   </div>
-                  <Badge className={getStatusColor(appointment.status)}>
-                    {appointment.status}
-                  </Badge>
-                </div>
-              ))}
-            </div>
-            <Button variant="outline" size="sm" className="w-full mt-4">
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-4">
+                <Calendar className="h-8 w-8 text-gray-400 mx-auto mb-2" />
+                <p className="text-sm text-gray-600">No appointments scheduled for today</p>
+              </div>
+            )}
+            <Button 
+              variant="outline" 
+              size="sm" 
+              className="w-full mt-4"
+              onClick={() => navigate('/staff/appointments')}
+            >
               Manage All Appointments
+            </Button>
+          </CardContent>
+        </Card>
+
+        {/* Completed Appointments - Receipt Ready */}
+        <Card className="shadow-lg border-0">
+          <CardHeader>
+            <CardTitle className="flex items-center space-x-2">
+              <FileText className="h-5 w-5 text-staff" />
+              <span>Receipt Ready</span>
+            </CardTitle>
+            <CardDescription>Completed appointments that need receipts</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {completedAppointments.length > 0 ? (
+              <div className="space-y-3">
+                {completedAppointments.slice(0, 3).map((appointment, index) => (
+                  <div key={index} className="flex items-center justify-between p-3 bg-green-50 rounded-lg">
+                    <div>
+                      <h4 className="font-medium text-slate-900">{appointment.patient?.name || 'Unknown Patient'}</h4>
+                      <p className="text-sm text-slate-600">
+                        {new Date(appointment.appointment_date).toLocaleDateString()} • 
+                        {new Date(`1970-01-01T${appointment.start_time}`).toLocaleTimeString('en-US', {
+                          hour: 'numeric',
+                          minute: '2-digit',
+                          hour12: true,
+                        })}
+                      </p>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => navigate(`/staff/create-receipt/${appointment.id}`)}
+                      className="text-green-700 border-green-200 hover:bg-green-100"
+                    >
+                      <FileText className="h-3 w-3 mr-1" />
+                      Create Receipt
+                    </Button>
+                  </div>
+                ))}
+                {completedAppointments.length > 3 && (
+                  <p className="text-sm text-gray-600 text-center">
+                    +{completedAppointments.length - 3} more completed appointments
+                  </p>
+                )}
+              </div>
+            ) : (
+              <div className="text-center py-4">
+                <FileText className="h-8 w-8 text-gray-400 mx-auto mb-2" />
+                <p className="text-sm text-gray-600">No completed appointments</p>
+              </div>
+            )}
+            <Button 
+              variant="outline" 
+              size="sm" 
+              className="w-full mt-4"
+              onClick={() => navigate('/staff/appointments')}
+            >
+              View All Appointments
             </Button>
           </CardContent>
         </Card>

@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Patient Reserved Products - Demo</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding: 20px;
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            color: white;
+            border-radius: 8px;
+        }
+        .feature-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin: 20px 0;
+        }
+        .feature-card {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            border-left: 4px solid #10b981;
+        }
+        .feature-card h3 {
+            margin-top: 0;
+            color: #333;
+        }
+        .demo-section {
+            margin: 30px 0;
+            padding: 20px;
+            background: #e9ecef;
+            border-radius: 8px;
+        }
+        .demo-section h3 {
+            color: #495057;
+            margin-top: 0;
+        }
+        .product-demo {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin: 20px 0;
+        }
+        .product-card {
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            overflow: hidden;
+            background: white;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .product-image {
+            width: 100%;
+            height: 200px;
+            background: linear-gradient(45deg, #f0f0f0, #e0e0e0);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #666;
+            font-size: 14px;
+        }
+        .product-details {
+            padding: 15px;
+        }
+        .product-name {
+            font-weight: bold;
+            margin-bottom: 8px;
+        }
+        .product-info {
+            font-size: 14px;
+            color: #666;
+            margin-bottom: 4px;
+        }
+        .product-price {
+            font-size: 18px;
+            font-weight: bold;
+            color: #10b981;
+            margin-top: 10px;
+        }
+        .status-badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+            margin: 5px 5px 5px 0;
+        }
+        .status-completed {
+            background: #d4edda;
+            color: #155724;
+        }
+        .status-reserved {
+            background: #fff3cd;
+            color: #856404;
+        }
+        .access-info {
+            background: #d1ecf1;
+            border: 1px solid #bee5eb;
+            border-radius: 4px;
+            padding: 15px;
+            margin: 20px 0;
+        }
+        .access-info h4 {
+            margin-top: 0;
+            color: #0c5460;
+        }
+        .button {
+            display: inline-block;
+            padding: 10px 20px;
+            background: #10b981;
+            color: white;
+            text-decoration: none;
+            border-radius: 4px;
+            margin: 10px 5px;
+            transition: background 0.3s;
+        }
+        .button:hover {
+            background: #059669;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🛍️ Patient Reserved Products Gallery</h1>
+            <p>View products reserved by patients from the product gallery</p>
+        </div>
+
+        <div class="access-info">
+            <h4>🌐 System Access</h4>
+            <p><strong>Frontend Application:</strong> <a href="http://localhost:5173" target="_blank">http://localhost:5173</a></p>
+            <p><strong>Backend API:</strong> <a href="http://localhost:8000/api" target="_blank">http://localhost:8000/api</a></p>
+            <p><strong>Status:</strong> <span class="status-badge status-completed">SYSTEM RUNNING</span></p>
+        </div>
+
+        <div class="feature-grid">
+            <div class="feature-card">
+                <h3>🖼️ Product Images</h3>
+                <ul>
+                    <li>High-quality product images from gallery</li>
+                    <li>Fallback placeholder for missing images</li>
+                    <li>Responsive image display</li>
+                    <li>Product category and brand info</li>
+                </ul>
+            </div>
+
+            <div class="feature-card">
+                <h3>📦 Product Details</h3>
+                <ul>
+                    <li>Product name and description</li>
+                    <li>Quantity reserved</li>
+                    <li>Unit price and total cost</li>
+                    <li>Brand and category information</li>
+                </ul>
+            </div>
+
+            <div class="feature-card">
+                <h3>🛒 Transaction Info</h3>
+                <ul>
+                    <li>Transaction code and date</li>
+                    <li>Payment method used</li>
+                    <li>Associated eye examination</li>
+                    <li>Receipt download option</li>
+                </ul>
+            </div>
+
+            <div class="feature-card">
+                <h3>👨‍⚕️ Medical Context</h3>
+                <ul>
+                    <li>Linked eye examination details</li>
+                    <li>Optometrist information</li>
+                    <li>Appointment completion status</li>
+                    <li>Prescription context</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="demo-section">
+            <h3>🛍️ Sample Reserved Products</h3>
+            <p>Here's how the reserved products will appear when you click on a patient's name:</p>
+            
+            <div class="product-demo">
+                <div class="product-card">
+                    <div class="product-image">🕶️ Eyeglasses Image</div>
+                    <div class="product-details">
+                        <div class="product-name">Ray-Ban Aviator Sunglasses</div>
+                        <div class="product-info">Brand: Ray-Ban</div>
+                        <div class="product-info">Category: Sunglasses</div>
+                        <div class="product-info">Quantity: 1x</div>
+                        <div class="product-price">₱8,500.00</div>
+                        <div>
+                            <span class="status-badge status-completed">Completed</span>
+                            <span class="status-badge status-reserved">Cash</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="product-card">
+                    <div class="product-image">👓 Prescription Glasses</div>
+                    <div class="product-details">
+                        <div class="product-name">Oakley Prescription Frames</div>
+                        <div class="product-info">Brand: Oakley</div>
+                        <div class="product-info">Category: Prescription</div>
+                        <div class="product-info">Quantity: 2x</div>
+                        <div class="product-price">₱12,000.00</div>
+                        <div>
+                            <span class="status-badge status-completed">Completed</span>
+                            <span class="status-badge status-reserved">Credit Card</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="product-card">
+                    <div class="product-image">🔍 Contact Lenses</div>
+                    <div class="product-details">
+                        <div class="product-name">Acuvue Daily Contact Lenses</div>
+                        <div class="product-info">Brand: Johnson & Johnson</div>
+                        <div class="product-info">Category: Contact Lenses</div>
+                        <div class="product-info">Quantity: 6x</div>
+                        <div class="product-price">₱3,600.00</div>
+                        <div>
+                            <span class="status-badge status-completed">Completed</span>
+                            <span class="status-badge status-reserved">Online Payment</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="demo-section">
+            <h3>🎯 How to View Reserved Products</h3>
+            <ol>
+                <li><strong>Open the Application:</strong> Go to <a href="http://localhost:5173" target="_blank">http://localhost:5173</a></li>
+                <li><strong>Login:</strong> Use your admin, staff, or optometrist credentials</li>
+                <li><strong>Navigate to Patient Transactions:</strong> Click on the "Patient Transactions" tab</li>
+                <li><strong>View Patient List:</strong> See all patients with completed transactions</li>
+                <li><strong>Click Patient Name:</strong> Click on any patient name to open their details</li>
+                <li><strong>View Reserved Products:</strong> See the "Reserved Products from Gallery" section with product images and details</li>
+                <li><strong>View Transaction History:</strong> Scroll down to see detailed transaction information</li>
+            </ol>
+        </div>
+
+        <div class="demo-section">
+            <h3>✨ Enhanced Features</h3>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px;">
+                <div>
+                    <h4>🖼️ Visual Product Display</h4>
+                    <ul>
+                        <li>Product images from gallery</li>
+                        <li>High-quality thumbnails</li>
+                        <li>Fallback placeholders</li>
+                        <li>Responsive design</li>
+                    </ul>
+                </div>
+                <div>
+                    <h4>📊 Detailed Information</h4>
+                    <ul>
+                        <li>Product specifications</li>
+                        <li>Brand and category</li>
+                        <li>Quantity and pricing</li>
+                        <li>Transaction details</li>
+                    </ul>
+                </div>
+                <div>
+                    <h4>🔗 Medical Integration</h4>
+                    <ul>
+                        <li>Linked eye examinations</li>
+                        <li>Optometrist information</li>
+                        <li>Prescription context</li>
+                        <li>Receipt generation</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <div style="text-align: center; margin: 30px 0;">
+            <a href="http://localhost:5173" class="button" target="_blank">🚀 Open Application</a>
+        </div>
+
+        <div style="background: #f8f9fa; padding: 15px; border-radius: 4px; margin-top: 20px;">
+            <h4>💡 What You'll See:</h4>
+            <ul>
+                <li><strong>Product Gallery View:</strong> Visual grid of all reserved products with images</li>
+                <li><strong>Product Details:</strong> Complete information including brand, category, and pricing</li>
+                <li><strong>Transaction Context:</strong> When and how the product was reserved</li>
+                <li><strong>Medical Integration:</strong> Associated eye examinations and prescriptions</li>
+                <li><strong>Receipt Access:</strong> Download receipts for completed transactions</li>
+            </ul>
+        </div>
+    </div>
+</body>
+</html>

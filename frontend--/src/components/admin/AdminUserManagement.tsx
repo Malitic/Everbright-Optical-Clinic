@@ -170,10 +170,20 @@ const AdminUserManagement: React.FC = () => {
 
     try {
       const token = sessionStorage.getItem('auth_token');
-      const requestData = {
-        ...formData,
+      
+      // Build request data, only include fields that should be updated
+      const requestData: any = {
+        name: formData.name,
+        email: formData.email,
+        role: formData.role,
+        is_approved: formData.is_approved,
         branch_id: formData.branch_id && formData.branch_id !== 'none' ? parseInt(formData.branch_id) : null,
       };
+      
+      // Only include password if it's being changed (not empty)
+      if (formData.password && formData.password.trim() !== '') {
+        requestData.password = formData.password;
+      }
       
       console.log('Updating user with data:', requestData);
       

@@ -9,6 +9,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Skeleton } from '@/components/ui/skeleton';
 import { prescriptionService } from '@/features/prescriptions/services/prescription.service';
 import { Prescription } from '@/features/prescriptions/services/prescription.service';
+import { EyeTrackerLineChart } from '@/components/charts/EyeTrackerLineChart';
 
 interface VisionRecord {
   id: string;
@@ -141,6 +142,18 @@ const CustomerVisionHistory: React.FC = () => {
       const progressStatus = prescription.prescription_data?.progress_status || prescription.progress_status;
       const progressNotes = prescription.prescription_data?.progress_notes || prescription.progress_notes;
       const referralNotes = prescription.prescription_data?.referral_notes || prescription.referral_notes;
+      
+      // Debug log for each prescription
+      if (condition && condition !== 'None') {
+        console.log('Prescription with condition:', {
+          id: prescription.id,
+          date: prescription.exam_date,
+          condition,
+          trackable,
+          progressStatus,
+          prescription_data: prescription.prescription_data
+        });
+      }
 
       // Create findings array
       const findings = [];
@@ -273,7 +286,7 @@ const CustomerVisionHistory: React.FC = () => {
       }
 
       return {
-        date: format(new Date(record.date), 'MMM yyyy'),
+        date: format(new Date(record.date), 'MMM d, yyyy'),
         fullDate: record.date,
         examDate: record.date,
         // Right Eye (RE) data
@@ -304,6 +317,29 @@ const CustomerVisionHistory: React.FC = () => {
       };
     });
   }, [visionHistory]);
+
+  // Transform data for the new EyeTrackerLineChart
+  const eyeTrackerData = useMemo(() => {
+    const data = lineChartData.map(item => ({
+      date: item.date,
+      rightEye: item.reSphere,
+      leftEye: item.leSphere,
+      visionAcuity: item.visionAcuity,
+      condition: item.condition,
+      progressStatus: item.progressStatus,
+      trackable: item.trackable,
+    }));
+    
+    console.log('CustomerVisionHistory - Eye Tracker Data:', data);
+    console.log('CustomerVisionHistory - Conditions:', data.map(d => ({
+      date: d.date,
+      condition: d.condition,
+      trackable: d.trackable,
+      progressStatus: d.progressStatus
+    })));
+    
+    return data;
+  }, [lineChartData]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
@@ -510,160 +546,19 @@ const CustomerVisionHistory: React.FC = () => {
         </div>
 
         <div className="space-y-4">
-              {/* Compact Eye Progress Tracker */}
-              <Card className="border border-gray-200 shadow-md">
-                <CardHeader className="bg-gradient-to-r from-emerald-600 to-blue-600 text-white py-3">
-                  <CardTitle className="flex items-center gap-2 text-lg">
-                    <TrendingUp className="h-5 w-5" />
-                    Eye Progress Tracker
-                  </CardTitle>
-                </CardHeader>
-            {lineChartData.length > 0 ? (
-              <>
-                <CardContent className="p-4">
-                  <div className="space-y-4">
-                    {/* Compact Status Legend */}
-                    <div className="flex justify-center gap-4 text-xs">
-                      <div className="flex items-center gap-1">
-                        <div className="w-2 h-2 rounded-full bg-green-500"></div>
-                        <span>Stable (≤0.25D)</span>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <div className="w-2 h-2 rounded-full bg-yellow-500"></div>
-                        <span>Slight (0.50D)</span>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <div className="w-2 h-2 rounded-full bg-red-500"></div>
-                        <span>Significant (≥0.75D)</span>
-                      </div>
-                    </div>
-
-                    {/* Compact Chart */}
-                    <div className="h-64">
-                        <ResponsiveContainer width="100%" height="100%">
-                        <AreaChart 
-                          data={lineChartData} 
-                          margin={{ left: -20, right: 12, top: 20, bottom: 20 }}
-                        >
-                          <CartesianGrid vertical={false} />
-                          <XAxis
-                            dataKey="date"
-                            tickLine={false}
-                            axisLine={false}
-                            tickMargin={8}
-                            tickFormatter={(value) => value.slice(0, 6)} // Show first 6 chars of date
-                          />
-                          <YAxis
-                            tickLine={false}
-                            axisLine={false}
-                            tickMargin={8}
-                            tickCount={5}
-                          />
-                          <Tooltip 
-                            cursor={false}
-                            content={({ active, payload, label }) => {
-                              if (active && payload && payload.length) {
-                                const data = payload[0].payload;
-                                return (
-                                  <div className="grid min-w-[12rem] items-start gap-1.5 rounded-lg border border-border/50 bg-background px-3 py-2 text-xs shadow-xl">
-                                    <div className="font-medium">{label}</div>
-                                    <div className="grid gap-2">
-                                      <div className="flex items-center gap-2">
-                                        <div className="w-2 h-2 rounded-full bg-blue-500"></div>
-                                        <span>Right Eye: {data.reSphere}D</span>
-                                      </div>
-                                      <div className="flex items-center gap-2">
-                                        <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
-                                        <span>Left Eye: {data.leSphere}D</span>
-                                      </div>
-                                      <div className="text-muted-foreground">
-                                        Vision: {data.visionAcuity}
-                                      </div>
-                                      {/* Condition Information */}
-                                      {data.condition && data.condition !== 'Not specified' && (
-                                        <div className="border-t pt-1 mt-1">
-                                          <div className="font-medium text-purple-600">
-                                            {data.condition}
-                                          </div>
-                                          {data.trackable && data.progressStatus && data.progressStatus !== 'N/A' && (
-                                            <div className="text-muted-foreground">
-                                              Progress: {data.progressStatus}
-                                            </div>
-                                          )}
-                                        </div>
-                                      )}
-                                    </div>
-                                  </div>
-                                );
-                              }
-                              return null;
-                            }}
-                          />
-                          
-                          {/* Right Eye Area */}
-                          <Area
-                            dataKey="reSphere"
-                            type="natural"
-                            fill="hsl(var(--chart-1))"
-                            fillOpacity={0.4}
-                            stroke="hsl(var(--chart-1))"
-                            stackId="a"
-                            name="Right Eye"
-                          />
-                          
-                          {/* Left Eye Area */}
-                          <Area
-                            dataKey="leSphere"
-                            type="natural"
-                            fill="hsl(var(--chart-2))"
-                            fillOpacity={0.4}
-                            stroke="hsl(var(--chart-2))"
-                            stackId="a"
-                            name="Left Eye"
-                          />
-                        </AreaChart>
-                        </ResponsiveContainer>
-                      </div>
-                    </div>
-                </CardContent>
-                <CardFooter>
-                  <div className="flex w-full items-start gap-2 text-sm">
-                    <div className="grid gap-2">
-                      <div className="flex items-center gap-2 leading-none font-medium">
-                        {(() => {
-                          const totalExams = lineChartData.length;
-                          const latestRE = lineChartData[lineChartData.length - 1]?.reSphere || 0;
-                          const latestLE = lineChartData[lineChartData.length - 1]?.leSphere || 0;
-                          const firstRE = lineChartData[0]?.reSphere || 0;
-                          const firstLE = lineChartData[0]?.leSphere || 0;
-                          
-                          const reChange = Math.abs(latestRE - firstRE);
-                          const leChange = Math.abs(latestLE - firstLE);
-                          const avgChange = (reChange + leChange) / 2;
-                          
-                          const isImproving = (latestRE + latestLE) > (firstRE + firstLE);
-                          const changePercent = totalExams > 1 ? ((avgChange / Math.abs((firstRE + firstLE) / 2)) * 100).toFixed(1) : 0;
-                          
-                          return (
-                            <>
-                              {isImproving ? 'Vision stability tracked' : 'Prescription changes monitored'} over {totalExams} examinations
-                              <TrendingUp className="h-4 w-4" />
-                            </>
-                          );
-                        })()}
-                      </div>
-                      <div className="text-muted-foreground flex items-center gap-2 leading-none">
-                        {lineChartData.length > 0 && (
-                          <>
-                            {format(new Date(lineChartData[0]?.examDate || new Date()), 'MMMM yyyy')} - {format(new Date(lineChartData[lineChartData.length - 1]?.examDate || new Date()), 'MMMM yyyy')}
-                          </>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </CardFooter>
-              </>
-            ) : (
+          {/* Eye Progress Tracker */}
+          {eyeTrackerData.length > 0 ? (
+            <EyeTrackerLineChart 
+              data={eyeTrackerData}
+              title="Eye Progress Tracker"
+              description={eyeTrackerData.length > 0 ? 
+                `${format(new Date(lineChartData[0]?.examDate || new Date()), 'MMMM yyyy')} - ${format(new Date(lineChartData[lineChartData.length - 1]?.examDate || new Date()), 'MMMM yyyy')}` : 
+                undefined
+              }
+              className="border border-gray-200 shadow-md"
+            />
+          ) : (
+            <Card className="border border-gray-200 shadow-md">
               <CardContent className="pt-6">
                 <div className="text-center py-12">
                   <TrendingUp className="w-16 h-16 text-gray-400 mx-auto mb-4" />
@@ -672,8 +567,8 @@ const CustomerVisionHistory: React.FC = () => {
                   <p className="text-sm text-gray-500">The chart will show how your eyesight changes over time, helping you understand your vision health.</p>
                 </div>
               </CardContent>
-            )}
-          </Card>
+            </Card>
+          )}
 
               {/* Compact Vision Summary Card */}
               <Card className="border border-gray-200 shadow-md">

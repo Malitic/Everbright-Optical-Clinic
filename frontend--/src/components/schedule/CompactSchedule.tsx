@@ -90,7 +90,7 @@ export const CompactSchedule: React.FC<CompactScheduleProps> = ({
         <div className="flex items-center justify-between">
           <CardTitle className="text-sm flex items-center gap-2">
             <Calendar className="h-4 w-4" />
-            Dr. {doctorName}'s Schedule
+            {doctorName}'s Schedule
           </CardTitle>
           <Button
             variant="ghost"

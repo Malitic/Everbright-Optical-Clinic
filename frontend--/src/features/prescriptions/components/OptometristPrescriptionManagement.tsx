@@ -2,10 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Calendar, Clock, Eye, User, FileText, Plus, Edit, Trash2, Loader2, AlertCircle } from 'lucide-react';
 import {
   Table,
@@ -15,56 +11,54 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from '@/components/ui/dialog';
 import { useAuth } from '@/contexts/AuthContext';
-import { prescriptionService } from '@/features/prescriptions/services/prescription.service';
-import { Prescription } from '@/features/prescriptions/services/prescription.service';
+import { 
+  getOptometristPrescriptions, 
+  OptometristPrescription,
+  getOptometristAllAppointments,
+  OptometristAppointment
+} from '@/services/optometristApi';
 import { format } from 'date-fns';
+import { useToast } from '@/hooks/use-toast';
+import PrescriptionForm from '@/components/prescriptions/PrescriptionForm';
 
 const OptometristPrescriptionManagement: React.FC = () => {
   const { user } = useAuth();
-  const [prescriptions, setPrescriptions] = useState<Prescription[]>([]);
+  const { toast } = useToast();
+  const [prescriptions, setPrescriptions] = useState<OptometristPrescription[]>([]);
+  const [appointments, setAppointments] = useState<OptometristAppointment[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [showCreateDialog, setShowCreateDialog] = useState(false);
-  const [newPrescription, setNewPrescription] = useState({
-    patient_id: '',
-    appointment_id: '',
-    type: 'glasses',
-    right_eye: { sphere: '', cylinder: '', axis: '', pd: '' },
-    left_eye: { sphere: '', cylinder: '', axis: '', pd: '' },
-    vision_acuity: '',
-    additional_notes: '',
-    recommendations: '',
-    lens_type: '',
-    coating: '',
-    follow_up_date: '',
-    follow_up_notes: ''
-  });
+  const [showPrescriptionForm, setShowPrescriptionForm] = useState(false);
+  const [selectedAppointment, setSelectedAppointment] = useState<OptometristAppointment | null>(null);
 
-  // Load prescriptions on component mount
+  // Load prescriptions and appointments on component mount
   useEffect(() => {
     if (user?.id) {
-      loadPrescriptions();
+      loadData();
     } else if (user === null) {
-      // User is not authenticated, don't try to load prescriptions
+      // User is not authenticated, don't try to load data
       setLoading(false);
     }
   }, [user?.id, user]);
 
-  const loadPrescriptions = async () => {
+  const loadData = async () => {
     try {
       setLoading(true);
       setError(null);
-      const response = await prescriptionService.getPrescriptions();
-      setPrescriptions(response.data?.data || []);
+      await Promise.all([loadPrescriptions(), loadAppointments()]);
+    } catch (err: any) {
+      console.error('Error loading data:', err);
+      setError(err instanceof Error ? err.message : 'Failed to load data');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadPrescriptions = async () => {
+    try {
+      const response = await getOptometristPrescriptions();
+      setPrescriptions(response.data);
     } catch (err: any) {
       console.error('Error loading prescriptions:', err);
       if (err.response?.status === 401) {
@@ -74,44 +68,37 @@ const OptometristPrescriptionManagement: React.FC = () => {
       } else {
         setError(err instanceof Error ? err.message : 'Failed to load prescriptions');
       }
-    } finally {
-      setLoading(false);
+      throw err;
     }
   };
 
-  const handleCreatePrescription = async () => {
+  const loadAppointments = async () => {
     try {
-      setLoading(true);
-      const prescriptionData = {
-        ...newPrescription,
-        issue_date: new Date().toISOString().split('T')[0],
-        expiry_date: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 1 year from now
-        status: 'active'
-      };
-      
-      const newPrescriptionData = await prescriptionService.createPrescription(prescriptionData);
-      setPrescriptions([newPrescriptionData, ...prescriptions]);
-      setShowCreateDialog(false);
-      setNewPrescription({
-        patient_id: '',
-        appointment_id: '',
-        type: 'glasses',
-        right_eye: { sphere: '', cylinder: '', axis: '', pd: '' },
-        left_eye: { sphere: '', cylinder: '', axis: '', pd: '' },
-        vision_acuity: '',
-        additional_notes: '',
-        recommendations: '',
-        lens_type: '',
-        coating: '',
-        follow_up_date: '',
-        follow_up_notes: ''
-      });
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create prescription');
-      console.error('Error creating prescription:', err);
-    } finally {
-      setLoading(false);
+      const response = await getOptometristAllAppointments();
+      // Filter for appointments that are in progress (can create prescription for these)
+      const inProgressAppointments = response.data.filter(apt => apt.status === 'in_progress');
+      setAppointments(inProgressAppointments);
+    } catch (err: any) {
+      console.error('Error loading appointments:', err);
+      throw err;
     }
+  };
+
+  const handleOpenPrescriptionForm = (appointment: OptometristAppointment) => {
+    setSelectedAppointment(appointment);
+    setShowPrescriptionForm(true);
+  };
+
+  const handleClosePrescriptionForm = () => {
+    setShowPrescriptionForm(false);
+    setSelectedAppointment(null);
+  };
+
+  const handlePrescriptionSuccess = async () => {
+    setShowPrescriptionForm(false);
+    setSelectedAppointment(null);
+    // Reload data
+    await loadData();
   };
 
   const getStatusColor = (status: string) => {
@@ -139,214 +126,85 @@ const OptometristPrescriptionManagement: React.FC = () => {
           <AlertCircle className="h-5 w-5" />
           <span>Error: {error}</span>
         </div>
-        <Button onClick={loadPrescriptions}>Retry</Button>
+        <Button onClick={loadData}>Retry</Button>
       </div>
     );
   }
 
   return (
     <div className="p-6">
+      {showPrescriptionForm && selectedAppointment && (
+        <PrescriptionForm
+          appointment={{
+            id: selectedAppointment.id,
+            patient: {
+              id: selectedAppointment.patient?.id || 0,
+              name: selectedAppointment.patient?.name || 'Unknown'
+            },
+            appointment_date: selectedAppointment.date,
+            start_time: selectedAppointment.start_time,
+            type: selectedAppointment.type
+          }}
+          onSuccess={handlePrescriptionSuccess}
+          onCancel={handleClosePrescriptionForm}
+        />
+      )}
+
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold">Prescription Management</h1>
-        <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
-          <DialogTrigger asChild>
-            <Button>
-              <Plus className="mr-2 h-4 w-4" />
-              Create New Prescription
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-4xl">
-            <DialogHeader>
-              <DialogTitle>Create New Prescription</DialogTitle>
-              <DialogDescription>
-                Fill in the prescription details for the patient
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label>Patient ID</Label>
-                  <Input
-                    value={newPrescription.patient_id}
-                    onChange={(e) => setNewPrescription({...newPrescription, patient_id: e.target.value})}
-                    placeholder="Enter patient ID"
-                  />
-                </div>
-                <div>
-                  <Label>Appointment ID</Label>
-                  <Input
-                    value={newPrescription.appointment_id}
-                    onChange={(e) => setNewPrescription({...newPrescription, appointment_id: e.target.value})}
-                    placeholder="Enter appointment ID (optional)"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <Label>Type</Label>
-                <Select value={newPrescription.type} onValueChange={(value) => setNewPrescription({...newPrescription, type: value})}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="glasses">Glasses</SelectItem>
-                    <SelectItem value="contact_lenses">Contact Lenses</SelectItem>
-                    <SelectItem value="sunglasses">Sunglasses</SelectItem>
-                    <SelectItem value="progressive">Progressive</SelectItem>
-                    <SelectItem value="bifocal">Bifocal</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <h3 className="font-semibold mb-2">Right Eye (OD)</h3>
-                  <div className="space-y-2">
-                    <div>
-                      <Label>Sphere</Label>
-                      <Input
-                        value={newPrescription.right_eye.sphere}
-                        onChange={(e) => setNewPrescription({
-                          ...newPrescription,
-                          right_eye: {...newPrescription.right_eye, sphere: e.target.value}
-                        })}
-                        placeholder="-2.50"
-                      />
-                    </div>
-                    <div>
-                      <Label>Cylinder</Label>
-                      <Input
-                        value={newPrescription.right_eye.cylinder}
-                        onChange={(e) => setNewPrescription({
-                          ...newPrescription,
-                          right_eye: {...newPrescription.right_eye, cylinder: e.target.value}
-                        })}
-                        placeholder="-1.25"
-                      />
-                    </div>
-                    <div>
-                      <Label>Axis</Label>
-                      <Input
-                        value={newPrescription.right_eye.axis}
-                        onChange={(e) => setNewPrescription({
-                          ...newPrescription,
-                          right_eye: {...newPrescription.right_eye, axis: e.target.value}
-                        })}
-                        placeholder="180"
-                      />
-                    </div>
-                    <div>
-                      <Label>PD</Label>
-                      <Input
-                        value={newPrescription.right_eye.pd}
-                        onChange={(e) => setNewPrescription({
-                          ...newPrescription,
-                          right_eye: {...newPrescription.right_eye, pd: e.target.value}
-                        })}
-                        placeholder="32"
-                      />
-                    </div>
-                  </div>
-                </div>
-                
-                <div>
-                  <h3 className="font-semibold mb-2">Left Eye (OS)</h3>
-                  <div className="space-y-2">
-                    <div>
-                      <Label>Sphere</Label>
-                      <Input
-                        value={newPrescription.left_eye.sphere}
-                        onChange={(e) => setNewPrescription({
-                          ...newPrescription,
-                          left_eye: {...newPrescription.left_eye, sphere: e.target.value}
-                        })}
-                        placeholder="-2.25"
-                      />
-                    </div>
-                    <div>
-                      <Label>Cylinder</Label>
-                      <Input
-                        value={newPrescription.left_eye.cylinder}
-                        onChange={(e) => setNewPrescription({
-                          ...newPrescription,
-                          left_eye: {...newPrescription.left_eye, cylinder: e.target.value}
-                        })}
-                        placeholder="-1.00"
-                      />
-                    </div>
-                    <div>
-                      <Label>Axis</Label>
-                      <Input
-                        value={newPrescription.left_eye.axis}
-                        onChange={(e) => setNewPrescription({
-                          ...newPrescription,
-                          left_eye: {...newPrescription.left_eye, axis: e.target.value}
-                        })}
-                        placeholder="175"
-                      />
-                    </div>
-                    <div>
-                      <Label>PD</Label>
-                      <Input
-                        value={newPrescription.left_eye.pd}
-                        onChange={(e) => setNewPrescription({
-                          ...newPrescription,
-                          left_eye: {...newPrescription.left_eye, pd: e.target.value}
-                        })}
-                        placeholder="30"
-                      />
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label>Vision Acuity</Label>
-                  <Input
-                    value={newPrescription.vision_acuity}
-                    onChange={(e) => setNewPrescription({...newPrescription, vision_acuity: e.target.value})}
-                    placeholder="20/20"
-                  />
-                </div>
-                <div>
-                  <Label>Lens Type</Label>
-                  <Input
-                    value={newPrescription.lens_type}
-                    onChange={(e) => setNewPrescription({...newPrescription, lens_type: e.target.value})}
-                    placeholder="Single vision, Progressive, etc."
-                  />
-                </div>
-              </div>
-              
-              <div>
-                <Label>Additional Notes</Label>
-                <Textarea
-                  value={newPrescription.additional_notes}
-                  onChange={(e) => setNewPrescription({...newPrescription, additional_notes: e.target.value})}
-                  placeholder="Enter prescription notes..."
-                  rows={3}
-                />
-              </div>
-
-              <div>
-                <Label>Recommendations</Label>
-                <Textarea
-                  value={newPrescription.recommendations}
-                  onChange={(e) => setNewPrescription({...newPrescription, recommendations: e.target.value})}
-                  placeholder="Enter recommendations..."
-                  rows={2}
-                />
-              </div>
-              
-              <Button onClick={handleCreatePrescription} disabled={loading}>
-                {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                Create Prescription
-              </Button>
-            </div>
-          </DialogContent>
-        </Dialog>
       </div>
+
+      {/* In-Progress Appointments Section */}
+      {appointments.length > 0 && (
+        <Card className="mb-6">
+          <CardHeader>
+            <CardTitle>In-Progress Appointments</CardTitle>
+            <CardDescription>Create prescriptions for these appointments</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Patient</TableHead>
+                  <TableHead>Date</TableHead>
+                  <TableHead>Time</TableHead>
+                  <TableHead>Type</TableHead>
+                  <TableHead>Branch</TableHead>
+                  <TableHead>Action</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {appointments.map((appointment) => (
+                  <TableRow key={appointment.id}>
+                    <TableCell>
+                      <div>
+                        <p className="font-medium">{appointment.patient?.name || 'Unknown'}</p>
+                        <p className="text-sm text-gray-500">{appointment.patient?.email}</p>
+                      </div>
+                    </TableCell>
+                    <TableCell>{format(new Date(appointment.date), 'MMM d, yyyy')}</TableCell>
+                    <TableCell>{appointment.start_time}</TableCell>
+                    <TableCell>
+                      <Badge variant="outline">{appointment.type}</Badge>
+                    </TableCell>
+                    <TableCell>{appointment.branch?.name || 'N/A'}</TableCell>
+                    <TableCell>
+                      <Button
+                        size="sm"
+                        onClick={() => handleOpenPrescriptionForm(appointment)}
+                        className="flex items-center gap-2"
+                      >
+                        <Plus className="h-4 w-4" />
+                        Create Prescription
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>

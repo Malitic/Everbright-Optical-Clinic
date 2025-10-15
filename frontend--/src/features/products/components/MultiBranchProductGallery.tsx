@@ -3,20 +3,24 @@ import { useAuth } from '../../../contexts/AuthContext';
 import { Product } from '../types/product.types';
 import { getProducts } from '../../../services/productApi';
 import { useQuery } from '@tanstack/react-query';
-import { getActiveBranches } from '@/services/branchApi';
+import { getActiveBranches, Branch } from '@/services/branchApi';
 import { getProductAvailability } from '@/services/branchAnalyticsApi';
 import ReservationModal from './ReservationModal';
-
-interface Branch {
-  id: number;
-  name: string;
-  code: string;
-  address: string;
-  phone: string;
-}
+import { getStorageUrl } from '../../../utils/imageUtils';
 
 interface ProductWithAvailability extends Product {
   // Product interface remains the same
+}
+
+interface Category {
+  id: number;
+  name: string;
+  slug: string;
+  description: string;
+  icon: string;
+  color: string;
+  product_count: number;
+  is_active: boolean;
 }
 
 const ProductGallery: React.FC = () => {
@@ -32,10 +36,12 @@ const ProductGallery: React.FC = () => {
   const getBranchLabel = (branch: Branch) => branch.name;
 
   const [products, setProducts] = useState<ProductWithAvailability[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
   const [hasLoadedOnce, setHasLoadedOnce] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [selectedProduct, setSelectedProduct] = useState<ProductWithAvailability | null>(null);
   const [isReservationModalOpen, setIsReservationModalOpen] = useState<boolean>(false);
   const [selectedImageIndices, setSelectedImageIndices] = useState<{[productId: number]: number}>({});
@@ -94,6 +100,11 @@ const ProductGallery: React.FC = () => {
     }));
   };
 
+  // Load categories on mount
+  useEffect(() => {
+    fetchCategories();
+  }, []);
+
   // Load products on mount and poll for updates (reduced frequency)
   useEffect(() => {
     fetchProducts(false);
@@ -102,6 +113,18 @@ const ProductGallery: React.FC = () => {
     }, 30000); // Reduced from 5 seconds to 30 seconds
     return () => clearInterval(intervalId);
   }, []);
+
+  const fetchCategories = async () => {
+    try {
+      const response = await fetch('http://127.0.0.1:8000/api/product-categories');
+      if (response.ok) {
+        const data = await response.json();
+        setCategories(data.categories || []);
+      }
+    } catch (error) {
+      console.error('Failed to fetch categories:', error);
+    }
+  };
 
 
   const fetchProducts = async (silent: boolean = false) => {
@@ -134,24 +157,20 @@ const ProductGallery: React.FC = () => {
     return () => clearTimeout(timeoutId);
   }, [searchQuery]);
 
-  // Helper function to get storage URL
-  const getStorageUrl = (path: string) => {
-    const apiBaseUrl = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api';
-    const baseUrl = apiBaseUrl.replace('/api', '');
-    const cleanPath = path.startsWith('/') ? path.substring(1) : path;
-    return `${baseUrl}/storage/${cleanPath}`;
-  };
 
-  // Filter products by search query only
+  // Filter products by search query and category
   const filteredProducts = React.useMemo(() => {
     return products.filter(product => {
       const matchesSearch = searchQuery === '' || 
         product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         product.description?.toLowerCase().includes(searchQuery.toLowerCase());
       
-      return matchesSearch;
+      const matchesCategory = selectedCategory === 'all' || 
+        product.category_id?.toString() === selectedCategory;
+      
+      return matchesSearch && matchesCategory;
     });
-  }, [products, searchQuery]);
+  }, [products, searchQuery, selectedCategory]);
 
   // Use real branches from API
   const availableBranches: Branch[] = branches;
@@ -224,7 +243,7 @@ const ProductGallery: React.FC = () => {
         )}
 
       {/* Enhanced Search Controls */}
-      <div className="max-w-4xl mx-auto mb-8">
+      <div className="max-w-7xl mx-auto mb-8">
           <div className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-lg border border-white/20 p-6">
             <div className="flex flex-col sm:flex-row gap-4">
               <div className="flex-1 relative">
@@ -252,6 +271,58 @@ const ProductGallery: React.FC = () => {
             </div>
           </div>
       </div>
+
+      {/* Category Filter */}
+      {categories.length > 0 && (
+        <div className="max-w-7xl mx-auto mb-8">
+          <div className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-lg border border-white/20 p-6">
+            <div className="flex items-center mb-4">
+              <svg className="w-5 h-5 text-gray-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+              </svg>
+              <h3 className="text-lg font-semibold text-gray-800">Browse by Category</h3>
+            </div>
+            <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
+              <button
+                onClick={() => setSelectedCategory('all')}
+                className={`flex-shrink-0 px-4 py-2 rounded-lg font-medium transition-all duration-200 ${
+                  selectedCategory === 'all'
+                    ? 'bg-gradient-to-r from-blue-500 to-purple-600 text-white shadow-lg transform scale-105'
+                    : 'bg-white hover:bg-gray-50 text-gray-700 border border-gray-200'
+                }`}
+              >
+                All Products
+              </button>
+              {categories.map((category) => (
+                <button
+                  key={category.id}
+                  onClick={() => setSelectedCategory(category.id.toString())}
+                  className={`flex-shrink-0 px-4 py-2 rounded-lg font-medium transition-all duration-200 flex items-center gap-2 ${
+                    selectedCategory === category.id.toString()
+                      ? 'text-white shadow-lg transform scale-105'
+                      : 'bg-white hover:bg-gray-50 text-gray-700 border border-gray-200'
+                  }`}
+                  style={{
+                    backgroundColor: selectedCategory === category.id.toString() ? category.color : undefined,
+                  }}
+                >
+                  <span className="text-lg">{category.icon}</span>
+                  <span>{category.name}</span>
+                  {category.product_count > 0 && (
+                    <span className={`ml-1 px-2 py-0.5 rounded-full text-xs ${
+                      selectedCategory === category.id.toString()
+                        ? 'bg-white/20 text-white'
+                        : 'bg-gray-100 text-gray-600'
+                    }`}>
+                      {category.product_count}
+                    </span>
+                  )}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {loading && (
           <div className="max-w-4xl mx-auto">
@@ -309,7 +380,8 @@ const ProductGallery: React.FC = () => {
                           transformOrigin: 'center center'
                         }}
                         onError={(e) => {
-                          e.currentTarget.style.display = 'none';
+                          // Show placeholder image instead of hiding
+                          e.currentTarget.src = 'https://via.placeholder.com/400x300/f3f4f6/9ca3af?text=' + encodeURIComponent(product.name);
                         }}
                       />
                       
@@ -405,7 +477,8 @@ const ProductGallery: React.FC = () => {
                                     : 'border-gray-200 hover:border-blue-300 hover:shadow-md'
                                 }`}
                                 onError={(e) => {
-                                  (e.currentTarget as HTMLImageElement).style.display = 'none';
+                                  // Show small placeholder thumbnail
+                                  (e.currentTarget as HTMLImageElement).src = 'https://via.placeholder.com/64x64/f3f4f6/9ca3af?text=N/A';
                                 }}
                               />
                               {/* Active indicator */}
@@ -436,6 +509,23 @@ const ProductGallery: React.FC = () => {
                 {/* Enhanced Product Info */}
                 <div className="p-6">
                   <div className="mb-4">
+                    {/* Category Badge */}
+                    {product.category_id && categories.find(c => c.id === product.category_id) && (
+                      <div className="mb-3">
+                        {(() => {
+                          const category = categories.find(c => c.id === product.category_id);
+                          return category ? (
+                            <span
+                              className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium text-white shadow-sm"
+                              style={{ backgroundColor: category.color }}
+                            >
+                              <span>{category.icon}</span>
+                              <span>{category.name}</span>
+                            </span>
+                          ) : null;
+                        })()}
+                      </div>
+                    )}
                     <h3 className="font-bold text-xl text-gray-800 mb-2 group-hover:text-blue-600 transition-colors duration-200">
                       {product.name}
                     </h3>

@@ -2,16 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../../contexts/AuthContext';
 import { Product } from '../types/product.types';
 import { getProducts, createProduct, updateProduct, deleteProduct } from '../../../services/productApi';
-
-// Helper function to get storage URL (supports absolute and relative paths)
-const getStorageUrl = (path: string) => {
-  if (!path) return '';
-  if (/^https?:\/\//i.test(path)) return path;
-  const apiBaseUrl = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api';
-  const baseUrl = apiBaseUrl.replace('/api', '');
-  const cleanPath = path.startsWith('/') ? path.substring(1) : path;
-  return `${baseUrl}/storage/${cleanPath}`;
-};
+import { getStorageUrl } from '../../../utils/imageUtils';
 
 // Branch code → display label mapping
 const BRANCH_LABELS: Record<string, string> = {

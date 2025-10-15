@@ -116,17 +116,46 @@ class BranchStockController extends Controller
 
         // Check for low stock and send notifications
         $availableQuantity = $request->stock_quantity - ($branchStock->reserved_quantity ?? 0);
-        if ($availableQuantity <= 5) {
+        $minThreshold = $branchStock->min_stock_threshold ?? 5;
+        if ($availableQuantity <= $minThreshold) {
             NotificationController::createLowStockNotification(
                 $branch->id,
                 $product->name,
                 $availableQuantity
             );
+            
+            // Send real-time notification
+            WebSocketService::notifyInventoryUpdate(
+                $product,
+                $branch,
+                'low_stock',
+                "Low stock alert: {$product->name} has {$availableQuantity} items remaining",
+                $availableQuantity,
+                $minThreshold
+            );
         }
 
         return response()->json([
             'message' => 'Stock updated successfully',
-            'branch_stock' => $branchStock->load('product')
+            'branch_stock' => [
+                'id' => $branchStock->id,
+                'product_id' => $branchStock->product_id,
+                'branch_id' => $branchStock->branch_id,
+                'stock_quantity' => $branchStock->stock_quantity,
+                'reserved_quantity' => $branchStock->reserved_quantity,
+                'available_quantity' => $branchStock->available_quantity,
+                'status' => $branchStock->status,
+                'price_override' => $branchStock->price_override,
+                'min_stock_threshold' => $branchStock->min_stock_threshold,
+                'expiry_date' => $branchStock->expiry_date,
+                'last_restock_date' => $branchStock->last_restock_date,
+                'product' => [
+                    'id' => $product->id,
+                    'name' => $product->name,
+                    'brand' => $product->brand,
+                    'price' => $product->price,
+                ]
+            ]
         ]);
     }
 
@@ -228,6 +257,60 @@ class BranchStockController extends Controller
             'availability' => $availability,
             'total_available' => $availability->sum('available_quantity'),
             'branches_with_stock' => $availability->count()
+        ]);
+    }
+
+    /**
+     * Get stock information for a specific product in a specific branch
+     */
+    public function getProductBranchStock(Product $product, Branch $branch): JsonResponse
+    {
+        $branchStock = BranchStock::where('product_id', $product->id)
+            ->where('branch_id', $branch->id)
+            ->first();
+
+        if (!$branchStock) {
+            return response()->json([
+                'error' => 'Product not found in this branch',
+                'product_id' => $product->id,
+                'branch_id' => $branch->id,
+                'stock' => 0,
+                'available_quantity' => 0,
+                'status' => 'Not Available',
+                'price' => $product->price,
+                'effective_price' => $product->price,
+            ], 404);
+        }
+
+        // Calculate effective price without using the accessor to avoid circular queries
+        $effectivePrice = $branchStock->price_override !== null 
+            ? (float) $branchStock->price_override 
+            : (float) $product->price;
+
+        return response()->json([
+            'product' => [
+                'id' => $product->id,
+                'name' => $product->name,
+                'brand' => $product->brand,
+                'category' => $product->category ? $product->category->name : null,
+                'sku' => $product->sku,
+                'image' => $product->primary_image_path ?? ($product->image_paths[0] ?? null),
+                'description' => $product->description,
+            ],
+            'branch' => [
+                'id' => $branch->id,
+                'name' => $branch->name,
+            ],
+            'stock' => $branchStock->stock_quantity,
+            'reserved_quantity' => $branchStock->reserved_quantity,
+            'available_quantity' => $branchStock->available_quantity,
+            'status' => $branchStock->status,
+            'price' => $product->price,
+            'effective_price' => $effectivePrice,
+            'price_override' => $branchStock->price_override,
+            'min_stock_threshold' => $branchStock->min_stock_threshold,
+            'expiry_date' => $branchStock->expiry_date,
+            'last_restock_date' => $branchStock->last_restock_date,
         ]);
     }
 }

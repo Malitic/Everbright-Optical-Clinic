@@ -261,7 +261,7 @@ export const ProductGalleryLocalStorage: React.FC = () => {
             {product.image_paths && product.image_paths.length > 0 ? (
               <div className="mb-2">
                 <img
-                  src={`/storage/${product.image_paths[0]}`}
+                  src={`http://127.0.0.1:8000/storage/${product.image_paths[0]}`}
                   alt={`${product.name} cover`}
                   className="w-full aspect-[4/3] object-contain border cursor-pointer rounded bg-gray-50"
                 />

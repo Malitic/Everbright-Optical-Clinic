@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Plus, Edit, Trash2, Eye, EyeOff, Upload, Save, X, Building2, Package, AlertTriangle } from 'lucide-react';
+import { Plus, Edit, Trash2, Eye, EyeOff, Upload, Save, X, Building2, Package, AlertTriangle, Search, Grid3x3, List } from 'lucide-react';
 import { toast } from 'sonner';
 import { getProducts, createProduct, updateProduct, deleteProduct } from '@/services/productApi';
 import { useBranch } from '@/contexts/BranchContext';
@@ -7,7 +7,9 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Input } from '@/components/ui/input';
 import BranchFilter from '@/components/common/BranchFilter';
+import { getStorageUrl } from '@/utils/imageUtils';
 
 interface Product {
   id: number;
@@ -54,9 +56,18 @@ const AdminProductManagement: React.FC = () => {
   const [editQuantities, setEditQuantities] = useState<Record<number, number>>({}); // key: branch_id
   const [uploadingImage, setUploadingImage] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
 
   useEffect(() => {
     fetchProductsList();
+    
+    // Auto-refresh every 30 seconds to show latest inventory updates
+    const interval = setInterval(() => {
+      fetchProductsList();
+    }, 30000);
+    
+    return () => clearInterval(interval);
   }, [selectedBranchId]);
 
   const fetchProductsList = async () => {
@@ -78,7 +89,7 @@ const AdminProductManagement: React.FC = () => {
     e.preventDefault();
     
     // Basic validation
-    if (!formData.name.trim()) {
+    if (!formData.name || !formData.name.trim()) {
       toast.error('Product name is required');
       return;
     }
@@ -96,7 +107,7 @@ const AdminProductManagement: React.FC = () => {
     try {
       const fd = new FormData();
       fd.append('name', formData.name.trim());
-      fd.append('description', formData.description.trim());
+      fd.append('description', (formData.description || '').trim()); // Safe null handling
       fd.append('price', parseFloat(formData.price).toString());
       fd.append('stock_quantity', parseInt(formData.stock_quantity).toString());
       fd.append('is_active', formData.is_active ? '1' : '0');
@@ -125,30 +136,46 @@ const AdminProductManagement: React.FC = () => {
     }
   };
 
-  const handleEdit = (product: Product) => {
+  const handleEdit = (e: React.MouseEvent, product: Product) => {
+    e.preventDefault();
+    e.stopPropagation();
+    console.log('Edit clicked for product:', product.id);
     setEditingProduct(product);
     setFormData({
-      name: product.name,
-      description: product.description,
-      price: product.price.toString(),
-      stock_quantity: product.stock_quantity.toString(),
-      is_active: product.is_active
+      name: product.name || '',
+      description: product.description || '',
+      price: product.price?.toString() || '0',
+      stock_quantity: product.stock_quantity?.toString() || '0',
+      is_active: product.is_active ?? true
     });
     setSelectedFiles([]);
     setShowModal(true);
   };
 
-  const handleDelete = async (id: number) => {
+  const handleDelete = async (e: React.MouseEvent, id: number) => {
+    e.preventDefault();
+    e.stopPropagation();
+    console.log('Delete clicked for product:', id);
+    
+    if (!confirm('Are you sure you want to delete this product?')) {
+      return;
+    }
+    
     try {
       await deleteProduct(String(id));
       toast.success('Product deleted successfully');
       fetchProductsList();
     } catch (error: any) {
+      console.error('Delete error:', error);
       toast.error(error?.message || 'Failed to delete product');
     }
   };
 
-  const handleToggleStatus = async (product: Product) => {
+  const handleToggleStatus = async (e: React.MouseEvent, product: Product) => {
+    e.preventDefault();
+    e.stopPropagation();
+    console.log('Toggle status clicked for product:', product.id);
+    
     try {
       const fd = new FormData();
       fd.append('is_active', !product.is_active ? '1' : '0');
@@ -156,28 +183,66 @@ const AdminProductManagement: React.FC = () => {
       toast.success(`Product ${!product.is_active ? 'activated' : 'deactivated'} successfully`);
       fetchProductsList();
     } catch (error: any) {
+      console.error('Toggle status error:', error);
       toast.error(error?.message || 'Failed to update product status');
     }
   };
 
-  const handleManageStock = async (product: Product) => {
+  const handleManageStock = async (e: React.MouseEvent, product: Product) => {
+    e.preventDefault();
+    e.stopPropagation();
+    console.log('Manage stock clicked for product:', product.id);
+    
     setSelectedProduct(product);
     setIsLoadingStock(true);
     try {
       const apiBaseUrl = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api';
       const token = sessionStorage.getItem('auth_token');
-      // Load branches
+      
+      if (!token) {
+        throw new Error('No authentication token found. Please login again.');
+      }
+
+      // Use axios for consistent auth handling
       const [branchesRes, stockRes] = await Promise.all([
-        fetch(`${apiBaseUrl}/branches`, { headers: { Authorization: token ? `Bearer ${token}` : '' } }),
-        fetch(`${apiBaseUrl}/branch-stock`, { headers: { Authorization: token ? `Bearer ${token}` : '' } })
+        fetch(`${apiBaseUrl}/branches`, { 
+          headers: { 
+            'Authorization': `Bearer ${token}`,
+            'Accept': 'application/json',
+            'Content-Type': 'application/json'
+          } 
+        }),
+        fetch(`${apiBaseUrl}/branch-stock`, { 
+          headers: { 
+            'Authorization': `Bearer ${token}`,
+            'Accept': 'application/json',
+            'Content-Type': 'application/json'
+          } 
+        })
       ]);
-      if (!branchesRes.ok) throw new Error('Failed to load branches');
-      if (!stockRes.ok) throw new Error('Failed to load branch stock');
+
+      if (!branchesRes.ok) {
+        const errorText = await branchesRes.text();
+        console.error('Branches API error:', errorText);
+        throw new Error(`Failed to load branches (${branchesRes.status}): ${branchesRes.statusText}`);
+      }
+      
+      if (!stockRes.ok) {
+        const errorText = await stockRes.text();
+        console.error('Stock API error:', errorText);
+        throw new Error(`Failed to load branch stock (${stockRes.status}): ${stockRes.statusText}`);
+      }
+
       const branchesJson = await branchesRes.json();
       const stockJson = await stockRes.json();
+      
+      console.log('Branches response:', branchesJson);
+      console.log('Stock response:', stockJson);
+
       const allBranches: Array<{ id: number; name: string; code: string }> = (branchesJson.branches || branchesJson || []).map((b: any) => ({ id: b.id, name: b.name, code: b.code }));
       const allStock: BranchStock[] = (stockJson.stock || stockJson || []).filter((s: any) => s.product_id === product.id);
       setBranches(allBranches);
+      
       // Build rows for all branches ensuring each has an entry
       const rows: BranchStock[] = allBranches.map((b) => {
         const existing = allStock.find((s: any) => s.branch_id === b.id);
@@ -190,15 +255,23 @@ const AdminProductManagement: React.FC = () => {
           branch: { id: b.id, name: b.name, code: b.code }
         };
       });
+      
       setBranchStock(rows);
+      
       // Initialize editable quantities
       const eq: Record<number, number> = {};
       rows.forEach(r => { eq[r.branch_id] = r.stock_quantity; });
       setEditQuantities(eq);
       setShowStockModal(true);
-    } catch (error) {
-      console.error(error);
-      toast.error('Failed to fetch branch stock');
+    } catch (error: any) {
+      console.error('Manage stock error:', error);
+      const errorMessage = error?.message || 'Failed to fetch branch stock';
+      toast.error(errorMessage);
+      
+      // If auth error, suggest re-login
+      if (error?.message?.includes('403') || error?.message?.includes('authentication')) {
+        toast.error('Authentication error. Please try logging in again.');
+      }
     } finally {
       setIsLoadingStock(false);
     }
@@ -254,12 +327,6 @@ const AdminProductManagement: React.FC = () => {
     }
   };
 
-  const getStorageUrl = (path: string) => {
-    const apiBaseUrl = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api';
-    const baseUrl = apiBaseUrl.replace('/api', '');
-    const cleanPath = path.startsWith('/') ? path.substring(1) : path;
-    return `${baseUrl}/storage/${cleanPath}`;
-  };
 
   if (loading) {
     return (
@@ -357,116 +424,273 @@ const AdminProductManagement: React.FC = () => {
         </Card>
       </div>
 
-      <div className="bg-white rounded-lg shadow overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Product
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Price
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Type
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Status
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Branch Availability
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Actions
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {products.map((product) => (
-                <tr key={product.id}>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="flex items-center">
-                      <div className="flex-shrink-0 h-10 w-10">
-                        {product.image_paths && product.image_paths.length > 0 ? (
-                          <img
-                            className="h-10 w-10 rounded-lg object-cover"
-                            src={getStorageUrl(product.image_paths[0])}
-                            alt={product.name}
-                          />
-                        ) : (
-                          <div className="h-10 w-10 rounded-lg bg-gray-200 flex items-center justify-center">
-                            <span className="text-gray-400 text-xs">No Image</span>
-                          </div>
-                        )}
-                      </div>
-                      <div className="ml-4">
-                        <div className="text-sm font-medium text-gray-900">{product.name}</div>
-                        <div className="text-sm text-gray-500">Product</div>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    ₱{product.price.toLocaleString()}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    Product
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span
-                      className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                        product.is_active
-                          ? 'bg-green-100 text-green-800'
-                          : 'bg-red-100 text-red-800'
-                      }`}
-                    >
-                      {product.is_active ? 'Active' : 'Inactive'}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    <div className="flex items-center space-x-1">
-                      <Building2 className="h-4 w-4 text-gray-400" />
-                      <span className="text-xs">
-                        {product.branch_availability && product.branch_availability.length > 0 
-                          ? `${product.branch_availability.filter(ba => ba.is_available).length}/${product.branch_availability.length} branches`
-                          : 'No stock data'
-                        }
-                      </span>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
-                    <button
-                      onClick={() => handleEdit(product)}
-                      className="text-blue-600 hover:text-blue-900"
-                    >
-                      <Edit className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={() => handleToggleStatus(product)}
-                      className="text-yellow-600 hover:text-yellow-900"
-                    >
-                      {product.is_active ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                    </button>
-                    <button
-                      onClick={() => handleManageStock(product)}
-                      className="text-green-600 hover:text-green-900"
-                      title="Manage Branch Stock"
-                    >
-                      <Building2 className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={() => handleDelete(product.id)}
-                      className="text-red-600 hover:text-red-900"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      {/* Search and View Toggle */}
+      <div className="mb-6 flex gap-4 items-center">
+        <div className="flex-1 relative">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+          <Input
+            type="text"
+            placeholder="Search products by name..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="pl-10"
+          />
+        </div>
+        <div className="flex gap-2">
+          <Button
+            variant={viewMode === 'grid' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setViewMode('grid')}
+          >
+            <Grid3x3 className="h-4 w-4" />
+          </Button>
+          <Button
+            variant={viewMode === 'list' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setViewMode('list')}
+          >
+            <List className="h-4 w-4" />
+          </Button>
         </div>
       </div>
+
+      {/* Product Gallery - Grid or List View */}
+      <div className={viewMode === 'grid' ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6' : 'space-y-4'}>
+        {products.filter(p => 
+          p.name.toLowerCase().includes(searchTerm.toLowerCase())
+        ).map((product) => (
+          <Card key={product.id} className={`overflow-hidden hover:shadow-lg transition-shadow ${viewMode === 'list' ? 'flex flex-row' : ''}`}>
+            {/* Product Image */}
+            <div className={`relative bg-gray-100 ${viewMode === 'list' ? 'w-32 h-32' : 'h-48'}`}>
+              {product.image_paths && product.image_paths.length > 0 ? (
+                <img
+                  className="w-full h-full object-cover"
+                  src={getStorageUrl(product.image_paths[0])}
+                  alt={product.name}
+                />
+              ) : (
+                <div className="w-full h-full flex flex-col items-center justify-center text-gray-400">
+                  <Package className={`${viewMode === 'list' ? 'h-8 w-8' : 'h-16 w-16'} mb-2`} />
+                  <span className="text-xs">No Image</span>
+                </div>
+              )}
+              
+              {/* Status Badge Overlay */}
+              {viewMode === 'grid' && (
+                <div className="absolute top-2 right-2">
+                  <span
+                    className={`inline-flex px-3 py-1 text-xs font-semibold rounded-full ${
+                      product.is_active
+                        ? 'bg-green-500 text-white'
+                        : 'bg-red-500 text-white'
+                    }`}
+                  >
+                    {product.is_active ? 'Active' : 'Inactive'}
+                  </span>
+                </div>
+              )}
+            </div>
+
+            {/* Product Info */}
+            <CardContent className={`${viewMode === 'list' ? 'flex-1 p-4 flex items-center' : 'p-4'}`}>
+              {viewMode === 'list' ? (
+                // List View Layout
+                <div className="flex items-center justify-between w-full gap-4">
+                  <div className="flex-1 min-w-0">
+                    <h3 className="font-semibold text-lg text-gray-900 truncate mb-1" title={product.name}>
+                      {product.name}
+                    </h3>
+                    <div className="flex items-center gap-4 text-sm">
+                      <span className="text-2xl font-bold text-blue-600">
+                        ₱{product.price.toLocaleString()}
+                      </span>
+                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                        product.is_active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                      }`}>
+                        {product.is_active ? 'Active' : 'Inactive'}
+                      </span>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center gap-6">
+                    <div className="text-center">
+                      <div className="text-xs text-gray-500">Stock</div>
+                      <div className="text-lg font-bold">{(product as any).total_stock || 0}</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-xs text-gray-500">Available</div>
+                      <div className="text-lg font-bold text-green-600">{(product as any).total_available || 0}</div>
+                    </div>
+                    <div className="text-center min-w-[100px]">
+                      <div className="text-xs text-gray-500">Branches</div>
+                      <div className="text-sm font-semibold">
+                        {product.branch_availability && product.branch_availability.length > 0 
+                          ? `${product.branch_availability.filter((ba: any) => ba.is_available).length}/${product.branch_availability.length}`
+                          : '0/0'
+                        }
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* List View Actions */}
+                  <div className="flex items-center gap-2">
+                    <Button
+                      onClick={(e) => handleManageStock(e, product)}
+                      className="bg-green-600 hover:bg-green-700 text-white"
+                      size="sm"
+                    >
+                      <Building2 className="w-4 h-4 mr-2" />
+                      Stock
+                    </Button>
+                    <Button
+                      onClick={(e) => handleEdit(e, product)}
+                      variant="outline"
+                      size="sm"
+                      className="text-blue-600"
+                      title="Edit"
+                    >
+                      <Edit className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      onClick={(e) => handleToggleStatus(e, product)}
+                      variant="outline"
+                      size="sm"
+                      className="text-yellow-600"
+                      title={product.is_active ? 'Deactivate' : 'Activate'}
+                    >
+                      {product.is_active ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </Button>
+                    <Button
+                      onClick={(e) => handleDelete(e, product.id)}
+                      variant="outline"
+                      size="sm"
+                      className="text-red-600"
+                      title="Delete"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                // Grid View Layout (Original)
+                <>
+                  <h3 className="font-semibold text-lg text-gray-900 mb-2 truncate" title={product.name}>
+                    {product.name}
+                  </h3>
+                  
+                  {/* Price */}
+                  <div className="mb-3">
+                    <span className="text-2xl font-bold text-blue-600">
+                      ₱{product.price.toLocaleString()}
+                    </span>
+                  </div>
+
+                  {/* Stock Information */}
+                  <div className="space-y-2 mb-4 p-3 bg-gray-50 rounded-lg">
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-gray-600 flex items-center gap-1">
+                        <Package className="h-4 w-4" />
+                        Total Stock:
+                      </span>
+                      <span className="font-bold text-gray-900">
+                        {(product as any).total_stock || 0}
+                      </span>
+                    </div>
+                    
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-gray-600">Available:</span>
+                      <span className="font-semibold text-green-600">
+                        {(product as any).total_available || 0}
+                      </span>
+                    </div>
+                    
+                    {((product as any).total_reserved || 0) > 0 && (
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm text-gray-600">Reserved:</span>
+                        <span className="font-semibold text-orange-600">
+                          {(product as any).total_reserved}
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Branch Availability */}
+                    <div className="pt-2 border-t border-gray-200">
+                      <div className="flex items-center gap-1 text-sm text-gray-600">
+                        <Building2 className="h-4 w-4" />
+                        <span>
+                          {product.branch_availability && product.branch_availability.length > 0 
+                            ? `${product.branch_availability.filter((ba: any) => ba.is_available).length}/${product.branch_availability.length} branches`
+                            : 'No stock data'
+                          }
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Action Buttons */}
+                  <div className="space-y-2">
+                    {/* Primary Action: Manage Stock */}
+                    <Button
+                      onClick={(e) => handleManageStock(e, product)}
+                      className="w-full bg-green-600 hover:bg-green-700 text-white"
+                      size="sm"
+                    >
+                      <Building2 className="w-4 h-4 mr-2" />
+                      Manage Stock
+                    </Button>
+
+                    {/* Secondary Actions */}
+                    <div className="grid grid-cols-3 gap-2">
+                      <Button
+                        onClick={(e) => handleEdit(e, product)}
+                        variant="outline"
+                        size="sm"
+                        className="text-blue-600 hover:bg-blue-50"
+                        title="Edit Product"
+                      >
+                        <Edit className="w-4 h-4" />
+                      </Button>
+                      
+                      <Button
+                        onClick={(e) => handleToggleStatus(e, product)}
+                        variant="outline"
+                        size="sm"
+                        className="text-yellow-600 hover:bg-yellow-50"
+                        title={product.is_active ? 'Deactivate' : 'Activate'}
+                      >
+                        {product.is_active ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </Button>
+                      
+                      <Button
+                        onClick={(e) => handleDelete(e, product.id)}
+                        variant="outline"
+                        size="sm"
+                        className="text-red-600 hover:bg-red-50"
+                        title="Delete Product"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </div>
+                </>
+              )}
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      {/* Empty State */}
+      {products.length === 0 && !loading && (
+        <Card className="p-12 text-center">
+          <Package className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+          <h3 className="text-lg font-medium text-gray-900 mb-2">No Products Found</h3>
+          <p className="text-gray-500 mb-6">Get started by adding your first product to the gallery.</p>
+          <Button onClick={() => { resetForm(); setShowModal(true); }}>
+            <Plus className="w-4 h-4 mr-2" />
+            Add First Product
+          </Button>
+        </Card>
+      )}
 
       {/* Add/Edit Product Modal */}
       {showModal && (

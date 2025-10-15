@@ -3,19 +3,45 @@ export interface Product {
   name: string;
   description: string;
   price: number;
-  category: string;
+  category?: string; // For display purposes
+  category_id?: number;
   image_paths: string[]; // array of image file paths
   stock_quantity: number;
   is_active: boolean;
-  created_by_role: string;
+  created_by?: number;
+  created_by_role?: string;
   created_at: string;
   updated_at: string;
+  
+  // Optional fields for enhanced functionality
+  expiry_date?: string;
+  min_stock_threshold?: number;
+  auto_restock_quantity?: number;
+  auto_restock_enabled?: boolean;
+  approval_status?: 'pending' | 'approved' | 'rejected';
+  branch_id?: number;
+  image_metadata?: any;
+  primary_image?: string;
+  attributes?: any;
+  brand?: string;
+  model?: string;
+  sku?: string;
+  
+  // Relationships
   creator?: {
     id: number;
     name: string;
     email: string;
     role: string;
   };
+  category_details?: {
+    id: number;
+    name: string;
+    slug: string;
+    icon?: string;
+    color?: string;
+  };
+  branch_availability?: BranchAvailability[];
 }
 
 // Legacy interface for backward compatibility
@@ -36,4 +62,44 @@ export interface LegacyProduct {
 export interface ReservationItem {
   productId: string;
   quantity: number;
+}
+
+// Branch availability for multi-branch products
+export interface BranchAvailability {
+  branch: {
+    id: number;
+    name: string;
+    code: string;
+  };
+  available_quantity: number;
+  stock_quantity: number;
+  reserved_quantity: number;
+  is_available: boolean;
+}
+
+// Product category
+export interface ProductCategory {
+  id: number;
+  name: string;
+  slug: string;
+  description?: string;
+  icon?: string;
+  color?: string;
+  product_count?: number;
+  is_active: boolean;
+}
+
+// Form data for creating/updating products
+export interface ProductFormData {
+  name: string;
+  description: string;
+  price: number;
+  category_id?: number;
+  stock_quantity: number;
+  is_active?: boolean;
+  brand?: string;
+  model?: string;
+  sku?: string;
+  images?: File[];
+  branch_id?: number;
 }

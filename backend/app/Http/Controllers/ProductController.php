@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Product;
+use App\Models\BranchStock;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Validator;
@@ -22,9 +23,10 @@ class ProductController extends Controller
         // Use Eloquent for better reliability
         $query = Product::with('creator');
         
-        // Filter by active status for customers
+        // Filter by active status and approval for customers
         if ($user && $user->role && $user->role->value === 'customer') {
-            $query->where('is_active', true);
+            $query->where('is_active', true)
+                  ->where('approval_status', 'approved');
         }
         
         // Filter by search term
@@ -59,6 +61,8 @@ class ProductController extends Controller
         $productsWithAvailability = $products->map(function ($product) use ($branchStockData) {
             $branchAvailability = collect($branchStockData->get($product->id, []))->map(function ($stock) {
                 return [
+                    'stock_id' => $stock->id,
+                    'branch_id' => $stock->branch_id,
                     'branch' => [
                         'id' => $stock->branch_id,
                         'name' => $stock->branch_name,
@@ -67,11 +71,24 @@ class ProductController extends Controller
                     'available_quantity' => $stock->stock_quantity - ($stock->reserved_quantity ?? 0),
                     'stock_quantity' => $stock->stock_quantity,
                     'reserved_quantity' => $stock->reserved_quantity ?? 0,
+                    'min_stock_threshold' => $stock->min_stock_threshold ?? 5,
+                    'status' => $stock->status ?? 'Out of Stock',
                     'is_available' => ($stock->stock_quantity - ($stock->reserved_quantity ?? 0)) > 0,
                 ];
             });
 
+            // Calculate total stock across all branches
+            $totalStock = $branchAvailability->sum('stock_quantity');
+            $totalReserved = $branchAvailability->sum('reserved_quantity');
+            $totalAvailable = $totalStock - $totalReserved;
+
             $product->branch_availability = $branchAvailability;
+            $product->total_stock = $totalStock;
+            $product->total_reserved = $totalReserved;
+            $product->total_available = $totalAvailable;
+            $product->stock_status = $totalAvailable > 0 ? 'in_stock' : 'out_of_stock';
+            $product->branches_count = $branchAvailability->count();
+            
             return $product;
         });
 
@@ -121,21 +138,61 @@ class ProductController extends Controller
             }
         }
 
-        $product = Product::create([
-            'name' => $request->name,
-            'description' => $request->description,
-            'price' => $request->price,
-            'stock_quantity' => $request->stock_quantity,
-            'is_active' => $request->is_active ?? true,
-            'image_paths' => $imagePaths,
-            'created_by' => $user->id,
-            'created_by_role' => $user->role->value,
-        ]);
+        // Set approval status based on user role
+        $approvalStatus = $user->role->value === 'admin' ? 'approved' : 'pending';
+        
+        DB::beginTransaction();
+        try {
+            $product = Product::create([
+                'name' => $request->name,
+                'description' => $request->description,
+                'price' => $request->price,
+                'stock_quantity' => $request->stock_quantity,
+                'is_active' => $request->is_active ?? true,
+                'image_paths' => $imagePaths,
+                'created_by' => $user->id,
+                'created_by_role' => $user->role->value,
+                'approval_status' => $approvalStatus,
+                'branch_id' => $user->branch_id,
+                'sku' => $request->sku ?? 'PROD-' . uniqid(),
+                'brand' => $request->brand,
+                'model' => $request->model,
+                'category_id' => $request->category_id,
+            ]);
 
-        return response()->json([
-            'message' => 'Product created successfully',
-            'product' => $product->load('creator')
-        ], 201);
+            // Create branch stock entry for the user's branch
+            if ($user->branch_id) {
+                $stockQuantity = $request->stock_quantity ?? 0;
+                $minThreshold = $request->min_stock_threshold ?? 5;
+                
+                BranchStock::create([
+                    'product_id' => $product->id,
+                    'branch_id' => $user->branch_id,
+                    'stock_quantity' => $stockQuantity,
+                    'reserved_quantity' => 0,
+                    'min_stock_threshold' => $minThreshold,
+                    'status' => $stockQuantity > $minThreshold ? 'In Stock' : 
+                              ($stockQuantity > 0 ? 'Low Stock' : 'Out of Stock'),
+                    'price_override' => $request->price_override ?? null,
+                    'expiry_date' => $request->expiry_date ?? null,
+                    'auto_restock_enabled' => $request->auto_restock_enabled ?? false,
+                    'auto_restock_quantity' => $request->auto_restock_quantity ?? null,
+                ]);
+            }
+
+            DB::commit();
+
+            return response()->json([
+                'message' => 'Product created successfully',
+                'product' => $product->load(['creator', 'branchStock'])
+            ], 201);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json([
+                'message' => 'Failed to create product',
+                'error' => $e->getMessage()
+            ], 500);
+        }
     }
 
     /**
@@ -273,6 +330,32 @@ class ProductController extends Controller
         ]);
     }
 
+
+    /**
+     * Reject a product (Admin only)
+     */
+    public function rejectProduct(Product $product): JsonResponse
+    {
+        $user = Auth::user();
+
+        // Only Admin can reject products
+        if (!$user || $user->role->value !== 'admin') {
+            return response()->json([
+                'message' => 'Unauthorized. Only Admin can reject products.'
+            ], 403);
+        }
+
+        $product->update([
+            'approval_status' => 'rejected',
+            'is_active' => false
+        ]);
+
+        return response()->json([
+            'message' => 'Product rejected successfully',
+            'product' => $product->load(['creator', 'branch'])
+        ]);
+    }
+
     /**
      * Admin: Get all products with management details
      */
@@ -287,7 +370,17 @@ class ProductController extends Controller
             ], 403);
         }
 
-        $query = Product::with('creator');
+        $query = Product::with(['creator', 'branch']);
+
+        // Filter by approval status
+        if ($request->has('approval_status')) {
+            $query->where('approval_status', $request->approval_status);
+        }
+
+        // Filter by branch
+        if ($request->has('branch_id')) {
+            $query->where('branch_id', $request->branch_id);
+        }
 
         // Filter by active status
         if ($request->has('active')) {
@@ -313,8 +406,58 @@ class ProductController extends Controller
         return response()->json([
             'products' => $products,
             'total_count' => $products->count(),
-            'active_count' => $products->where('is_active', true)->count(),
-            'pending_count' => $products->where('is_active', false)->count()
+            'approved_count' => $products->where('approval_status', 'approved')->count(),
+            'pending_count' => $products->where('approval_status', 'pending')->count(),
+            'rejected_count' => $products->where('approval_status', 'rejected')->count()
+        ]);
+    }
+
+    /**
+     * Staff: Get products for their branch
+     */
+    public function staffIndex(Request $request): JsonResponse
+    {
+        $user = Auth::user();
+
+        // Only Staff can access this endpoint
+        if (!$user || $user->role->value !== 'staff') {
+            return response()->json([
+                'message' => 'Unauthorized. Only Staff can access this endpoint.'
+            ], 403);
+        }
+
+        if (!$user->branch_id) {
+            return response()->json([
+                'message' => 'Staff member is not assigned to any branch',
+                'products' => []
+            ], 200);
+        }
+
+        $query = Product::with(['creator', 'branch'])
+            ->where('branch_id', $user->branch_id);
+
+        // Filter by approval status
+        if ($request->has('approval_status')) {
+            $query->where('approval_status', $request->approval_status);
+        }
+
+        // Filter by search term
+        if ($request->has('search')) {
+            $search = $request->search;
+            $query->where(function ($q) use ($search) {
+                $q->where('name', 'like', "%{$search}%")
+                  ->orWhere('description', 'like', "%{$search}%");
+            });
+        }
+
+        $products = $query->orderBy('created_at', 'desc')->get();
+
+        return response()->json([
+            'products' => $products,
+            'total_count' => $products->count(),
+            'approved_count' => $products->where('approval_status', 'approved')->count(),
+            'pending_count' => $products->where('approval_status', 'pending')->count(),
+            'rejected_count' => $products->where('approval_status', 'rejected')->count()
         ]);
     }
 }

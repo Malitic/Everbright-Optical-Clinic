@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api';
 
 // Create axios instance for auth requests
 const authApi = axios.create({
@@ -9,6 +9,7 @@ const authApi = axios.create({
     'Content-Type': 'application/json',
     'Accept': 'application/json',
   },
+  withCredentials: false,
 });
 
 export interface LoginRequest {
@@ -47,19 +48,19 @@ export interface AuthResponse {
 }
 
 export const login = async (credentials: LoginRequest): Promise<AuthResponse> => {
-  const response = await authApi.post('/auth/login', credentials);
+  const response = await authApi.post('/login', credentials);
   return response.data;
 };
 
 export const register = async (userData: RegisterRequest): Promise<AuthResponse> => {
-  const response = await authApi.post('/auth/register', userData);
+  const response = await authApi.post('/register', userData);
   return response.data;
 };
 
 export const logout = async (): Promise<void> => {
   const token = sessionStorage.getItem('auth_token');
   if (token) {
-    await authApi.post('/auth/logout', {}, {
+    await authApi.post('/logout', {}, {
       headers: {
         'Authorization': `Bearer ${token}`
       }

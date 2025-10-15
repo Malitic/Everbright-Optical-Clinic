@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/contexts/AuthContext';
 import { 
   submitFeedback, 
   getAvailableAppointments, 
@@ -20,6 +21,7 @@ import {
 
 const CustomerFeedback = () => {
   const { toast } = useToast();
+  const { user } = useAuth();
   const [availableAppointments, setAvailableAppointments] = useState<AvailableAppointment[]>([]);
   const [feedbackHistory, setFeedbackHistory] = useState<Feedback[]>([]);
   const [loading, setLoading] = useState(true);
@@ -30,14 +32,19 @@ const CustomerFeedback = () => {
 
   useEffect(() => {
     fetchData();
-  }, []);
+  }, [user?.id]);
 
   const fetchData = async () => {
+    if (!user?.id) {
+      setLoading(false);
+      return;
+    }
+
     try {
       setLoading(true);
       const [appointmentsResponse, feedbackResponse] = await Promise.all([
         getAvailableAppointments(),
-        getCustomerFeedback(0) // 0 will get current user's feedback
+        getCustomerFeedback(user.id) // Use current user's ID
       ]);
       
       setAvailableAppointments(appointmentsResponse.appointments);
@@ -135,7 +142,7 @@ const CustomerFeedback = () => {
     return descriptions[rating as keyof typeof descriptions] || 'Unknown';
   };
 
-  if (loading) {
+  if (loading || !user?.id) {
     return (
       <div className="flex items-center justify-center py-8">
         <Loader2 className="h-8 w-8 animate-spin" />
@@ -218,7 +225,7 @@ const CustomerFeedback = () => {
                     {selectedAppointment.optometrist_name && (
                       <div className="flex items-center space-x-2 mt-2">
                         <User className="h-4 w-4 text-muted-foreground" />
-                        <span>Dr. {selectedAppointment.optometrist_name}</span>
+                        <span>{selectedAppointment.optometrist_name}</span>
                       </div>
                     )}
                   </CardContent>
@@ -318,7 +325,7 @@ const CustomerFeedback = () => {
                             </div>
                             {feedback.appointment?.optometrist && (
                               <div className="text-xs text-muted-foreground">
-                                Dr. {feedback.appointment.optometrist.name}
+                                {feedback.appointment.optometrist.name}
                               </div>
                             )}
                           </div>

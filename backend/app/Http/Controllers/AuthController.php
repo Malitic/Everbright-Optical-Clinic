@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\User;
+use App\Models\ConfirmationToken;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
@@ -70,36 +71,11 @@ class AuthController extends Controller
         // Create notification for user signup
         NotificationController::createUserSignupNotification($user);
 
-        // If requested role is not customer, create a pending role request for admin approval
-        if ($request->role !== \App\Enums\UserRole::CUSTOMER->value) {
-            $roleRequest = \App\Models\RoleRequest::create([
-                'user_id' => $user->id,
-                'requested_role' => $request->role,
-                'branch_id' => $request->branch_id,
-                'status' => 'pending',
-            ]);
-
-            // Emit realtime event for admins
-            Realtime::emit('role_request.created', [
-                'id' => $roleRequest->id,
-                'user' => [
-                    'id' => $user->id,
-                    'name' => $user->name,
-                    'email' => $user->email,
-                    'role' => $user->role,
-                ],
-                'requested_role' => $roleRequest->requested_role,
-                'status' => $roleRequest->status,
-            ]);
-        }
-
-        // Only issue token immediately for auto-approved users (customers)
-        $token = $user->is_approved ? $user->createToken('auth_token')->plainTextToken : null;
+        // Issue token for all users since role requests are removed
+        $token = $user->createToken('auth_token')->plainTextToken;
 
         return response()->json([
-            'message' => $request->role !== \App\Enums\UserRole::CUSTOMER->value
-                ? 'Registration successful. Role upgrade pending admin approval.'
-                : 'User registered successfully',
+            'message' => 'User registered successfully',
             'user' => [
                 'id' => $user->id,
                 'name' => $user->name,
@@ -115,6 +91,14 @@ class AuthController extends Controller
      */
     public function login(Request $request)
     {
+        // Debug logging
+        \Log::info('Login attempt', [
+            'email' => $request->email,
+            'has_password' => !empty($request->password),
+            'role' => $request->role,
+            'all_data' => $request->all()
+        ]);
+
         $validator = Validator::make($request->all(), [
             'email' => 'required|string|email',
             'password' => 'required|string',
@@ -122,6 +106,7 @@ class AuthController extends Controller
         ]);
 
         if ($validator->fails()) {
+            \Log::warning('Login validation failed', ['errors' => $validator->errors()]);
             return response()->json([
                 'message' => 'Validation failed',
                 'errors' => $validator->errors()
@@ -131,6 +116,7 @@ class AuthController extends Controller
         $user = User::where('email', $request->email)->first();
 
         if (!$user) {
+            \Log::warning('Login failed: User not found', ['email' => $request->email]);
             return response()->json([
                 'message' => 'Invalid credentials'
             ], 401);
@@ -138,6 +124,7 @@ class AuthController extends Controller
 
         // Verify password
         if (!Hash::check($request->password, $user->password)) {
+            \Log::warning('Login failed: Invalid password', ['email' => $request->email]);
             return response()->json([
                 'message' => 'Invalid credentials'
             ], 401);
@@ -157,10 +144,34 @@ class AuthController extends Controller
             ], 403);
         }
 
-        $token = $user->createToken('auth_token')->plainTextToken;
+        // Delete old tokens for this user (security: one active session)
+        $user->tokens()->delete();
+
+        // Create new token with expiration
+        $expirationMinutes = env('SANCTUM_TOKEN_EXPIRATION', 1440); // 24 hours default
+        $expiresAt = now()->addMinutes($expirationMinutes);
+        $token = $user->createToken('auth_token', ['*'], $expiresAt)->plainTextToken;
+
+        // Log successful login
+        if (env('ENABLE_AUDIT_LOGGING', true)) {
+            \App\Models\AuditLog::create([
+                'auditable_type' => User::class,
+                'auditable_id' => $user->id,
+                'event' => 'login',
+                'user_id' => $user->id,
+                'user_role' => $user->role->value,
+                'user_email' => $user->email,
+                'ip_address' => $request->ip(),
+                'user_agent' => $request->userAgent(),
+                'description' => "{$user->name} logged in successfully as {$user->role->value}",
+            ]);
+        }
 
         return response()->json([
             'message' => 'Login successful',
+            'token' => $token,
+            'token_expires_at' => $expiresAt->toDateTimeString(),
+            'token_expires_in_minutes' => $expirationMinutes,
             'user' => [
                 'id' => $user->id,
                 'name' => $user->name,
@@ -317,6 +328,69 @@ class AuthController extends Controller
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 
+        // Check if target account is protected - require confirmation token
+        if ($targetUser->is_protected && env('ENABLE_PROTECTED_ACCOUNTS', true)) {
+            $confirmationToken = $request->input('confirmation_token');
+            
+            if (!$confirmationToken) {
+                // First attempt - generate confirmation token
+                $token = ConfirmationToken::generate(
+                    'update_protected_user',
+                    $user->id,
+                    $targetUser->id,
+                    User::class,
+                    $request->all(),
+                    5 // 5 minutes expiry
+                );
+                
+                // Log the request for confirmation
+                \App\Models\AuditLog::create([
+                    'auditable_type' => User::class,
+                    'auditable_id' => $targetUser->id,
+                    'event' => 'modification_requested',
+                    'user_id' => $user->id,
+                    'user_role' => $user->role->value,
+                    'user_email' => $user->email,
+                    'ip_address' => $request->ip(),
+                    'user_agent' => $request->userAgent(),
+                    'description' => "CONFIRMATION REQUIRED: {$user->name} requested to modify protected account: {$targetUser->email}",
+                ]);
+                
+                return response()->json([
+                    'message' => 'This is a protected account. Confirmation required.',
+                    'protected_user' => $targetUser->email,
+                    'warning' => '⚠️ You are about to modify a PROTECTED account',
+                    'confirmation_required' => true,
+                    'confirmation_token' => $token->token,
+                    'expires_in_minutes' => 5,
+                    'instructions' => 'To proceed, send the same request again with this confirmation_token in the request body within 5 minutes.'
+                ], 202); // 202 Accepted - Confirmation required
+            }
+            
+            // Second attempt - verify confirmation token
+            $verified = ConfirmationToken::verify($confirmationToken, 'update_protected_user', $user->id);
+            
+            if (!$verified || $verified->target_id !== $targetUser->id) {
+                return response()->json([
+                    'message' => 'Invalid or expired confirmation token',
+                    'error' => 'Token verification failed. Please request a new confirmation token.'
+                ], 400);
+            }
+            
+            // Token verified - proceed with modification
+            \App\Models\AuditLog::create([
+                'auditable_type' => User::class,
+                'auditable_id' => $targetUser->id,
+                'event' => 'protected_modification_confirmed',
+                'user_id' => $user->id,
+                'user_role' => $user->role->value,
+                'user_email' => $user->email,
+                'ip_address' => $request->ip(),
+                'user_agent' => $request->userAgent(),
+                'description' => "CONFIRMED: {$user->name} confirmed modification of protected account: {$targetUser->email}",
+            ]);
+        }
+
         $validator = Validator::make($request->all(), [
             'name' => 'sometimes|required|string|max:255',
             'email' => 'sometimes|required|string|email|max:255|unique:users,email,' . $targetUser->id,
@@ -370,6 +444,77 @@ class AuthController extends Controller
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 
+        // Check if target account is protected - require confirmation token
+        if ($targetUser->is_protected && env('ENABLE_PROTECTED_ACCOUNTS', true)) {
+            $confirmationToken = $request->input('confirmation_token');
+            
+            if (!$confirmationToken) {
+                // First attempt - generate confirmation token
+                $token = ConfirmationToken::generate(
+                    'delete_protected_user',
+                    $user->id,
+                    $targetUser->id,
+                    User::class,
+                    ['user_name' => $targetUser->name, 'user_email' => $targetUser->email],
+                    5 // 5 minutes expiry
+                );
+                
+                // Log the deletion request
+                \App\Models\AuditLog::create([
+                    'auditable_type' => User::class,
+                    'auditable_id' => $targetUser->id,
+                    'event' => 'deletion_requested',
+                    'user_id' => $user->id,
+                    'user_role' => $user->role->value,
+                    'user_email' => $user->email,
+                    'ip_address' => $request->ip(),
+                    'user_agent' => $request->userAgent(),
+                    'description' => "CONFIRMATION REQUIRED: {$user->name} requested to delete protected account: {$targetUser->email}",
+                ]);
+                
+                return response()->json([
+                    'message' => 'This is a protected account. Confirmation required.',
+                    'protected_user' => [
+                        'name' => $targetUser->name,
+                        'email' => $targetUser->email,
+                        'id' => $targetUser->id,
+                    ],
+                    'warning' => '🚨 DANGER: You are about to DELETE a PROTECTED account!',
+                    'data_affected' => [
+                        'transactions' => $targetUser->transactions()->count(),
+                        'reservations' => \App\Models\Reservation::where('user_id', $targetUser->id)->count(),
+                    ],
+                    'confirmation_required' => true,
+                    'confirmation_token' => $token->token,
+                    'expires_in_minutes' => 5,
+                    'instructions' => 'To proceed with deletion, send DELETE request again with this confirmation_token in the request body within 5 minutes.'
+                ], 202); // 202 Accepted - Confirmation required
+            }
+            
+            // Second attempt - verify confirmation token
+            $verified = ConfirmationToken::verify($confirmationToken, 'delete_protected_user', $user->id);
+            
+            if (!$verified || $verified->target_id !== $targetUser->id) {
+                return response()->json([
+                    'message' => 'Invalid or expired confirmation token',
+                    'error' => 'Token verification failed. Please request a new confirmation token.'
+                ], 400);
+            }
+            
+            // Token verified - proceed with deletion
+            \App\Models\AuditLog::create([
+                'auditable_type' => User::class,
+                'auditable_id' => $targetUser->id,
+                'event' => 'protected_deletion_confirmed',
+                'user_id' => $user->id,
+                'user_role' => $user->role->value,
+                'user_email' => $user->email,
+                'ip_address' => $request->ip(),
+                'user_agent' => $request->userAgent(),
+                'description' => "CONFIRMED: {$user->name} confirmed deletion of protected account: {$targetUser->email}",
+            ]);
+        }
+
         // Prevent admin from deleting themselves
         if ($targetUser->id === $user->id) {
             return response()->json(['message' => 'Cannot delete your own account'], 400);
@@ -379,6 +524,120 @@ class AuthController extends Controller
 
         return response()->json([
             'message' => 'User deleted successfully'
+        ], 200);
+    }
+
+    /**
+     * Get user by ID (Admin only)
+     */
+    public function getUserById(Request $request, $id)
+    {
+        $user = $request->user();
+
+        if (($user->role->value ?? (string)$user->role) !== 'admin') {
+            return response()->json(['message' => 'Unauthorized'], 403);
+        }
+
+        $targetUser = User::with('branch')->find($id);
+
+        if (!$targetUser) {
+            return response()->json(['message' => 'User not found'], 404);
+        }
+
+        return response()->json([
+            'data' => [
+                'id' => $targetUser->id,
+                'name' => $targetUser->name,
+                'email' => $targetUser->email,
+                'role' => $targetUser->role,
+                'branch' => $targetUser->branch ? [
+                    'id' => $targetUser->branch->id,
+                    'name' => $targetUser->branch->name,
+                    'address' => $targetUser->branch->address
+                ] : null,
+                'is_approved' => $targetUser->is_approved,
+                'is_protected' => $targetUser->is_protected,
+                'created_at' => $targetUser->created_at,
+                'updated_at' => $targetUser->updated_at,
+            ]
+        ], 200);
+    }
+
+    /**
+     * Reject a user (Admin only)
+     */
+    public function rejectUser(Request $request, $id)
+    {
+        $user = $request->user();
+
+        if (($user->role->value ?? (string)$user->role) !== 'admin') {
+            return response()->json(['message' => 'Unauthorized'], 403);
+        }
+
+        $targetUser = User::find($id);
+
+        if (!$targetUser) {
+            return response()->json(['message' => 'User not found'], 404);
+        }
+
+        // Prevent self-rejection
+        if ($targetUser->id === $user->id) {
+            return response()->json(['message' => 'Cannot reject your own account'], 400);
+        }
+
+        // Prevent rejection of protected accounts without confirmation
+        if ($targetUser->is_protected && env('ENABLE_PROTECTED_ACCOUNTS', true)) {
+            $confirmationToken = $request->input('confirmation_token');
+            
+            if (!$confirmationToken) {
+                // First attempt - generate confirmation token
+                $token = ConfirmationToken::generate(
+                    'reject_protected_user',
+                    $user->id,
+                    $targetUser->id,
+                    User::class,
+                    $request->all(),
+                    5 // 5 minutes expiry
+                );
+                
+                return response()->json([
+                    'message' => 'Protected account - confirmation required',
+                    'confirmation_token' => $token->token,
+                    'expires_at' => $token->expires_at,
+                    'confirmation_url' => route('admin.users.reject.confirm', ['token' => $token->token])
+                ], 202);
+            }
+
+            // Verify confirmation token
+            if (!ConfirmationToken::verify($confirmationToken, 'reject_protected_user', $user->id, $targetUser->id)) {
+                return response()->json(['message' => 'Invalid or expired confirmation token'], 400);
+            }
+
+            // Clear the token after successful use
+            ConfirmationToken::clear($confirmationToken);
+        }
+
+        // Update user status
+        $targetUser->update([
+            'is_approved' => false,
+            'rejected_at' => now(),
+            'rejected_by' => $user->id,
+        ]);
+
+        // Log the action
+        \App\Models\AuditLog::create([
+            'auditable_type' => User::class,
+            'auditable_id' => $targetUser->id,
+            'event' => 'rejected',
+            'user_id' => $user->id,
+            'old_values' => ['is_approved' => true],
+            'new_values' => ['is_approved' => false, 'rejected_at' => now(), 'rejected_by' => $user->id],
+            'ip_address' => $request->ip(),
+            'user_agent' => $request->userAgent(),
+        ]);
+
+        return response()->json([
+            'message' => 'User rejected successfully'
         ], 200);
     }
 }

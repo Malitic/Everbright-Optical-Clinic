@@ -13,7 +13,8 @@ return new class extends Migration
     {
         Schema::create('schedule_change_requests', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('optometrist_id')->constrained('users')->onDelete('cascade');
+            $table->foreignId('staff_id')->constrained('users')->onDelete('cascade');
+            $table->string('staff_role')->default('optometrist');
             $table->integer('day_of_week'); // 1-7 (Monday-Sunday)
             $table->foreignId('branch_id')->nullable()->constrained('branches')->onDelete('cascade');
             $table->time('start_time')->nullable();
@@ -21,12 +22,13 @@ return new class extends Migration
             $table->text('reason');
             $table->enum('status', ['pending', 'approved', 'rejected'])->default('pending');
             $table->text('admin_notes')->nullable();
+            $table->foreignId('requested_by')->nullable()->constrained('users')->onDelete('set null');
             $table->foreignId('reviewed_by')->nullable()->constrained('users')->onDelete('set null');
             $table->timestamp('reviewed_at')->nullable();
             $table->timestamps();
             
             // Indexes for better performance
-            $table->index(['optometrist_id', 'status']);
+            $table->index(['staff_id', 'status']);
             $table->index(['status', 'created_at']);
         });
     }

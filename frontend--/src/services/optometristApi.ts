@@ -1,218 +1,185 @@
 import axios from 'axios';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api';
 
-// Types
-export interface Appointment {
-  id: string;
-  time: string;
-  patient: {
-    id: string;
-    name: string;
-    email: string;
-    phone: string;
-    avatar?: string;
-  };
-  type: string;
-  status: 'confirmed' | 'in-progress' | 'pending' | 'completed' | 'cancelled';
-  notes?: string;
-  duration: number;
-  createdAt: string;
-  updatedAt: string;
-}
+// Create axios instance with default config
+const api = axios.create({
+  baseURL: API_BASE_URL,
+  headers: {
+    'Content-Type': 'application/json',
+    'Accept': 'application/json',
+  },
+});
 
-export interface Patient {
-  id: string;
+// Add request interceptor to include auth token
+api.interceptors.request.use((config) => {
+  const token = sessionStorage.getItem('auth_token');
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
+// Add response interceptor for error handling
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401) {
+      sessionStorage.removeItem('auth_token');
+      sessionStorage.removeItem('user');
+      window.location.href = '/login';
+    }
+    return Promise.reject(error);
+  }
+);
+
+export interface OptometristPatient {
+  id: number;
   name: string;
   email: string;
-  phone: string;
-  dateOfBirth: string;
-  medicalHistory: string[];
-  lastVisit: string;
-  avatar?: string;
+  phone?: string;
+  date_of_birth?: string;
+  last_visit?: string;
+  next_appointment?: string;
+  total_appointments: number;
+  total_prescriptions: number;
+  status: 'active' | 'inactive';
 }
 
-export interface Prescription {
-  id: string;
-  patientId: string;
-  patientName: string;
+export interface OptometristPatientDetails {
+  patient: {
+    id: number;
+    name: string;
+    email: string;
+    phone?: string;
+    date_of_birth?: string;
+  };
+  appointments: Array<{
+    id: number;
+    date: string;
+    time: string;
+    type: string;
+    status: string;
+    branch?: {
+      name: string;
+      address: string;
+    };
+    notes?: string;
+  }>;
+  prescriptions: Array<{
+    id: number;
+    prescription_number: string;
+    issue_date: string;
+    expiry_date: string;
+    status: string;
+    type: string;
+    right_eye?: any;
+    left_eye?: any;
+    vision_acuity?: string;
+    recommendations?: string;
+    additional_notes?: string;
+  }>;
+  statistics: {
+    total_appointments: number;
+    total_prescriptions: number;
+    last_visit?: string;
+    next_appointment?: string;
+  };
+}
+
+export interface OptometristPrescription {
+  id: number;
+  prescription_number: string;
+  issue_date: string;
+  expiry_date: string;
+  status: string;
+  type: string;
+  patient?: {
+    id: number;
+    name: string;
+    email: string;
+  };
+  appointment?: {
+    id: number;
+    date: string;
+    type: string;
+  };
+  right_eye?: any;
+  left_eye?: any;
+  vision_acuity?: string;
+  recommendations?: string;
+  additional_notes?: string;
+}
+
+export interface OptometristAppointment {
+  id: number;
+  patient?: {
+    id: number;
+    name: string;
+    email: string;
+    phone?: string;
+  };
   date: string;
-  od: {
+  start_time: string;
+  end_time: string;
+  type: string;
+  status: string;
+  branch?: {
+    name: string;
+    address: string;
+  };
+  notes?: string;
+}
+
+export const getOptometristPatients = async (): Promise<{ data: OptometristPatient[]; total: number }> => {
+  const response = await api.get('/optometrist/patients');
+  return response.data;
+};
+
+export const getOptometristPatient = async (patientId: number): Promise<OptometristPatientDetails> => {
+  const response = await api.get(`/optometrist/patients/${patientId}`);
+  return response.data;
+};
+
+export const getOptometristPrescriptions = async (): Promise<{ data: OptometristPrescription[]; total: number }> => {
+  const response = await api.get('/optometrist/prescriptions');
+  return response.data;
+};
+
+export const getOptometristTodayAppointments = async (): Promise<{ data: OptometristAppointment[]; total: number }> => {
+  const response = await api.get('/optometrist/appointments/today');
+  return response.data;
+};
+
+export interface CreatePrescriptionData {
+  appointment_id: string;
+  right_eye: {
     sphere: string;
     cylinder: string;
     axis: string;
-    add: string;
+    pd: string;
   };
-  os: {
+  left_eye: {
     sphere: string;
     cylinder: string;
     axis: string;
-    add: string;
+    pd: string;
   };
-  pd: string;
-  notes: string;
-  status: 'draft' | 'sent' | 'filled';
+  vision_acuity?: string;
+  additional_notes?: string;
+  recommendations?: string;
+  lens_type?: string;
+  coating?: string;
+  follow_up_date?: string;
+  follow_up_notes?: string;
 }
 
-export interface InventoryItem {
-  id: string;
-  name: string;
-  category: string;
-  stock: number;
-  threshold: number;
-  price: number;
-  supplier: string;
-  lastUpdated: string;
-}
-
-// API Functions
-const optometristApi = {
-  // Appointments
-  getTodayAppointments: async (): Promise<Appointment[]> => {
-    const response = await axios.get(`${API_BASE_URL}/optometrist/appointments/today`);
-    return response.data;
-  },
-
-  getAppointments: async (date?: string): Promise<Appointment[]> => {
-    const params = date ? { date } : {};
-    const response = await axios.get(`${API_BASE_URL}/optometrist/appointments`, { params });
-    return response.data;
-  },
-
-  updateAppointmentStatus: async (id: string, status: string): Promise<Appointment> => {
-    const response = await axios.patch(`${API_BASE_URL}/optometrist/appointments/${id}/status`, { status });
-    return response.data;
-  },
-
-  // Patients
-  getPatients: async (): Promise<Patient[]> => {
-    const response = await axios.get(`${API_BASE_URL}/optometrist/patients`);
-    return response.data;
-  },
-
-  getPatient: async (id: string): Promise<Patient> => {
-    const response = await axios.get(`${API_BASE_URL}/optometrist/patients/${id}`);
-    return response.data;
-  },
-
-  createPatient: async (patient: Omit<Patient, 'id' | 'createdAt' | 'updatedAt'>): Promise<Patient> => {
-    const response = await axios.post(`${API_BASE_URL}/optometrist/patients`, patient);
-    return response.data;
-  },
-
-  // Prescriptions
-  getPrescriptions: async (): Promise<Prescription[]> => {
-    const response = await axios.get(`${API_BASE_URL}/optometrist/prescriptions`);
-    return response.data;
-  },
-
-  createPrescription: async (prescription: Omit<Prescription, 'id' | 'date'>): Promise<Prescription> => {
-    const response = await axios.post(`${API_BASE_URL}/optometrist/prescriptions`, prescription);
-    return response.data;
-  },
-
-  // Inventory
-  getInventory: async (): Promise<InventoryItem[]> => {
-    const response = await axios.get(`${API_BASE_URL}/optometrist/inventory`);
-    return response.data;
-  },
-
-  updateInventory: async (id: string, stock: number): Promise<InventoryItem> => {
-    const response = await axios.patch(`${API_BASE_URL}/optometrist/inventory/${id}`, { stock });
-    return response.data;
-  },
+export const createPrescription = async (data: CreatePrescriptionData): Promise<OptometristPrescription> => {
+  const response = await api.post('/prescriptions', data);
+  return response.data;
 };
 
-// React Query Hooks
-export const useTodayAppointments = () => {
-  return useQuery({
-    queryKey: ['optometrist', 'appointments', 'today'],
-    queryFn: optometristApi.getTodayAppointments,
-    staleTime: 5 * 60 * 1000,
-  });
+export const getOptometristAllAppointments = async (): Promise<{ data: OptometristAppointment[]; total: number }> => {
+  const response = await api.get('/optometrist/appointments');
+  return response.data;
 };
-
-export const useAppointments = (date?: string) => {
-  return useQuery({
-    queryKey: ['optometrist', 'appointments', date || 'all'],
-    queryFn: () => optometristApi.getAppointments(date),
-    staleTime: 5 * 60 * 1000,
-  });
-};
-
-export const useUpdateAppointmentStatus = () => {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: ({ id, status }: { id: string; status: string }) => 
-      optometristApi.updateAppointmentStatus(id, status),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['optometrist', 'appointments'] });
-    },
-  });
-};
-
-export const usePatients = () => {
-  return useQuery({
-    queryKey: ['optometrist', 'patients'],
-    queryFn: optometristApi.getPatients,
-    staleTime: 10 * 60 * 1000,
-  });
-};
-
-export const usePatient = (id: string) => {
-  return useQuery({
-    queryKey: ['optometrist', 'patients', id],
-    queryFn: () => optometristApi.getPatient(id),
-    staleTime: 5 * 60 * 1000,
-  });
-};
-
-export const useCreatePatient = () => {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: optometristApi.createPatient,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['optometrist', 'patients'] });
-    },
-  });
-};
-
-export const usePrescriptions = () => {
-  return useQuery({
-    queryKey: ['optometrist', 'prescriptions'],
-    queryFn: optometristApi.getPrescriptions,
-    staleTime: 10 * 60 * 1000,
-  });
-};
-
-export const useCreatePrescription = () => {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: optometristApi.createPrescription,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['optometrist', 'prescriptions'] });
-    },
-  });
-};
-
-export const useInventory = () => {
-  return useQuery({
-    queryKey: ['optometrist', 'inventory'],
-    queryFn: optometristApi.getInventory,
-    staleTime: 10 * 60 * 1000,
-  });
-};
-
-export const useUpdateInventory = () => {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: ({ id, stock }: { id: string; stock: number }) => 
-      optometristApi.updateInventory(id, stock),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['optometrist', 'inventory'] });
-    },
-  });
-};
-
-export default optometristApi;

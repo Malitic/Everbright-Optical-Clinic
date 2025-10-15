@@ -1,24 +1,26 @@
 import React, { createContext, useContext, useEffect, useMemo } from 'react';
 import { RealtimeClient } from '@/services/realtime';
 import { QueryClient, useQueryClient } from '@tanstack/react-query';
+import { API_BASE_URL } from '@/config/api';
 
 const RealtimeContext = createContext<RealtimeClient | null>(null);
 
 export const RealtimeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const queryClient = useQueryClient();
-  const token = sessionStorage.getItem('auth_token') || '';
-  const apiBase = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api';
+  // TEMPORARILY DISABLED: Realtime SSE endpoint not yet implemented in backend
+  // const queryClient = useQueryClient();
+  // const token = sessionStorage.getItem('auth_token') || '';
+  // const apiBase = API_BASE_URL;
 
-  const client = useMemo(() => new RealtimeClient(apiBase, token, queryClient as unknown as QueryClient), [apiBase, token, queryClient]);
+  // const client = useMemo(() => new RealtimeClient(apiBase, token, queryClient as unknown as QueryClient), [apiBase, token, queryClient]);
 
-  useEffect(() => {
-    if (!token) return;
-    client.connect();
-    return () => client.disconnect();
-  }, [client, token]);
+  // useEffect(() => {
+  //   if (!token) return;
+  //   client.connect();
+  //   return () => client.disconnect();
+  // }, [client, token]);
 
   return (
-    <RealtimeContext.Provider value={client}>
+    <RealtimeContext.Provider value={null}>
       {children}
     </RealtimeContext.Provider>
   );

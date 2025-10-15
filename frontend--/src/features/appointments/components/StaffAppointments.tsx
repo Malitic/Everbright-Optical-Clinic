@@ -13,10 +13,12 @@ import { Appointment, APPOINTMENT_STATUSES, APPOINTMENT_TYPES } from '../types/a
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import AppointmentBooking from '@/components/appoinments/AppointmentBooking';
+import { useNavigate } from 'react-router-dom';
 
 const StaffAppointments = () => {
   const { user } = useAuth();
   const { toast } = useToast();
+  const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [typeFilter, setTypeFilter] = useState<string>('all');

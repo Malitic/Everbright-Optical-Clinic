@@ -219,7 +219,7 @@ const DoctorSchedule: React.FC<DoctorScheduleProps> = ({
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Calendar className="h-5 w-5" />
-            Dr. {scheduleData.doctor.name}'s Weekly Schedule
+            {scheduleData.doctor.name}'s Weekly Schedule
           </CardTitle>
           <CardDescription>
             Weekly rotation schedule across different branches
@@ -271,7 +271,7 @@ const DoctorSchedule: React.FC<DoctorScheduleProps> = ({
             <div>
               <h4 className="font-medium text-blue-900">Schedule Information</h4>
               <p className="text-sm text-blue-700 mt-1">
-                Dr. {scheduleData.doctor.name} rotates between different branches throughout the week. 
+                {scheduleData.doctor.name} rotates between different branches throughout the week. 
                 Select a date when booking to see which branch he'll be at.
               </p>
             </div>

@@ -40,26 +40,23 @@ export const DashboardCard: React.FC<DashboardCardProps> = ({
 }) => {
   return (
     <Card className={cn(
-      'transition-all duration-300 hover:shadow-lg border-0 shadow-md',
-      gradient && 'bg-gradient-to-br from-white to-slate-50',
+      'border border-gray-200 shadow-sm',
       className
     )}>
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className="text-sm font-medium text-slate-600">
+        <CardTitle className="text-sm font-medium text-gray-600">
           {title}
         </CardTitle>
-        <div className="p-2 bg-slate-100 rounded-lg">
-          <Icon className="h-4 w-4 text-slate-600" />
-        </div>
+        <Icon className="h-4 w-4 text-gray-400" />
       </CardHeader>
       <CardContent>
-        <div className="space-y-3">
+        <div className="space-y-2">
           {value && (
-            <div className="text-2xl font-bold text-slate-900">{value}</div>
+            <div className="text-2xl font-semibold text-gray-900">{value}</div>
           )}
           
           {description && (
-            <CardDescription className="text-slate-500">
+            <CardDescription className="text-gray-500 text-sm">
               {description}
             </CardDescription>
           )}
@@ -72,14 +69,14 @@ export const DashboardCard: React.FC<DashboardCardProps> = ({
               )}>
                 {trend.isPositive ? '+' : ''}{trend.value}%
               </span>
-              <span className="text-slate-500 ml-1">{trend.label}</span>
+              <span className="text-gray-500 ml-1">{trend.label}</span>
             </div>
           )}
           
           {action && (
             <Button
               onClick={action.onClick}
-              variant={action.variant || 'default'}
+              variant="outline"
               size="sm"
               className="w-full mt-3"
             >

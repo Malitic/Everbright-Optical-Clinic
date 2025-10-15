@@ -9,7 +9,6 @@ import {
   BarChart3,
   Settings,
   Eye,
-  Receipt,
   Bell,
   UserCheck,
   Activity,
@@ -20,7 +19,9 @@ import {
   Building2,
   User,
   Banknote,
-  ScrollText
+  ScrollText,
+  Receipt,
+  Palette,
 } from 'lucide-react';
 import { type ClassValue, clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
@@ -153,10 +154,10 @@ const getNavItems = (role: UserRole): NavItem[] => {
         description: 'Manage appointments'
       },
       {
-        title: 'Reservations',
+        title: 'Reservations & Transactions',
         href: '/staff/reservations',
         icon: Banknote,
-        description: 'Customer reservations and totals'
+        description: 'Customer reservations, transactions, and receipts'
       },
       {
         title: 'Inventory',
@@ -191,12 +192,6 @@ const getNavItems = (role: UserRole): NavItem[] => {
         description: 'Analytics overview'
       },
       {
-        title: 'Role Requests',
-        href: '/admin/role-requests',
-        icon: UserCheck,
-        description: 'Approve or reject role upgrades'
-      },
-      {
         title: 'Analytics',
         href: '/admin/analytics',
         icon: TrendingUp,
@@ -225,6 +220,18 @@ const getNavItems = (role: UserRole): NavItem[] => {
         href: '/admin/products',
         icon: ShoppingCart,
         description: 'Manage eye care products'
+      },
+      {
+        title: 'AI Image Analyzer',
+        href: '/admin/image-analyzer',
+        icon: Palette,
+        description: 'Analyze and categorize product images'
+      },
+      {
+        title: 'Patient Transactions',
+        href: '/admin/transactions',
+        icon: Receipt,
+        description: 'View all patient transactions and receipts'
       },
       {
         title: 'Employee Schedule Management',

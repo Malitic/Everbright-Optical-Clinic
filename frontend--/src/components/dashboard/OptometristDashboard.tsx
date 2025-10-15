@@ -727,8 +727,8 @@ const OptometristDashboard = () => {
                   <SelectValue placeholder="Select patient" />
                 </SelectTrigger>
                 <SelectContent>
-                  {patients.map(patient => (
-                    <SelectItem key={patient.id} value={patient.id}>{patient.name}</SelectItem>
+                  {patients.filter(p => p.id && String(p.id).trim() !== '').map(patient => (
+                    <SelectItem key={patient.id} value={String(patient.id)}>{patient.name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -783,8 +783,8 @@ const OptometristDashboard = () => {
                   <SelectValue placeholder="Select patient" />
                 </SelectTrigger>
                 <SelectContent>
-                  {patients.map(patient => (
-                    <SelectItem key={patient.id} value={patient.id}>{patient.name}</SelectItem>
+                  {patients.filter(p => p.id && String(p.id).trim() !== '').map(patient => (
+                    <SelectItem key={patient.id} value={String(patient.id)}>{patient.name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>

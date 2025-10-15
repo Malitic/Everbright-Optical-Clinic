@@ -1,100 +1,54 @@
-import React, { useState, useEffect } from 'react';
-import { BarChart3, Users, Package, TrendingUp, Calendar, Banknote, Store, Award, RefreshCw, Clock } from 'lucide-react';
+import React from 'react';
+import { BarChart3, Users, Package, Banknote, Store, Award, RefreshCw } from 'lucide-react';
 import { DashboardCard } from './DashboardCard';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useNavigate } from 'react-router-dom';
 import BranchFilter from '@/components/common/BranchFilter';
 import { useBranch } from '@/contexts/BranchContext';
 import { useQuery } from '@tanstack/react-query';
 import { getBranchPerformance, BranchPerformance, BranchAnalyticsSummary } from '@/services/branchAnalyticsApi';
-import EmployeeScheduleManagement from '@/components/admin/EmployeeScheduleManagement';
-
+import { productAnalyticsApi, TopSellingProduct } from '@/services/productAnalyticsApi';
+// RevenueAnalyticsCards moved to AnalyticsDashboard
+import { formatPeso } from '@/utils/currency';
 
 const AdminDashboard = () => {
   const navigate = useNavigate();
   const { selectedBranchId, setSelectedBranchId, isMultiBranch } = useBranch();
 
   // Fetch real branch performance data
-  const { data: branchAnalytics, isLoading: branchLoading, refetch: refetchBranchData } = useQuery({
+  const { data: branchAnalytics, isLoading: branchLoading, error: branchError, refetch: refetchBranchData } = useQuery({
     queryKey: ['branch-performance'],
     queryFn: getBranchPerformance,
     refetchInterval: 30000, // Refetch every 30 seconds
+    retry: 3, // Retry failed requests
   });
 
-  const allBranchData: BranchPerformance[] = branchAnalytics?.branches || [];
-  const summary: BranchAnalyticsSummary | null = branchAnalytics?.summary || null;
+  // Fetch real top-selling products data
+  const { data: topProductsData, isLoading: topProductsLoading, error: topProductsError, refetch: refetchTopProducts } = useQuery({
+    queryKey: ['top-selling-products', selectedBranchId],
+    queryFn: () => productAnalyticsApi.getTopSellingProducts({
+      period: 30,
+      branch_id: selectedBranchId !== 'all' ? parseInt(selectedBranchId) : undefined,
+      limit: 4
+    }),
+    refetchInterval: 60000, // Refetch every minute
+    retry: 3, // Retry failed requests
+  });
+
+
+  const allBranchData: BranchPerformance[] = (branchAnalytics as any)?.branches || [];
+  const summary: BranchAnalyticsSummary | null = (branchAnalytics as any)?.summary || null;
   
   // Filter branch data based on selected branch
   const branchData = selectedBranchId === 'all' 
     ? allBranchData 
     : allBranchData.filter(branch => branch.id.toString() === selectedBranchId);
 
-  // Get branch-specific or all data based on filter
-  const getTopProducts = () => {
-    if (selectedBranchId === 'all') {
-      return [
-        { name: 'Progressive Lenses', sales: 156, revenue: 31200, trend: 8.2 },
-        { name: 'Designer Frames', sales: 89, revenue: 22250, trend: 15.3 },
-        { name: 'Contact Lenses', sales: 234, revenue: 9360, trend: -3.2 },
-        { name: 'Blue Light Glasses', sales: 67, revenue: 8040, trend: 22.1 }
-      ];
-    } else {
-      // Branch-specific product data (you can replace this with real API calls)
-      const branch = branchData[0];
-      return [
-        { name: 'Progressive Lenses', sales: Math.floor(156 / allBranchData.length), revenue: Math.floor(31200 / allBranchData.length), trend: 8.2 },
-        { name: 'Designer Frames', sales: Math.floor(89 / allBranchData.length), revenue: Math.floor(22250 / allBranchData.length), trend: 15.3 },
-        { name: 'Contact Lenses', sales: Math.floor(234 / allBranchData.length), revenue: Math.floor(9360 / allBranchData.length), trend: -3.2 },
-        { name: 'Blue Light Glasses', sales: Math.floor(67 / allBranchData.length), revenue: Math.floor(8040 / allBranchData.length), trend: 22.1 }
-      ];
-    }
-  };
-
-  const getUserStats = () => {
-    if (selectedBranchId === 'all') {
-      return [
-        { role: 'Customers', count: 1247, change: 12 },
-        { role: 'Optometrists', count: 8, change: 1 },
-        { role: 'Staff', count: 24, change: 3 },
-        { role: 'Admins', count: 3, change: 0 }
-      ];
-    } else {
-      // Branch-specific user data
-      const branch = branchData[0];
-      return [
-        { role: 'Customers', count: Math.floor(1247 / allBranchData.length), change: 12 },
-        { role: 'Optometrists', count: Math.floor(8 / allBranchData.length), change: 1 },
-        { role: 'Staff', count: Math.floor(24 / allBranchData.length), change: 3 },
-        { role: 'Admins', count: 1, change: 0 }
-      ];
-    }
-  };
-
-  const getInventoryStatus = () => {
-    if (selectedBranchId === 'all') {
-      return allBranchData.map(branch => ({
-        branch: branch.name,
-        items: Math.floor(Math.random() * 200) + 100, // Simulated data
-        alerts: Math.floor(Math.random() * 5)
-      }));
-    } else {
-      // Single branch inventory data
-      const branch = branchData[0];
-      return [{
-        branch: branch.name,
-        items: Math.floor(Math.random() * 200) + 100,
-        alerts: Math.floor(Math.random() * 5)
-      }];
-    }
-  };
-
-  const topProducts = getTopProducts();
-  const userStats = getUserStats();
-  const inventoryStatus = getInventoryStatus();
+  // Get real top-selling products data
+  const topProducts: TopSellingProduct[] = (topProductsData as any)?.top_products || [];
 
   // Calculate metrics based on filtered data
   const monthlyRevenue = selectedBranchId === 'all' 
@@ -153,24 +107,28 @@ const AdminDashboard = () => {
           </div>
           <div className="flex items-center space-x-2">
             <Button
-              onClick={() => refetchBranchData()}
+              onClick={() => {
+                refetchBranchData();
+                refetchTopProducts();
+              }}
               variant="outline"
               size="sm"
               className="min-w-[120px] disabled:opacity-50 transition-all duration-200 hover:bg-blue-50 hover:border-blue-300"
-              disabled={branchLoading}
+              disabled={branchLoading || topProductsLoading}
             >
-              <RefreshCw className={`h-4 w-4 mr-2 ${branchLoading ? 'animate-spin' : ''}`} />
-              {branchLoading ? 'Refreshing...' : 'Refresh'}
+              <RefreshCw className={`h-4 w-4 mr-2 ${(branchLoading || topProductsLoading) ? 'animate-spin' : ''}`} />
+              {(branchLoading || topProductsLoading) ? 'Refreshing...' : 'Refresh'}
             </Button>
           </div>
         </div>
       </div>
 
+
       {/* Key Metrics */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
         <DashboardCard
           title="Monthly Revenue"
-          value={`₱${monthlyRevenue.toLocaleString()}`}
+          value={formatPeso(monthlyRevenue)}
           description={selectedBranchId === 'all' ? "Across all branches" : `For ${branchData[0]?.name || 'selected branch'}`}
           icon={Banknote}
           trend={{ value: avgGrowth, label: 'vs last month', isPositive: true }}
@@ -198,7 +156,7 @@ const AdminDashboard = () => {
         
         <DashboardCard
           title="Total Inventory"
-          value={selectedBranchId === 'all' ? "753" : inventoryStatus[0]?.items || "0"}
+          value="Manage"
           description={selectedBranchId === 'all' ? "Items across branches" : `Items at ${branchData[0]?.name || 'selected branch'}`}
           icon={Package}
           action={{
@@ -236,6 +194,8 @@ const AdminDashboard = () => {
         />
       </div>
 
+      {/* Revenue Analytics Cards moved to Analytics page */}
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Branch Performance */}
         <Card className="shadow-lg border-0">
@@ -257,6 +217,18 @@ const AdminDashboard = () => {
                 <RefreshCw className="h-6 w-6 animate-spin mr-2" />
                 <span>Loading branch performance...</span>
               </div>
+            ) : branchError ? (
+              <div className="text-center py-8 text-red-500">
+                <p>Failed to load branch performance data</p>
+                <Button 
+                  variant="admin" 
+                  size="sm" 
+                  className="mt-2"
+                  onClick={() => refetchBranchData()}
+                >
+                  Retry
+                </Button>
+              </div>
             ) : branchData.length > 0 ? (
               <>
                 {branchData.map((branch) => (
@@ -275,7 +247,7 @@ const AdminDashboard = () => {
                     <div className="grid grid-cols-2 gap-4 text-sm">
                       <div>
                         <p className="text-slate-600">Revenue</p>
-                        <p className="font-semibold">₱{branch.revenue.toLocaleString()}</p>
+                        <p className="font-semibold">{formatPeso(branch.revenue)}</p>
                       </div>
                       <div>
                         <p className="text-slate-600">Patients</p>
@@ -333,20 +305,44 @@ const AdminDashboard = () => {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
-            {topProducts.map((product, index) => (
-              <div key={index} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
-                <div className="flex-1">
-                  <h4 className="font-medium text-slate-900">{product.name}</h4>
-                  <p className="text-sm text-slate-600">{product.sales} units sold</p>
-                </div>
-                <div className="text-right">
-                  <p className="font-semibold text-slate-900">₱{product.revenue.toLocaleString()}</p>
-                  <p className={`text-sm ${product.trend > 0 ? 'text-green-600' : 'text-red-600'}`}>
-                    {product.trend > 0 ? '+' : ''}{product.trend}%
-                  </p>
-                </div>
+            {topProductsLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-admin"></div>
+                <span className="ml-2">Loading products...</span>
               </div>
-            ))}
+            ) : topProductsError ? (
+              <div className="text-center py-8 text-red-500">
+                <p>Failed to load top products data</p>
+                <Button 
+                  variant="admin" 
+                  size="sm" 
+                  className="mt-2"
+                  onClick={() => refetchTopProducts()}
+                >
+                  Retry
+                </Button>
+              </div>
+            ) : topProducts.length > 0 ? (
+              topProducts.map((product, index) => (
+                <div key={product.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
+                  <div className="flex-1">
+                    <h4 className="font-medium text-slate-900">{product.name}</h4>
+                    <p className="text-sm text-slate-600">{product.units_sold} units sold</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="font-semibold text-slate-900">{formatPeso(product.revenue)}</p>
+                    <p className={`text-sm ${product.trend_percentage > 0 ? 'text-green-600' : 'text-red-600'}`}>
+                      {product.trend_percentage > 0 ? '+' : ''}{product.trend_percentage}%
+                    </p>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="text-center py-8 text-gray-500">
+                <p>No product sales data available</p>
+                <p className="text-xs mt-1">Data will appear when products are sold</p>
+              </div>
+            )}
             <Button 
               variant="admin" 
               size="sm" 
@@ -357,112 +353,6 @@ const AdminDashboard = () => {
             </Button>
           </CardContent>
         </Card>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* User Statistics */}
-        <Card className="shadow-lg border-0">
-          <CardHeader>
-            <CardTitle className="flex items-center space-x-2">
-              <Users className="h-5 w-5 text-admin" />
-              <span>User Statistics</span>
-            </CardTitle>
-            <CardDescription>
-              {selectedBranchId === 'all' 
-                ? 'System users by role' 
-                : `Users at ${branchData[0]?.name || 'selected branch'}`
-              }
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {userStats.map((stat, index) => (
-              <div key={index} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
-                <div>
-                  <h4 className="font-medium text-slate-900">{stat.role}</h4>
-                  <p className="text-sm text-slate-600">Active users</p>
-                </div>
-                <div className="text-right">
-                  <p className="text-2xl font-bold text-slate-900">{stat.count}</p>
-                  {stat.change > 0 && (
-                    <p className="text-sm text-green-600">+{stat.change} this month</p>
-                  )}
-                  {stat.change === 0 && (
-                    <p className="text-sm text-slate-500">No change</p>
-                  )}
-                </div>
-              </div>
-            ))}
-            <Button 
-              variant="admin" 
-              size="sm" 
-              className="w-full mt-3"
-              onClick={() => navigate('/admin/users')}
-            >
-              Manage Users
-            </Button>
-          </CardContent>
-        </Card>
-
-        {/* Inventory Overview */}
-        <Card className="shadow-lg border-0">
-          <CardHeader>
-            <CardTitle className="flex items-center space-x-2">
-              <Package className="h-5 w-5 text-admin" />
-              <span>Inventory Overview</span>
-            </CardTitle>
-            <CardDescription>
-              {selectedBranchId === 'all' 
-                ? 'Stock status across all branches' 
-                : `Stock status at ${branchData[0]?.name || 'selected branch'}`
-              }
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {inventoryStatus.map((inventory, index) => (
-              <div key={index} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
-                <div>
-                  <h4 className="font-medium text-slate-900">{inventory.branch}</h4>
-                  <p className="text-sm text-slate-600">{inventory.items} total items</p>
-                </div>
-                <div className="text-right">
-                  {inventory.alerts > 0 ? (
-                    <Badge variant="destructive">
-                      {inventory.alerts} alerts
-                    </Badge>
-                  ) : (
-                    <Badge className="bg-green-100 text-green-800">
-                      All good
-                    </Badge>
-                  )}
-                </div>
-              </div>
-            ))}
-            <Button 
-              variant="admin" 
-              size="sm" 
-              className="w-full mt-3"
-              onClick={() => navigate('/admin/inventory')}
-            >
-              Inventory Management
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Employee Schedule Management Section */}
-      <div className="bg-white rounded-lg shadow-sm border">
-        <CardHeader>
-          <CardTitle className="flex items-center space-x-2">
-            <Users className="h-5 w-5 text-admin" />
-            <span>Employee Schedule Management</span>
-          </CardTitle>
-          <CardDescription>
-            Manage schedules for all employees (optometrists and staff) across all branches
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <EmployeeScheduleManagement />
-        </CardContent>
       </div>
 
     </div>

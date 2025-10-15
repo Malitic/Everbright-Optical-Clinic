@@ -91,11 +91,12 @@
         }
         .totals-table {
             width: 100%;
+            border-collapse: collapse;
         }
         .totals-table td {
-            border: none;
-            padding: 3px 0;
-            border-bottom: 1px solid #ccc;
+            border: 1px solid #000;
+            padding: 8px;
+            text-align: left;
         }
         .total-due {
             font-weight: bold;
@@ -118,23 +119,29 @@
             float: right;
             text-align: right;
         }
+        .bir-info {
+            margin-top: 20px;
+            font-size: 9px;
+        }
     </style>
 </head>
 <body>
     <div class="header">
         <div class="clinic-info">
-            <div class="clinic-name">EVERBRIGHT CLINIC</div>
+            <div class="clinic-name">EVERBRIGHT OPTICAL CLINIC</div>
             <div class="clinic-details">
-                Owned & Operated by: EVERBRIGHT CLINIC OPC.<br>
-                VAT Reg. TIN: 600-781-251-00002<br>
-                47 8:48:2/F Unitop Bailbago Commercial Complex,<br>
-                Ballbago 4026 City of Santa Rosa Laguna,<br>
-                Philippines.
+                Owned & Operated by EVERBRIGHT CLINIC OPC<br>
+                VAT Reg. TIN 600-781-251-00000<br>
+                47 & 48 2F Unitop Balibago Commercial Complex<br>
+                Balibago 4025 City of Santa Rosa Laguna Philippines
             </div>
         </div>
         <div class="invoice-section">
             <div class="invoice-title">SERVICE INVOICE</div>
-            <div class="invoice-number">{{ $invoice_no }}</div>
+            <div class="invoice-details">
+                <div><strong>Invoice No.:</strong> {{ $invoice_no }}</div>
+                <div><strong>Date:</strong> {{ $date }}</div>
+            </div>
         </div>
         <div class="clear"></div>
     </div>
@@ -145,9 +152,6 @@
         </div>
         <div class="checkbox">
             <input type="checkbox" {{ $sales_type === 'charge' ? 'checked' : '' }}> CHARGE SALES
-        </div>
-        <div class="date-section">
-            <strong>Date:</strong> {{ $date }}
         </div>
         <div class="clear"></div>
     </div>
@@ -173,85 +177,74 @@
             <tr>
                 <td>{{ $item['description'] }}</td>
                 <td>{{ $item['qty'] }}</td>
-                <td>₱{{ number_format($item['unit_price'], 2) }}</td>
-                <td>₱{{ number_format($item['amount'], 2) }}</td>
+                <td>P{{ number_format($item['unit_price'], 2) }}</td>
+                <td>P{{ number_format($item['amount'], 2) }}</td>
             </tr>
             @endforeach
         </tbody>
     </table>
 
     <div class="totals-section">
-        <div class="totals-left">
-            <table class="totals-table">
-                <tr>
-                    <td><strong>Vatable Sales</strong></td>
-                    <td style="text-align: right;">₱{{ number_format($vatable_sales, 2) }}</td>
-                </tr>
-                <tr>
-                    <td><strong>VAT</strong></td>
-                    <td style="text-align: right;">₱{{ number_format($add_vat, 2) }}</td>
-                </tr>
-                <tr>
-                    <td><strong>Zero Rated Sales</strong></td>
-                    <td style="text-align: right;">₱{{ number_format($zero_rated_sales, 2) }}</td>
-                </tr>
-                <tr>
-                    <td><strong>VAT-Exempt Sales</strong></td>
-                    <td style="text-align: right;">₱{{ number_format($vat_exempt_sales, 2) }}</td>
-                </tr>
-                <tr>
-                    <td><strong>Total Sales (Net of VAT)</strong></td>
-                    <td style="text-align: right;">₱{{ number_format($net_of_vat, 2) }}</td>
-                </tr>
-                <tr>
-                    <td><strong>Less: VAT</strong></td>
-                    <td style="text-align: right;">₱{{ number_format($less_vat, 2) }}</td>
-                </tr>
-                <tr>
-                    <td><strong>Amount: Net of VAT</strong></td>
-                    <td style="text-align: right;">₱{{ number_format($net_of_vat, 2) }}</td>
-                </tr>
-            </table>
-        </div>
-        <div class="totals-right">
-            <table class="totals-table">
-                <tr>
-                    <td><strong>Less: VAT</strong></td>
-                    <td style="text-align: right;">₱{{ number_format($less_vat, 2) }}</td>
-                </tr>
-                <tr>
-                    <td><strong>Amount: Net of VAT</strong></td>
-                    <td style="text-align: right;">₱{{ number_format($net_of_vat, 2) }}</td>
-                </tr>
-                <tr>
-                    <td><strong>Less: Discount/SC/PWD Discount</strong></td>
-                    <td style="text-align: right;">₱{{ number_format($discount, 2) }}</td>
-                </tr>
-                <tr>
-                    <td><strong>Add: VAT</strong></td>
-                    <td style="text-align: right;">₱{{ number_format($add_vat, 2) }}</td>
-                </tr>
-                <tr>
-                    <td><strong>Less: Withholding Tax</strong></td>
-                    <td style="text-align: right;">₱{{ number_format($withholding_tax, 2) }}</td>
-                </tr>
-                <tr>
-                    <td class="total-due"><strong>Total Amount Due</strong></td>
-                    <td class="total-due" style="text-align: right;"><strong>₱{{ number_format($total_due, 2) }}</strong></td>
-                </tr>
-            </table>
+        <table class="totals-table">
+            <tr>
+                <td><strong>Vatable Sales</strong></td>
+                <td style="text-align: right;">P{{ number_format($vatable_sales, 2) }}</td>
+                <td><strong>Total Sales (VAT Inclusive)</strong></td>
+                <td style="text-align: right;">P{{ number_format($vatable_sales + $add_vat, 2) }}</td>
+            </tr>
+            <tr>
+                <td><strong>VAT</strong></td>
+                <td style="text-align: right;">P{{ number_format($add_vat, 2) }}</td>
+                <td><strong>Less: VAT</strong></td>
+                <td style="text-align: right;">P{{ number_format($less_vat, 2) }}</td>
+            </tr>
+            <tr>
+                <td><strong>Zero Rated Sales</strong></td>
+                <td style="text-align: right;">P{{ number_format($zero_rated_sales, 2) }}</td>
+                <td><strong>Amount Net of VAT</strong></td>
+                <td style="text-align: right;">P{{ number_format($net_of_vat, 2) }}</td>
+            </tr>
+            <tr>
+                <td><strong>Vat-Exempt Sales</strong></td>
+                <td style="text-align: right;">P{{ number_format($vat_exempt_sales, 2) }}</td>
+                <td><strong>Less: Discount SC/PWD/NAAC/MOV/SP</strong></td>
+                <td style="text-align: right;">P{{ number_format($discount, 2) }}</td>
+            </tr>
+            <tr>
+                <td><strong>SC/PWD/NAAC/MOV/Solo Parent ID No.:</strong></td>
+                <td style="text-align: right;">________________</td>
+                <td><strong>Add: VAT</strong></td>
+                <td style="text-align: right;">P{{ number_format($add_vat, 2) }}</td>
+            </tr>
+            <tr>
+                <td><strong>SC/PWD/NAAC/MOV/Solo Parent Signature:</strong></td>
+                <td style="text-align: right;">________________</td>
+                <td><strong>Less: Withholding Tax</strong></td>
+                <td style="text-align: right;">P{{ number_format($withholding_tax, 2) }}</td>
+            </tr>
+            <tr>
+                <td></td>
+                <td></td>
+                <td class="total-due"><strong>Total Amount Due</strong></td>
+                <td class="total-due" style="text-align: right;"><strong>P{{ number_format($total_due, 2) }}</strong></td>
+            </tr>
+        </table>
+    </div>
+
+    <div class="signature-section">
+        <p><input type="checkbox"> <strong>Received the amount of:</strong> <span class="signature-line"></span></p>
+        <br>
+        <div class="signature-right">
+            <p><strong>By:</strong> <span class="signature-line"></span></p>
+            <p><strong>Cashier/Authorized Representative</strong></p>
         </div>
         <div class="clear"></div>
     </div>
 
-    <div class="signature-section">
-        <p><strong>Received the amount of:</strong> <span class="signature-line"></span></p>
-        <br>
-        <div class="signature-right">
-            <p><span class="signature-line"></span></p>
-            <p><strong>Cashier/Authorized Representative</strong></p>
-        </div>
-        <div class="clear"></div>
+    <div class="bir-info">
+        <div>10 Bktts: (50x2) 0501-1000</div>
+        <div>BIR Authority To Print OCN: ________________</div>
+        <div>Date of ATP: ________________</div>
     </div>
 </body>
 </html>

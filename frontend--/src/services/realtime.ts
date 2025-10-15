@@ -24,9 +24,6 @@ export class RealtimeClient {
 
     this.es.addEventListener('appointment.created', (e) => this.onEvent(e as MessageEvent));
     this.es.addEventListener('prescription.created', (e) => this.onEvent(e as MessageEvent));
-    this.es.addEventListener('role_request.created', (e) => this.onEvent(e as MessageEvent));
-    this.es.addEventListener('role_request.approved', (e) => this.onEvent(e as MessageEvent));
-    this.es.addEventListener('role_request.rejected', (e) => this.onEvent(e as MessageEvent));
     this.es.onmessage = (e) => this.onEvent(e as MessageEvent);
     this.es.onerror = () => {
       this.disconnect();
@@ -46,11 +43,6 @@ export class RealtimeClient {
           break;
         case 'prescription.created':
           this.queryClient.invalidateQueries({ queryKey: ['prescriptions'] });
-          break;
-        case 'role_request.created':
-        case 'role_request.approved':
-        case 'role_request.rejected':
-          this.queryClient.invalidateQueries({ queryKey: ['role-requests'] });
           break;
         default:
           break;

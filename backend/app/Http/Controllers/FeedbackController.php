@@ -125,18 +125,20 @@ class FeedbackController extends Controller
 
         $branchId = $request->get('branch_id');
         $startDate = $request->get('start_date', Carbon::now()->subMonths(6)->format('Y-m-d'));
-        $endDate = $request->get('end_date', Carbon::now()->format('Y-m-d'));
+        $endDate = $request->get('end_date', Carbon::now()->addDay()->format('Y-m-d')); // Include today
 
-        // Base query
-        $query = Feedback::with('branch')
-            ->whereBetween('created_at', [$startDate, $endDate]);
-
-        if ($branchId) {
-            $query->where('branch_id', $branchId);
-        }
+        // Base query conditions
+        $baseConditions = function($query) use ($startDate, $endDate, $branchId) {
+            $query->whereBetween('created_at', [$startDate, $endDate]);
+            if ($branchId) {
+                $query->where('branch_id', $branchId);
+            }
+        };
 
         // Get average rating per branch
-        $branchRatings = $query->select('branch_id', DB::raw('AVG(rating) as avg_rating'), DB::raw('COUNT(*) as feedback_count'))
+        $branchRatings = Feedback::with('branch')
+            ->where($baseConditions)
+            ->select('branch_id', DB::raw('AVG(rating) as avg_rating'), DB::raw('COUNT(*) as feedback_count'))
             ->groupBy('branch_id')
             ->get()
             ->map(function ($item) {
@@ -149,32 +151,35 @@ class FeedbackController extends Controller
             });
 
         // Get overall statistics
-        $overallStats = $query->select(
-            DB::raw('AVG(rating) as overall_avg_rating'),
-            DB::raw('COUNT(*) as total_feedback'),
-            DB::raw('COUNT(DISTINCT customer_id) as unique_customers')
-        )->first();
+        $overallStats = Feedback::where($baseConditions)
+            ->select(
+                DB::raw('AVG(rating) as overall_avg_rating'),
+                DB::raw('COUNT(*) as total_feedback'),
+                DB::raw('COUNT(DISTINCT customer_id) as unique_customers')
+            )->first();
 
         // Get trend over time (monthly)
-        $trendData = $query->select(
-            DB::raw('DATE_FORMAT(created_at, "%Y-%m") as month'),
-            DB::raw('AVG(rating) as avg_rating'),
-            DB::raw('COUNT(*) as feedback_count')
-        )
-        ->groupBy('month')
-        ->orderBy('month')
-        ->get();
+        $trendData = Feedback::where($baseConditions)
+            ->select(
+                DB::raw('strftime("%Y-%m", created_at) as month'),
+                DB::raw('AVG(rating) as avg_rating'),
+                DB::raw('COUNT(*) as feedback_count')
+            )
+            ->groupBy('month')
+            ->orderBy('month')
+            ->get();
 
         // Get latest feedback with comments
-        $latestFeedback = $query->with(['customer', 'branch', 'appointment'])
+        $latestFeedback = Feedback::with(['customer', 'branch', 'appointment'])
+            ->where($baseConditions)
             ->orderBy('created_at', 'desc')
             ->limit(20)
             ->get()
             ->map(function ($feedback) {
                 return [
                     'id' => $feedback->id,
-                    'customer_name' => $feedback->customer->name,
-                    'branch_name' => $feedback->branch->name,
+                    'customer_name' => $feedback->customer?->name ?? 'Unknown Customer',
+                    'branch_name' => $feedback->branch?->name ?? 'Unknown Branch',
                     'rating' => $feedback->rating,
                     'comment' => $feedback->comment,
                     'appointment_date' => $feedback->appointment?->appointment_date,
@@ -183,7 +188,8 @@ class FeedbackController extends Controller
             });
 
         // Get rating distribution
-        $ratingDistribution = $query->select('rating', DB::raw('COUNT(*) as count'))
+        $ratingDistribution = Feedback::where($baseConditions)
+            ->select('rating', DB::raw('COUNT(*) as count'))
             ->groupBy('rating')
             ->orderBy('rating')
             ->get()

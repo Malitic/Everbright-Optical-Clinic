@@ -72,7 +72,7 @@ export const DoctorScheduleModal: React.FC<DoctorScheduleModalProps> = ({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Calendar className="h-5 w-5" />
-            Dr. {doctorName}'s Weekly Schedule
+            {doctorName}'s Weekly Schedule
           </DialogTitle>
           <DialogDescription>
             View the optometrist's 6-day rotation schedule across all branches
@@ -152,7 +152,7 @@ export const DoctorScheduleModal: React.FC<DoctorScheduleModalProps> = ({
                 <CardContent className="pt-4">
                   <div className="text-sm text-muted-foreground">
                     <p className="mb-2">
-                      <strong>Schedule Summary:</strong> Dr. {schedule.doctor.name} works a 6-day rotation 
+                      <strong>Schedule Summary:</strong> {schedule.doctor.name} works a 6-day rotation 
                       across multiple branches, providing comprehensive eye care services.
                     </p>
                     <p>

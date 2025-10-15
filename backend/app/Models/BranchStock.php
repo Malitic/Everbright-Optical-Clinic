@@ -14,6 +14,8 @@ class BranchStock extends Model
         'branch_id',
         'stock_quantity',
         'reserved_quantity',
+        'price_override',
+        'status',
         'expiry_date',
         'min_stock_threshold',
         'auto_restock_enabled',
@@ -24,6 +26,7 @@ class BranchStock extends Model
     protected $casts = [
         'stock_quantity' => 'integer',
         'reserved_quantity' => 'integer',
+        'price_override' => 'decimal:2',
         'expiry_date' => 'date',
         'min_stock_threshold' => 'integer',
         'auto_restock_enabled' => 'boolean',
@@ -128,5 +131,49 @@ class BranchStock extends Model
     public function isExpired(): bool
     {
         return $this->expiry_date && $this->expiry_date < now();
+    }
+
+    /**
+     * Auto-calculate and update status based on available quantity
+     */
+    public function updateStatus(): void
+    {
+        $availableQuantity = $this->available_quantity;
+        
+        if ($availableQuantity <= 0) {
+            $this->status = 'Out of Stock';
+        } elseif ($availableQuantity <= $this->min_stock_threshold) {
+            $this->status = 'Low Stock';
+        } else {
+            $this->status = 'In Stock';
+        }
+        
+        // Use updateQuietly to avoid triggering events and infinite loops
+        $this->updateQuietly(['status' => $this->status]);
+    }
+
+    /**
+     * Get the effective price (price_override if set, otherwise product's base price)
+     * Note: This accessor can cause circular queries, use direct calculation instead
+     */
+    public function getEffectivePrice($productPrice = null): float
+    {
+        if ($this->price_override !== null) {
+            return (float) $this->price_override;
+        }
+        
+        return (float) ($productPrice ?? $this->product->price);
+    }
+
+    /**
+     * Boot method to auto-update status when stock changes
+     */
+    protected static function boot()
+    {
+        parent::boot();
+        
+        static::saved(function ($branchStock) {
+            $branchStock->updateStatus();
+        });
     }
 }

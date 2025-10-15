@@ -70,9 +70,11 @@ const BookAppointmentPage: React.FC = () => {
   }, [availabilityData]);
 
   // Set selected doctor when optometrists data is available
+  // API now only returns optometrists with active schedules (Dr. Samuel)
   useEffect(() => {
     if (optometristsData?.optometrists && optometristsData.optometrists.length > 0) {
-      const doctor = optometristsData.optometrists[0]; // Use first optometrist (Dr. Samuel)
+      // Use the first (and only) optometrist with active schedules
+      const doctor = optometristsData.optometrists[0];
       setSelectedDoctor({ id: doctor.id, name: doctor.name });
     }
   }, [optometristsData]);
@@ -302,7 +304,7 @@ const BookAppointmentPage: React.FC = () => {
                         <SelectValue placeholder={availability?.available_times?.length ? "Select time" : "Select a date first"} />
                       </SelectTrigger>
                       <SelectContent>
-                        {availability?.available_times?.map((time: string) => (
+                        {availability?.available_times?.filter((time: string) => time && String(time).trim() !== '').map((time: string) => (
                           <SelectItem key={time} value={time}>
                             {time}
                           </SelectItem>

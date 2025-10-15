@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Appointment;
 use App\Models\User;
+use App\Services\WebSocketService;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Auth;
@@ -191,10 +192,12 @@ class AppointmentController extends Controller
             "Your appointment has been booked for {$appointment->appointment_date} at {$appointment->start_time} at {$appointment->branch->name}"
         );
 
-        // Emit realtime event for staff and optometrists
-        Realtime::emit('appointment.created', [
-            'appointment' => $appointment->load(['patient:id,name', 'optometrist:id,name']),
-        ], null, $user->id);
+        // Send real-time notification
+        WebSocketService::notifyAppointmentUpdate(
+            $appointment,
+            'created',
+            "New appointment scheduled for {$appointment->appointment_date} at {$appointment->start_time}"
+        );
 
         return response()->json($appointment, 201);
     }
@@ -280,6 +283,74 @@ class AppointmentController extends Controller
         $appointment->delete();
 
         return response()->json(['message' => 'Appointment deleted successfully']);
+    }
+
+    /**
+     * Get all appointments for the authenticated optometrist.
+     */
+    public function getOptometristAppointments(): JsonResponse
+    {
+        $user = Auth::user();
+
+        if (!$user || $user->role->value !== UserRole::OPTOMETRIST->value) {
+            return response()->json(['error' => 'Unauthorized'], 403);
+        }
+
+        // Get all appointments (optometrists can see all appointments across all branches)
+        $appointments = Appointment::with(['patient', 'optometrist', 'branch'])
+            ->orderBy('appointment_date', 'desc')
+            ->orderBy('start_time', 'desc')
+            ->get()
+            ->map(function ($appointment) {
+                return [
+                    'id' => $appointment->id,
+                    'patient' => $appointment->patient ? [
+                        'id' => $appointment->patient->id,
+                        'name' => $appointment->patient->name,
+                        'email' => $appointment->patient->email,
+                        'phone' => $appointment->patient->phone,
+                    ] : null,
+                    'date' => $appointment->appointment_date?->format('Y-m-d'),
+                    'start_time' => $appointment->start_time,
+                    'end_time' => $appointment->end_time,
+                    'type' => $appointment->type,
+                    'status' => $appointment->status,
+                    'branch' => $appointment->branch ? [
+                        'name' => $appointment->branch->name,
+                        'address' => $appointment->branch->address
+                    ] : null,
+                    'notes' => $appointment->notes,
+                ];
+            });
+
+        return response()->json([
+            'data' => $appointments,
+            'total' => $appointments->count()
+        ]);
+    }
+
+    /**
+     * Get staff appointments for their assigned branch.
+     */
+    public function getStaffAppointments(): JsonResponse
+    {
+        $user = Auth::user();
+
+        if (!$user || $user->role->value !== UserRole::STAFF->value) {
+            return response()->json(['error' => 'Unauthorized'], 403);
+        }
+
+        // Staff can only see appointments at their branch
+        $appointments = Appointment::with(['patient', 'optometrist', 'branch'])
+            ->where('branch_id', $user->branch_id)
+            ->orderBy('appointment_date', 'desc')
+            ->orderBy('start_time', 'desc')
+            ->get();
+
+        return response()->json([
+            'data' => $appointments,
+            'total' => $appointments->count()
+        ]);
     }
 
     /**
