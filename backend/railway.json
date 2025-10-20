@@ -1,7 +1,8 @@
 {
   "$schema": "https://railway.app/railway.schema.json",
   "build": {
-    "builder": "NIXPACKS"
+    "builder": "NIXPACKS",
+    "buildCommand": "composer install --no-dev --optimize-autoloader"
   },
   "deploy": {
     "startCommand": "php artisan key:generate --force && php artisan migrate --force && php artisan serve --host=0.0.0.0 --port=$PORT",
@@ -19,6 +20,7 @@
     "DB_DATABASE": "/app/database/database.sqlite",
     "CACHE_DRIVER": "file",
     "SESSION_DRIVER": "file",
-    "QUEUE_CONNECTION": "sync"
+    "QUEUE_CONNECTION": "sync",
+    "NIXPACKS_PHP_VERSION": "8.2"
   }
 }
