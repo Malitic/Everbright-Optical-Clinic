@@ -1,7 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { Notification, getNotifications, getUnreadCount, markAsRead, markAllAsRead } from '@/services/notificationApi';
 import { useAuth } from './AuthContext';
-import { debugAuth } from '@/utils/authDebug';
 
 interface NotificationContextType {
   notifications: Notification[];
@@ -17,13 +16,16 @@ interface NotificationContextType {
 
 const NotificationContext = createContext<NotificationContextType | undefined>(undefined);
 
-export const useNotifications = () => {
+// Fix HMR compatibility by ensuring consistent exports
+const useNotifications = () => {
   const context = useContext(NotificationContext);
   if (!context) {
     throw new Error('useNotifications must be used within a NotificationProvider');
   }
   return context;
 };
+
+export { useNotifications };
 
 interface NotificationProviderProps {
   children: React.ReactNode;
@@ -68,10 +70,6 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
 
   const fetchUnreadCount = useCallback(async () => {
     if (!user) return;
-    
-    // Debug authentication state
-    const authDebug = debugAuth();
-    console.log('NotificationContext: Auth debug before fetchUnreadCount:', authDebug);
     
     try {
       const response = await getUnreadCount();

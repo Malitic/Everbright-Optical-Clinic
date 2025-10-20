@@ -7,11 +7,13 @@ use App\Models\Appointment;
 use App\Models\Prescription;
 use App\Models\Reservation;
 use App\Models\Notification;
+use App\Services\WebSocketService;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Validator;
 
 class NotificationController extends Controller
 {
@@ -145,6 +147,80 @@ class NotificationController extends Controller
             ]);
         } catch (\Exception $e) {
             Log::error('Failed to send custom notification: ' . $e->getMessage());
+            return response()->json(['error' => 'Failed to send notification'], 500);
+        }
+    }
+
+    /**
+     * Send eyewear condition assessment notification
+     */
+    public function sendEyewearConditionNotification(Request $request): JsonResponse
+    {
+        $validator = Validator::make($request->all(), [
+            'customer_id' => 'required|exists:users,id',
+            'eyewear_label' => 'required|string|max:255',
+            'condition' => 'required|in:good,needs_fix,needs_replacement,bad',
+            'assessment_date' => 'required|date',
+            'next_check_date' => 'nullable|date',
+            'notes' => 'nullable|string|max:1000',
+            'assessed_by' => 'required|exists:users,id'
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'message' => 'Validation failed',
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        try {
+            $data = $validator->validated();
+            $customer = User::findOrFail($data['customer_id']);
+            $assessor = User::findOrFail($data['assessed_by']);
+
+            // Create notification record
+            $notification = Notification::create([
+                'user_id' => $customer->id,
+                'role' => 'customer',
+                'title' => 'Eyewear Condition Assessment',
+                'message' => $this->buildEyewearMessage($data),
+                'type' => 'eyewear_condition',
+                'data' => [
+                    'eyewear_label' => $data['eyewear_label'],
+                    'condition' => $data['condition'],
+                    'assessment_date' => $data['assessment_date'],
+                    'next_check_date' => $data['next_check_date'],
+                    'notes' => $data['notes'],
+                    'assessed_by' => $assessor->name,
+                    'assessed_by_id' => $assessor->id,
+                    'priority' => $this->getConditionPriority($data['condition'])
+                ]
+            ]);
+
+            // Send real-time notification via WebSocket
+            WebSocketService::notifyUsers(
+                'Eyewear Condition Update',
+                $notification->message,
+                'eyewear_condition',
+                [$customer->id],
+                $notification->data
+            );
+
+            // Send email notification
+            $this->sendEyewearConditionEmail($customer, $data);
+
+            Log::info('Eyewear condition notification sent', [
+                'customer_id' => $customer->id,
+                'condition' => $data['condition'],
+                'notification_id' => $notification->id
+            ]);
+
+            return response()->json([
+                'message' => 'Eyewear condition notification sent successfully',
+                'notification_id' => $notification->id
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Failed to send eyewear condition notification: ' . $e->getMessage());
             return response()->json(['error' => 'Failed to send notification'], 500);
         }
     }
@@ -534,6 +610,83 @@ class NotificationController extends Controller
         } catch (\Exception $e) {
             Log::error("Failed to send email to {$email}: " . $e->getMessage());
         }
+    }
+
+    /**
+     * Build eyewear condition message
+     */
+    private function buildEyewearMessage(array $data): string
+    {
+        $condition = ucfirst(str_replace('_', ' ', $data['condition']));
+        $message = "Your {$data['eyewear_label']} has been assessed as: {$condition}";
+        
+        if ($data['notes']) {
+            $message .= "\n\nNotes: {$data['notes']}";
+        }
+        
+        if ($data['next_check_date']) {
+            $message .= "\n\nNext recommended check: {$data['next_check_date']}";
+        }
+        
+        return $message;
+    }
+
+    /**
+     * Get priority based on condition
+     */
+    private function getConditionPriority(string $condition): string
+    {
+        return match($condition) {
+            'bad' => 'urgent',
+            'needs_replacement' => 'high',
+            'needs_fix' => 'medium',
+            'good' => 'low',
+            default => 'low'
+        };
+    }
+
+    /**
+     * Send eyewear condition email notification
+     */
+    private function sendEyewearConditionEmail(User $customer, array $data): void
+    {
+        $condition = ucfirst(str_replace('_', ' ', $data['condition']));
+        $subject = 'Eyewear Condition Assessment - Everbright Optical';
+        
+        $message = "Dear {$customer->name},\n\n" .
+                  "We have completed an assessment of your eyewear.\n\n" .
+                  "Eyewear: {$data['eyewear_label']}\n" .
+                  "Condition: {$condition}\n" .
+                  "Assessment Date: {$data['assessment_date']}\n\n";
+        
+        if ($data['notes']) {
+            $message .= "Notes: {$data['notes']}\n\n";
+        }
+        
+        if ($data['next_check_date']) {
+            $message .= "Next recommended check: {$data['next_check_date']}\n\n";
+        }
+        
+        // Add action recommendations based on condition
+        switch ($data['condition']) {
+            case 'bad':
+                $message .= "Action Required: Immediate attention is needed. Please visit our clinic as soon as possible.\n\n";
+                break;
+            case 'needs_replacement':
+                $message .= "Action Required: Replacement is recommended. We can help you choose suitable frames/lenses.\n\n";
+                break;
+            case 'needs_fix':
+                $message .= "Action Required: Repair is recommended. Please schedule a repair service.\n\n";
+                break;
+            case 'good':
+                $message .= "No action required at this time. Your eyewear is in good condition.\n\n";
+                break;
+        }
+        
+        $message .= "If you have any questions, please reply to this email or contact our clinic.\n\n" .
+                   "Thank you,\nEverbright Optical Clinic";
+
+        $this->sendEmail($customer->email, $subject, $message);
     }
 }
 

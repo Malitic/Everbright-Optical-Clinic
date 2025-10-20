@@ -58,6 +58,8 @@ interface AppointmentFormData {
   time: string;
   service: string;
   notes: string;
+  phone: string;
+  social_media: string;
 }
 
 const AppointmentBookingForm: React.FC = () => {
@@ -76,6 +78,8 @@ const AppointmentBookingForm: React.FC = () => {
     time: '',
     service: '',
     notes: '',
+    phone: '',
+    social_media: '',
   });
 
         // Fetch doctor schedule
@@ -213,6 +217,8 @@ const AppointmentBookingForm: React.FC = () => {
         end_time: convertTo24Hour(getEndTime(formData.time)),
         type: getServiceType(formData.service),
         notes: formData.notes,
+        phone: formData.phone,
+        social_media: formData.social_media,
       };
 
       const response = await fetch('http://127.0.0.1:8000/api/appointments/simple', {
@@ -464,6 +470,31 @@ const AppointmentBookingForm: React.FC = () => {
                   </Select>
                 </div>
 
+                {/* Contact Information */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="phone">Contact Number</Label>
+                    <Input
+                      id="phone"
+                      type="tel"
+                      value={formData.phone}
+                      onChange={(e) => setFormData(prev => ({ ...prev, phone: e.target.value }))}
+                      placeholder="e.g., +63 912 345 6789"
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="social_media">Social Media Handle (Optional)</Label>
+                    <Input
+                      id="social_media"
+                      type="text"
+                      value={formData.social_media}
+                      onChange={(e) => setFormData(prev => ({ ...prev, social_media: e.target.value }))}
+                      placeholder="e.g., @username or Facebook profile"
+                    />
+                  </div>
+                </div>
+
                 {/* Notes */}
                 <div className="space-y-2">
                   <Label htmlFor="notes">Additional Notes (Optional)</Label>
@@ -479,7 +510,7 @@ const AppointmentBookingForm: React.FC = () => {
                 {/* Submit Button */}
                 <Button
                   type="submit"
-                  disabled={submitting || !formData.time || !formData.service}
+                  disabled={submitting || !formData.time || !formData.service || !formData.phone}
                   className="w-full"
                 >
                   {submitting ? (

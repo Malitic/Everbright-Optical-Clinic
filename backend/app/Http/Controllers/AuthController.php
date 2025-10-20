@@ -176,14 +176,13 @@ class AuthController extends Controller
                 'id' => $user->id,
                 'name' => $user->name,
                 'email' => $user->email,
-                'role' => $user->role,
+                'role' => $user->role->value,
                 'branch' => $user->branch ? [
                     'id' => $user->branch->id,
                     'name' => $user->branch->name,
                     'address' => $user->branch->address
                 ] : null
-            ],
-            'token' => $token
+            ]
         ], 200);
     }
 
@@ -209,6 +208,7 @@ class AuthController extends Controller
         return response()->json([
             'name' => $user->name,
             'email' => $user->email,
+            'role' => ($user->role->value ?? (string) $user->role),
             'branch' => $user->branch ? [
                 'id' => $user->branch->id,
                 'name' => $user->branch->name,
@@ -247,19 +247,48 @@ class AuthController extends Controller
      */
     public function getAllUsers(Request $request)
     {
-        $user = $request->user();
+        try {
+            $user = $request->user();
 
-        if (($user->role->value ?? (string)$user->role) !== 'admin') {
-            return response()->json(['message' => 'Unauthorized'], 403);
+            if (($user->role->value ?? (string)$user->role) !== 'admin') {
+                return response()->json(['message' => 'Unauthorized'], 403);
+            }
+
+            // Get users with branch relationship
+            $users = User::with('branch')
+                        ->select('id', 'name', 'email', 'role', 'branch_id', 'is_approved', 'created_at', 'updated_at')
+                        ->orderBy('created_at', 'desc')
+                        ->get()
+                        ->map(function ($user) {
+                            return [
+                                'id' => $user->id,
+                                'name' => $user->name,
+                                'email' => $user->email,
+                                'role' => $user->role,
+                                'branch' => $user->branch ? [
+                                    'id' => $user->branch->id,
+                                    'name' => $user->branch->name,
+                                    'address' => $user->branch->address
+                                ] : null,
+                                'is_approved' => $user->is_approved,
+                                'created_at' => $user->created_at,
+                                'updated_at' => $user->updated_at,
+                            ];
+                        });
+
+            return response()->json([
+                'data' => $users,
+                'count' => $users->count()
+            ], 200);
+        } catch (\Exception $e) {
+            \Log::error('Error in getAllUsers: ' . $e->getMessage(), [
+                'trace' => $e->getTraceAsString()
+            ]);
+            return response()->json([
+                'error' => 'Internal server error',
+                'message' => $e->getMessage()
+            ], 500);
         }
-
-        $users = User::select('id', 'name', 'email', 'role', 'created_at', 'updated_at')
-                    ->orderBy('created_at', 'desc')
-                    ->get();
-
-        return response()->json([
-            'data' => $users
-        ], 200);
     }
 
     /**
@@ -436,11 +465,28 @@ class AuthController extends Controller
     /**
      * Delete a user (Admin only)
      */
-    public function deleteUser(Request $request, User $targetUser)
+    public function deleteUser(Request $request, $id)
     {
         $user = $request->user();
+        
+        // Find the user manually to debug route model binding issue
+        $targetUser = User::find($id);
+        
+        if (!$targetUser) {
+            \Log::warning('User not found for deletion', [
+                'user_id' => $id,
+                'admin_id' => $user?->id,
+                'admin_role' => $user?->role?->value
+            ]);
+            return response()->json(['message' => 'User not found'], 404);
+        }
 
         if (($user->role->value ?? (string)$user->role) !== 'admin') {
+            \Log::warning('User deletion unauthorized', [
+                'target_user_id' => $targetUser->id,
+                'admin_id' => $user?->id,
+                'admin_role' => $user?->role?->value
+            ]);
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 
@@ -638,6 +684,62 @@ class AuthController extends Controller
 
         return response()->json([
             'message' => 'User rejected successfully'
+        ], 200);
+    }
+
+    /**
+     * Approve a user (Admin only)
+     */
+    public function approveUser(Request $request, $id)
+    {
+        $user = $request->user();
+
+        if (($user->role->value ?? (string)$user->role) !== 'admin') {
+            return response()->json(['message' => 'Unauthorized'], 403);
+        }
+
+        $targetUser = User::find($id);
+
+        if (!$targetUser) {
+            return response()->json(['message' => 'User not found'], 404);
+        }
+
+        // Prevent self-approval (though this shouldn't be necessary for admins)
+        if ($targetUser->id === $user->id) {
+            return response()->json(['message' => 'Cannot approve your own account'], 400);
+        }
+
+        // Update user status
+        $targetUser->update([
+            'is_approved' => true,
+        ]);
+
+        // Log the action
+        if (env('ENABLE_AUDIT_LOGGING', true)) {
+            \App\Models\AuditLog::create([
+                'auditable_type' => User::class,
+                'auditable_id' => $targetUser->id,
+                'event' => 'approved',
+                'user_id' => $user->id,
+                'user_role' => $user->role->value,
+                'user_email' => $user->email,
+                'ip_address' => $request->ip(),
+                'user_agent' => $request->userAgent(),
+                'description' => "{$user->name} approved user: {$targetUser->email}",
+                'old_values' => ['is_approved' => false],
+                'new_values' => ['is_approved' => true],
+            ]);
+        }
+
+        return response()->json([
+            'message' => 'User approved successfully',
+            'user' => [
+                'id' => $targetUser->id,
+                'name' => $targetUser->name,
+                'email' => $targetUser->email,
+                'role' => $targetUser->role,
+                'is_approved' => $targetUser->is_approved,
+            ]
         ], 200);
     }
 }

@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Quick Backend Test</title>
+</head>
+<body>
+    <h1>Backend Connection Test</h1>
+    <div id="result"></div>
+    
+    <script>
+        async function testBackend() {
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = 'Testing backend connection...';
+            
+            try {
+                // Test the backend API endpoint
+                const response = await fetch('http://192.168.100.6:8000/api/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        email: 'admin@everbright.com',
+                        password: 'password',
+                        role: 'admin'
+                    })
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    resultDiv.innerHTML = `
+                        <div style="color: green; padding: 10px; border: 1px solid green;">
+                            ✅ Backend is working!<br>
+                            Status: ${response.status}<br>
+                            User: ${data.user?.name} (${data.user?.role})
+                        </div>
+                    `;
+                } else {
+                    resultDiv.innerHTML = `
+                        <div style="color: orange; padding: 10px; border: 1px solid orange;">
+                            ⚠️ Backend responded but login failed<br>
+                            Status: ${response.status}<br>
+                            This means the backend is running but credentials might be wrong
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <div style="color: red; padding: 10px; border: 1px solid red;">
+                        ❌ Backend connection failed<br>
+                        Error: ${error.message}<br>
+                        <br>
+                        <strong>Solutions:</strong><br>
+                        1. Make sure backend is running: <code>php artisan serve --host=0.0.0.0 --port=8000</code><br>
+                        2. Check Windows Firewall settings<br>
+                        3. Verify the IP address is correct
+                    </div>
+                `;
+            }
+        }
+        
+        testBackend();
+    </script>
+</body>
+</html>
+

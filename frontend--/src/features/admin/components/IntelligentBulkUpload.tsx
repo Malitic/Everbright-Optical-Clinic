@@ -25,6 +25,8 @@ interface UploadResult {
     solutions: number;
     sunglasses: number;
   };
+  processed_groups?: number;
+  total_groups?: number;
 }
 
 const IntelligentBulkUpload: React.FC = () => {
@@ -35,6 +37,9 @@ const IntelligentBulkUpload: React.FC = () => {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadResult, setUploadResult] = useState<UploadResult | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [precheckNote, setPrecheckNote] = useState<string>('');
+  const [isTooLarge, setIsTooLarge] = useState<boolean>(false);
+  const [maxProducts, setMaxProducts] = useState<string>('25');
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -42,6 +47,19 @@ const IntelligentBulkUpload: React.FC = () => {
       if (file.type === 'application/zip' || file.name.endsWith('.zip')) {
         setSelectedFile(file);
         setUploadResult(null);
+        // Pre-check: estimate and warn for large archives
+        const sizeMB = file.size / (1024 * 1024);
+        const warnThresholdMB = 400; // soft warn
+        const hardThresholdMB = 1500; // optional hard stop
+        // Rough estimate: network (30–80 MB/s LAN) + disk/processing cost
+        const estMinutes = Math.max(0.5, Math.round((sizeMB / 80 + sizeMB / 300) * 10) / 10);
+        const note = `Selected ZIP size: ${sizeMB.toFixed(1)} MB. Estimated processing time ~ ${estMinutes.toFixed(1)} min. ` +
+          (sizeMB > warnThresholdMB ? 'Consider splitting into 100–200 images for faster turnaround.' : '');
+        setPrecheckNote(note);
+        setIsTooLarge(sizeMB > hardThresholdMB);
+        if (sizeMB > warnThresholdMB) {
+          toast.warning('Large ZIP detected. Splitting into smaller batches (100–200 images) will be faster.');
+        }
       } else {
         toast.error('Please select a ZIP file');
       }
@@ -54,6 +72,13 @@ const IntelligentBulkUpload: React.FC = () => {
       return;
     }
 
+    const apiBase = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api';
+    const token = sessionStorage.getItem('auth_token') || localStorage.getItem('token') || '';
+    if (!token) {
+      toast.error('Not authenticated. Please log in again.');
+      return;
+    }
+
     try {
       setUploading(true);
       setUploadProgress(0);
@@ -63,19 +88,25 @@ const IntelligentBulkUpload: React.FC = () => {
       if (defaultPrice) formData.append('default_price', defaultPrice);
       if (defaultStock) formData.append('default_stock', defaultStock);
       formData.append('auto_categorize', 'true');
+      if (maxProducts) formData.append('max_products', maxProducts);
 
-      // Simulate progress
+      // Client-side progressive feedback based on file size (rough)
+      const fileSizeMB = selectedFile.size / (1024 * 1024);
+      const start = Date.now();
       const progressInterval = setInterval(() => {
         setUploadProgress(prev => {
-          if (prev >= 90) return prev;
-          return prev + Math.random() * 5;
+          if (prev >= 99) return prev;
+          const elapsed = (Date.now() - start) / 1000;
+          const est = Math.min(95, Math.max(prev + 1, (elapsed / Math.max(5, fileSizeMB / 3)) * 60));
+          return est;
         });
-      }, 300);
+      }, 250);
 
-      const response = await fetch('/api/intelligent-bulk-upload', {
+      // Use configured API base URL to avoid hitting Vite dev server
+      const response = await fetch(`${apiBase}/intelligent-bulk-upload`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Authorization': `Bearer ${token}`,
         },
         body: formData,
       });
@@ -88,8 +119,17 @@ const IntelligentBulkUpload: React.FC = () => {
         setUploadResult(result);
         toast.success(`Intelligent upload completed! ${result.uploaded_count} products created`);
       } else {
-        const error = await response.json();
-        toast.error(error.message || 'Upload failed');
+        let message = `Upload failed (${response.status})`;
+        try {
+          const error = await response.json();
+          if (error?.message) message = error.message;
+        } catch {
+          try {
+            const text = await response.text();
+            if (text) message = `${message}: ${text.substring(0, 200)}`;
+          } catch {}
+        }
+        toast.error(message);
       }
     } catch (error) {
       console.error('Upload error:', error);
@@ -149,6 +189,12 @@ const IntelligentBulkUpload: React.FC = () => {
                   {selectedFile.name} ({(selectedFile.size / 1024 / 1024).toFixed(2)} MB)
                 </div>
               )}
+              {precheckNote && (
+                <Alert className="mt-3">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>{precheckNote}</AlertDescription>
+                </Alert>
+              )}
             </div>
 
             <div className="grid grid-cols-2 gap-4">
@@ -177,6 +223,20 @@ const IntelligentBulkUpload: React.FC = () => {
               </div>
             </div>
 
+            {/* Optional: Cap per-request processing for speed */}
+            <div>
+              <Label htmlFor="max_products">Process up to (products per run)</Label>
+              <Input
+                id="max_products"
+                type="number"
+                min="0"
+                placeholder="e.g., 25 (0 = all)"
+                value={maxProducts}
+                onChange={(e) => setMaxProducts(e.target.value)}
+              />
+              <p className="text-xs text-gray-500 mt-1">Use 25–50 for faster completion; run multiple times to finish all.</p>
+            </div>
+
             {uploading && (
               <div className="space-y-2">
                 <div className="flex justify-between text-sm">
@@ -190,10 +250,10 @@ const IntelligentBulkUpload: React.FC = () => {
             <div className="flex space-x-2">
               <Button
                 onClick={handleUpload}
-                disabled={!selectedFile || uploading}
+                disabled={!selectedFile || uploading || isTooLarge}
                 className="flex-1 bg-purple-600 hover:bg-purple-700"
               >
-                {uploading ? 'Processing...' : 'Start Intelligent Upload'}
+                {isTooLarge ? 'File too large (split first)' : (uploading ? 'Processing...' : 'Start Intelligent Upload')}
               </Button>
               <Button
                 onClick={resetUpload}
@@ -267,6 +327,12 @@ const IntelligentBulkUpload: React.FC = () => {
                 <div className="text-2xl font-bold text-green-600">{uploadResult.uploaded_count}</div>
                 <div className="text-sm text-gray-600">Total Products</div>
               </div>
+              {typeof uploadResult.processed_groups !== 'undefined' && (
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-blue-600">{uploadResult.processed_groups}/{uploadResult.total_groups}</div>
+                  <div className="text-sm text-gray-600">Processed Groups</div>
+                </div>
+              )}
               <div className="text-center">
                 <div className="text-2xl font-bold text-blue-600">{uploadResult.summary.branded_frames}</div>
                 <div className="text-sm text-gray-600">Branded Frames</div>

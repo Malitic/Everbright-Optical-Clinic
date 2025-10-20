@@ -10,10 +10,12 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Appointment } from '@/features/appointments/types/appointment.types';
 import AppointmentBooking from '@/components/appoinments/AppointmentBooking';
+import ContactModal from '@/components/contact/ContactModal';
 
 const CustomerAppointments: React.FC = () => {
   const [selectedAppointment, setSelectedAppointment] = useState<number | null>(null);
   const [showBookingForm, setShowBookingForm] = useState(false);
+  const [showContactModal, setShowContactModal] = useState(false);
   const { user } = useAuth();
   const navigate = useNavigate();
   const { appointments, loading, error, refetch } = useAppointments();
@@ -194,7 +196,7 @@ const CustomerAppointments: React.FC = () => {
                 <Calendar className="w-4 h-4 mr-2" />
                 Book New Appointment
               </Button>
-              <Button variant="outline" className="w-full" size="sm">
+              <Button variant="outline" className="w-full" size="sm" onClick={() => setShowContactModal(true)}>
                 <Phone className="w-4 h-4 mr-2" />
                 Contact Support
               </Button>
@@ -235,6 +237,12 @@ const CustomerAppointments: React.FC = () => {
           <AppointmentBooking />
         </div>
       )}
+
+      {/* Contact Modal */}
+      <ContactModal 
+        isOpen={showContactModal} 
+        onClose={() => setShowContactModal(false)} 
+      />
     </div>
   );
 };

@@ -270,16 +270,32 @@ class BranchStockController extends Controller
             ->first();
 
         if (!$branchStock) {
+            // Return a successful response with zero values instead of 404
             return response()->json([
-                'error' => 'Product not found in this branch',
-                'product_id' => $product->id,
-                'branch_id' => $branch->id,
+                'product' => [
+                    'id' => $product->id,
+                    'name' => $product->name,
+                    'brand' => $product->brand,
+                    'category' => $product->category ? $product->category->name : null,
+                    'sku' => $product->sku,
+                    'image' => $product->primary_image_path ?? ($product->image_paths[0] ?? null),
+                    'description' => $product->description,
+                ],
+                'branch' => [
+                    'id' => $branch->id,
+                    'name' => $branch->name,
+                ],
                 'stock' => 0,
+                'reserved_quantity' => 0,
                 'available_quantity' => 0,
                 'status' => 'Not Available',
                 'price' => $product->price,
-                'effective_price' => $product->price,
-            ], 404);
+                'effective_price' => (float) $product->price,
+                'price_override' => null,
+                'min_stock_threshold' => 5,
+                'expiry_date' => null,
+                'last_restock_date' => null,
+            ]);
         }
 
         // Calculate effective price without using the accessor to avoid circular queries

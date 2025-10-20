@@ -11,6 +11,9 @@ return new class extends Migration
      */
     public function up(): void
     {
+        // Temporarily disable FK checks to allow dropping parent table referenced by child tables
+        Schema::disableForeignKeyConstraints();
+
         // Drop the old receipts table
         Schema::dropIfExists('receipts');
         
@@ -37,6 +40,9 @@ return new class extends Migration
 
             $table->foreign('appointment_id')->references('id')->on('appointments')->onDelete('cascade');
         });
+
+        // Re-enable FK checks
+        Schema::enableForeignKeyConstraints();
     }
 
     /**

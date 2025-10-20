@@ -17,8 +17,8 @@ php fix_schedules.php
 
 REM Test API
 echo Testing API...
-curl "http://127.0.0.1:8000/api/schedules"
+curl "http://0.0.0.0:8000/api/schedules"
 
 echo === DONE ===
-echo Now start the server with: php artisan serve --host=127.0.0.1 --port=8000
+echo Now start the server with: php artisan serve --host=0.0.0.0 --port=8000
 pause

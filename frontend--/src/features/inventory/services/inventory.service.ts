@@ -24,7 +24,7 @@ export class InventoryService {
     
     const response = await fetch(url, {
       headers: {
-        'Authorization': `Bearer ${localStorage.getItem('token')}`
+        'Authorization': `Bearer ${sessionStorage.getItem('auth_token')}`
       }
     });
     return this.handleResponse(response);
@@ -74,7 +74,7 @@ export class InventoryService {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${localStorage.getItem('token')}`
+        'Authorization': `Bearer ${sessionStorage.getItem('auth_token')}`
       },
       body: JSON.stringify({ quantity }),
     });
@@ -92,7 +92,7 @@ export class InventoryService {
     
     const response = await fetch(url, {
       headers: {
-        'Authorization': `Bearer ${localStorage.getItem('token')}`
+        'Authorization': `Bearer ${sessionStorage.getItem('auth_token')}`
       }
     });
     return this.handleResponse(response);
@@ -109,7 +109,7 @@ export class InventoryService {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${localStorage.getItem('token')}`
+        'Authorization': `Bearer ${sessionStorage.getItem('auth_token')}`
       },
       body: JSON.stringify(data),
     });
@@ -120,7 +120,7 @@ export class InventoryService {
     const response = await fetch(`${API_BASE_URL}/stock-transfers/${transferId}/approve`, {
       method: 'PUT',
       headers: {
-        'Authorization': `Bearer ${localStorage.getItem('token')}`
+        'Authorization': `Bearer ${sessionStorage.getItem('auth_token')}`
       }
     });
     return this.handleResponse(response);
@@ -130,7 +130,7 @@ export class InventoryService {
     const response = await fetch(`${API_BASE_URL}/stock-transfers/${transferId}/reject`, {
       method: 'PUT',
       headers: {
-        'Authorization': `Bearer ${localStorage.getItem('token')}`
+        'Authorization': `Bearer ${sessionStorage.getItem('auth_token')}`
       }
     });
     return this.handleResponse(response);
@@ -140,7 +140,7 @@ export class InventoryService {
     const response = await fetch(`${API_BASE_URL}/stock-transfers/${transferId}/complete`, {
       method: 'PUT',
       headers: {
-        'Authorization': `Bearer ${localStorage.getItem('token')}`
+        'Authorization': `Bearer ${sessionStorage.getItem('auth_token')}`
       }
     });
     return this.handleResponse(response);
@@ -150,7 +150,7 @@ export class InventoryService {
     const response = await fetch(`${API_BASE_URL}/stock-transfers/${transferId}/cancel`, {
       method: 'PUT',
       headers: {
-        'Authorization': `Bearer ${localStorage.getItem('token')}`
+        'Authorization': `Bearer ${sessionStorage.getItem('auth_token')}`
       }
     });
     return this.handleResponse(response);
@@ -160,7 +160,7 @@ export class InventoryService {
   static async getExpiringProducts(days: number = 30): Promise<any> {
     const response = await fetch(`${API_BASE_URL}/inventory/expiring?days=${days}`, {
       headers: {
-        'Authorization': `Bearer ${localStorage.getItem('token')}`
+        'Authorization': `Bearer ${sessionStorage.getItem('auth_token')}`
       }
     });
     return this.handleResponse(response);
@@ -169,7 +169,7 @@ export class InventoryService {
   static async getLowStockAlerts(): Promise<any> {
     const response = await fetch(`${API_BASE_URL}/inventory/low-stock-alerts`, {
       headers: {
-        'Authorization': `Bearer ${localStorage.getItem('token')}`
+        'Authorization': `Bearer ${sessionStorage.getItem('auth_token')}`
       }
     });
     return this.handleResponse(response);
@@ -179,7 +179,7 @@ export class InventoryService {
     const response = await fetch(`${API_BASE_URL}/inventory/auto-restock`, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${localStorage.getItem('token')}`
+        'Authorization': `Bearer ${sessionStorage.getItem('auth_token')}`
       }
     });
     return this.handleResponse(response);
@@ -190,7 +190,7 @@ export class InventoryService {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${localStorage.getItem('token')}`
+        'Authorization': `Bearer ${sessionStorage.getItem('auth_token')}`
       },
       body: JSON.stringify(settings),
     });
@@ -200,7 +200,7 @@ export class InventoryService {
   static async getInventoryAnalytics(): Promise<any> {
     const response = await fetch(`${API_BASE_URL}/inventory/analytics`, {
       headers: {
-        'Authorization': `Bearer ${localStorage.getItem('token')}`
+        'Authorization': `Bearer ${sessionStorage.getItem('auth_token')}`
       }
     });
     return this.handleResponse(response);

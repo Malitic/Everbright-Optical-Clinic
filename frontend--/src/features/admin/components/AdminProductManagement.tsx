@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Plus, Edit, Trash2, Eye, EyeOff, Upload, Save, X, Building2, Package, AlertTriangle, Search, Grid3x3, List } from 'lucide-react';
+import { Plus, Edit, Trash2, Eye, EyeOff, Upload, Save, X, Building2, Package, AlertTriangle, Search, Grid3x3, List, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 import { getProducts, createProduct, updateProduct, deleteProduct } from '@/services/productApi';
 import { useBranch } from '@/contexts/BranchContext';
@@ -8,8 +8,10 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import BranchFilter from '@/components/common/BranchFilter';
 import { getStorageUrl } from '@/utils/imageUtils';
+import { shouldSkipRefresh, clearDeletionProtection, setDeletionProtection, notifyProductDeletion } from '@/utils/deletionProtection';
 
 interface Product {
   id: number;
@@ -45,6 +47,7 @@ const AdminProductManagement: React.FC = () => {
     description: '',
     price: '',
     stock_quantity: '',
+    category_id: '',
     is_active: true
   });
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
@@ -58,13 +61,38 @@ const AdminProductManagement: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [deletedProductIds, setDeletedProductIds] = useState<Set<number>>(new Set());
+  const [categoryFilter, setCategoryFilter] = useState<'all' | 'frames' | 'sunglasses' | 'contact_lenses' | 'eye_care' | 'others'>('all');
+  const [categories, setCategories] = useState<Array<{ id: number; name: string }>>([]);
 
   useEffect(() => {
     fetchProductsList();
+    // Load categories for category selector
+    (async () => {
+      try {
+        const apiBaseUrl = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api';
+        const token = sessionStorage.getItem('auth_token');
+        const res = await fetch(`${apiBaseUrl}/product-categories`, {
+          headers: {
+            'Authorization': token ? `Bearer ${token}` : '',
+            'Accept': 'application/json'
+          }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          const list = Array.isArray(data) ? data : (data.categories || []);
+          setCategories(list.map((c: any) => ({ id: c.id, name: c.name })));
+        }
+      } catch {}
+    })();
     
     // Auto-refresh every 30 seconds to show latest inventory updates
+    // But only if no products have been deleted recently (to prevent reappearing)
     const interval = setInterval(() => {
-      fetchProductsList();
+      // Only auto-refresh if no products have been deleted recently (to prevent reappearing)
+      if (!shouldSkipRefresh()) {
+        fetchProductsList();
+      }
     }, 30000);
     
     return () => clearInterval(interval);
@@ -75,7 +103,11 @@ const AdminProductManagement: React.FC = () => {
       setLoading(true);
       // Get products without search filter for now
       const data = await getProducts('');
-      setProducts(Array.isArray(data) ? data : []);
+      const allProducts = Array.isArray(data) ? data : [];
+      
+      // Filter out deleted products to prevent them from reappearing
+      const filteredProducts = allProducts.filter(product => !deletedProductIds.has(product.id));
+      setProducts(filteredProducts);
     } catch (error) {
       console.error('Error fetching products:', error);
       toast.error('Failed to fetch products');
@@ -83,6 +115,13 @@ const AdminProductManagement: React.FC = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleManualRefresh = async () => {
+    // Clear deletion timestamp to allow refresh
+    clearDeletionProtection();
+    await fetchProductsList();
+    toast.success('Products refreshed successfully');
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -111,6 +150,7 @@ const AdminProductManagement: React.FC = () => {
       fd.append('price', parseFloat(formData.price).toString());
       fd.append('stock_quantity', parseInt(formData.stock_quantity).toString());
       fd.append('is_active', formData.is_active ? '1' : '0');
+      if (formData.category_id) fd.append('category_id', formData.category_id);
       
       // Add images if any
       selectedFiles.forEach((file, index) => {
@@ -124,14 +164,38 @@ const AdminProductManagement: React.FC = () => {
         await createProduct(fd);
         toast.success('Product created successfully');
       }
-      await fetchProductsList();
+      // Only refresh if no products have been deleted recently
+      if (!shouldSkipRefresh()) {
+        await fetchProductsList();
+      } else {
+        // Just add the new product to local state without full refresh
+        if (!editingProduct) {
+          // For new products, we'd need to get the created product data
+          // For now, just show success message
+          toast.success('Product created successfully');
+        }
+      }
       resetForm();
     } catch (error: any) {
       console.error('Product creation error:', error);
-      const errorMessage = error?.response?.data?.message || 
-                          error?.response?.data?.errors ? 
-                          Object.values(error.response.data.errors).flat().join(', ') : 
-                          'Failed to save product';
+      
+      let errorMessage = 'Failed to save product';
+      
+      if (error?.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      } else if (error?.response?.data?.errors) {
+        const errors = error.response.data.errors;
+        if (typeof errors === 'object' && errors !== null) {
+          try {
+            errorMessage = Object.values(errors).flat().join(', ');
+          } catch (e) {
+            errorMessage = 'Validation errors occurred';
+          }
+        }
+      } else if (error?.message) {
+        errorMessage = error.message;
+      }
+      
       toast.error(errorMessage);
     }
   };
@@ -146,6 +210,7 @@ const AdminProductManagement: React.FC = () => {
       description: product.description || '',
       price: product.price?.toString() || '0',
       stock_quantity: product.stock_quantity?.toString() || '0',
+      category_id: ((product as any).category_details?.id || '').toString(),
       is_active: product.is_active ?? true
     });
     setSelectedFiles([]);
@@ -157,17 +222,43 @@ const AdminProductManagement: React.FC = () => {
     e.stopPropagation();
     console.log('Delete clicked for product:', id);
     
-    if (!confirm('Are you sure you want to delete this product?')) {
+    if (!confirm('Are you sure you want to delete this product? This action cannot be undone.')) {
       return;
     }
     
     try {
       await deleteProduct(String(id));
+      
+      // Notify all components about the deletion and clear caches
+      notifyProductDeletion(id);
+      
+      // Add to deleted products set to prevent reappearing
+      setDeletedProductIds(prev => new Set([...prev, id]));
+      
+      // Immediately remove the product from the local state
+      setProducts(prevProducts => prevProducts.filter(product => product.id !== id));
+      
       toast.success('Product deleted successfully');
-      fetchProductsList();
+      
+      // Don't call fetchProductsList() as it might override the immediate update
+      // The immediate state update is sufficient for good UX
     } catch (error: any) {
       console.error('Delete error:', error);
-      toast.error(error?.message || 'Failed to delete product');
+      
+      let errorMessage = 'Failed to delete product';
+      
+      if (error?.response?.data?.message) {
+        errorMessage = error.response.data.message;
+        
+        // Show specific message for active reservations
+        if (error.response.data.active_reservations) {
+          errorMessage += ` (${error.response.data.active_reservations} active reservations)`;
+        }
+      } else if (error?.message) {
+        errorMessage = error.message;
+      }
+      
+      toast.error(errorMessage);
     }
   };
 
@@ -181,7 +272,18 @@ const AdminProductManagement: React.FC = () => {
       fd.append('is_active', !product.is_active ? '1' : '0');
       await updateProduct(String(product.id), fd);
       toast.success(`Product ${!product.is_active ? 'activated' : 'deactivated'} successfully`);
-      fetchProductsList();
+      
+      // Only refresh if no products have been deleted recently
+      if (!shouldSkipRefresh()) {
+        fetchProductsList();
+      } else {
+        // Update the product status in local state without full refresh
+        setProducts(prevProducts => 
+          prevProducts.map(p => 
+            p.id === product.id ? { ...p, is_active: !product.is_active } : p
+          )
+        );
+      }
     } catch (error: any) {
       console.error('Toggle status error:', error);
       toast.error(error?.message || 'Failed to update product status');
@@ -317,6 +419,7 @@ const AdminProductManagement: React.FC = () => {
       description: '',
       price: '',
       stock_quantity: '',
+      category_id: '',
       is_active: true
     });
     setSelectedFiles([]);
@@ -355,6 +458,15 @@ const AdminProductManagement: React.FC = () => {
             }}
             useAdminData={true}
           />
+          <Button
+            onClick={handleManualRefresh}
+            variant="outline"
+            disabled={loading}
+            className="flex items-center gap-2"
+          >
+            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+            Refresh
+          </Button>
           <Button
             onClick={() => setShowModal(true)}
             className="bg-blue-600 hover:bg-blue-700"
@@ -424,7 +536,7 @@ const AdminProductManagement: React.FC = () => {
         </Card>
       </div>
 
-      {/* Search and View Toggle */}
+      {/* Search, Category Filter and View Toggle */}
       <div className="mb-6 flex gap-4 items-center">
         <div className="flex-1 relative">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
@@ -435,6 +547,51 @@ const AdminProductManagement: React.FC = () => {
             onChange={(e) => setSearchTerm(e.target.value)}
             className="pl-10"
           />
+        </div>
+        {/* Category Filter */}
+        <div className="flex gap-2">
+          <Button
+            variant={categoryFilter === 'all' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setCategoryFilter('all')}
+          >
+            All
+          </Button>
+          <Button
+            variant={categoryFilter === 'frames' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setCategoryFilter('frames')}
+          >
+            Frames
+          </Button>
+          <Button
+            variant={categoryFilter === 'sunglasses' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setCategoryFilter('sunglasses')}
+          >
+            Sunglasses
+          </Button>
+          <Button
+            variant={categoryFilter === 'contact_lenses' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setCategoryFilter('contact_lenses')}
+          >
+            Contact Lenses
+          </Button>
+          <Button
+            variant={categoryFilter === 'eye_care' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setCategoryFilter('eye_care')}
+          >
+            Eye Care
+          </Button>
+          <Button
+            variant={categoryFilter === 'others' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setCategoryFilter('others')}
+          >
+            Other Products
+          </Button>
         </div>
         <div className="flex gap-2">
           <Button
@@ -456,9 +613,25 @@ const AdminProductManagement: React.FC = () => {
 
       {/* Product Gallery - Grid or List View */}
       <div className={viewMode === 'grid' ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6' : 'space-y-4'}>
-        {products.filter(p => 
-          p.name.toLowerCase().includes(searchTerm.toLowerCase())
-        ).map((product) => (
+        {products.filter(p => {
+          const matchesSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase());
+          const categoryName = ((p as any).category || (p as any).category_name || '').toString().toLowerCase();
+          const text = `${p.name} ${(p as any).description || ''}`.toLowerCase();
+          const isFrame = categoryName.includes('frame') || text.includes('frame');
+          const isSunglass = categoryName.includes('sunglass') || text.includes('sunglass') || text.includes('sun glasses');
+          const isContact = categoryName.includes('contact') || text.includes('contact lens') || text.includes('contacts');
+          const isEyeCare = categoryName.includes('care') || categoryName.includes('solution') || text.includes('solution') || text.includes('drop') || text.includes('cleaner');
+          let matchesCategory = true;
+          switch (categoryFilter) {
+            case 'frames': matchesCategory = isFrame && !isSunglass; break;
+            case 'sunglasses': matchesCategory = isSunglass; break;
+            case 'contact_lenses': matchesCategory = isContact; break;
+            case 'eye_care': matchesCategory = isEyeCare; break;
+            case 'others': matchesCategory = !(isFrame || isSunglass || isContact || isEyeCare); break;
+            default: matchesCategory = true;
+          }
+          return matchesSearch && matchesCategory;
+        }).map((product) => (
           <Card key={product.id} className={`overflow-hidden hover:shadow-lg transition-shadow ${viewMode === 'list' ? 'flex flex-row' : ''}`}>
             {/* Product Image */}
             <div className={`relative bg-gray-100 ${viewMode === 'list' ? 'w-32 h-32' : 'h-48'}`}>
@@ -756,6 +929,20 @@ const AdminProductManagement: React.FC = () => {
                       required
                     />
                   </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Category</label>
+                  <Select value={formData.category_id} onValueChange={(val) => setFormData({ ...formData, category_id: val })}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select category" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {categories.map((cat) => (
+                        <SelectItem key={cat.id} value={cat.id.toString()}>{cat.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 
                 <div>

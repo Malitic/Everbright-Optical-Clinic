@@ -1,7 +1,7 @@
 import React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { MapPin, Building2, Mail, User, Shield } from 'lucide-react';
+import { MapPin, Building2, Mail, User, Shield, Phone, MessageCircle } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 
 const UserProfile: React.FC = () => {
@@ -67,6 +67,34 @@ const UserProfile: React.FC = () => {
                 <p className="text-sm font-medium">{user.email}</p>
               </div>
             </div>
+            
+            {user.phone && (
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-gray-500">Phone Number</label>
+                <div className="flex items-center gap-2">
+                  <Phone className="h-4 w-4 text-gray-400" />
+                  <p className="text-sm font-medium">{user.phone}</p>
+                </div>
+              </div>
+            )}
+            
+            {user.social_media && (
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-gray-500">Social Media</label>
+                <div className="flex items-center gap-2">
+                  <MessageCircle className="h-4 w-4 text-gray-400" />
+                  <p className="text-sm font-medium">{user.social_media}</p>
+                </div>
+              </div>
+            )}
+            
+            {user.role === 'customer' && !user.phone && (
+              <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                <p className="text-sm text-blue-800">
+                  <strong>Contact Information:</strong> Add your phone number and social media handle when booking your next appointment to help us communicate with you better.
+                </p>
+              </div>
+            )}
             
             <div className="space-y-2">
               <label className="text-sm font-medium text-gray-500">Role</label>

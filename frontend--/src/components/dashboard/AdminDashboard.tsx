@@ -131,7 +131,6 @@ const AdminDashboard = () => {
           value={formatPeso(monthlyRevenue)}
           description={selectedBranchId === 'all' ? "Across all branches" : `For ${branchData[0]?.name || 'selected branch'}`}
           icon={Banknote}
-          trend={{ value: avgGrowth, label: 'vs last month', isPositive: true }}
           action={{
             label: 'View Analytics',
             onClick: () => navigate('/admin/analytics'),
@@ -145,7 +144,6 @@ const AdminDashboard = () => {
           value={totalPatients}
           description={selectedBranchId === 'all' ? "Total registered" : `Registered at ${branchData[0]?.name || 'selected branch'}`}
           icon={Users}
-          trend={{ value: 5.2, label: 'growth rate', isPositive: true }}
           action={{
             label: 'User Management',
             onClick: () => navigate('/admin/users'),

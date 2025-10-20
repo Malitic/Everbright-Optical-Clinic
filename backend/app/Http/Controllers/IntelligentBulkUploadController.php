@@ -2,95 +2,82 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Product;
-use App\Models\ProductCategory;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
-use Intervention\Image\Facades\Image;
+use ZipArchive;
+use Illuminate\Support\Facades\DB;
+
+use App\Models\Product;
 
 class IntelligentBulkUploadController extends Controller
 {
     /**
-     * Handle intelligent bulk product upload from organized folder structure
+     * Handle intelligent bulk upload from a ZIP containing product images.
+     * Groups images by top-level folder (product), detects simple type by name,
+     * and creates products with image_paths.
      */
-    public function uploadOrganizedFolder(Request $request): JsonResponse
+    public function upload(Request $request): JsonResponse
     {
-        $user = Auth::user();
-
-        if (!$user || !in_array($user->role->value, ['admin', 'staff'])) {
-            return response()->json([
-                'message' => 'Unauthorized. Only Admin and Staff can upload products.'
-            ], 403);
-        }
-
-        $validator = Validator::make($request->all(), [
+        $request->validate([
             'folder' => 'required|file|mimes:zip',
-            'auto_categorize' => 'boolean',
             'default_price' => 'nullable|numeric|min:0',
             'default_stock' => 'nullable|integer|min:0',
+            'auto_categorize' => 'nullable|boolean',
         ]);
 
-        if ($validator->fails()) {
+        // Allow long-running bulk uploads
+        @set_time_limit(0);
+        $zipFile = $request->file('folder');
+        $defaultPrice = (float) ($request->input('default_price', 0));
+        $defaultStock = (int) ($request->input('default_stock', 0));
+        $maxProducts = (int) ($request->input('max_products', 0)); // optional cap for faster runs
+
+        $tmpDir = storage_path('app/tmp/intelligent_upload_' . Str::uuid());
+        if (!is_dir($tmpDir)) {
+            mkdir($tmpDir, 0775, true);
+        }
+
+        $zipPath = $tmpDir . '/upload.zip';
+        $zipFile->move($tmpDir, 'upload.zip');
+
+        $zip = new ZipArchive();
+        $openRes = $zip->open($zipPath);
+        if ($openRes !== true) {
             return response()->json([
-                'message' => 'Validation failed',
-                'errors' => $validator->errors()
+                'message' => 'Failed to open ZIP archive',
             ], 422);
         }
 
-        try {
-            $uploadedProducts = [];
-            $errors = [];
-            $categories = [];
+        $extractDir = $tmpDir . '/extract';
+        mkdir($extractDir, 0775, true);
+        $zip->extractTo($extractDir);
+        $zip->close();
 
-            // Extract ZIP file
-            $zipFile = $request->file('folder');
-            $extractPath = storage_path('app/temp/intelligent_upload_' . time());
-            
-            $zip = new \ZipArchive();
-            if ($zip->open($zipFile->getRealPath()) === TRUE) {
-                $zip->extractTo($extractPath);
-                $zip->close();
-            } else {
-                return response()->json([
-                    'message' => 'Failed to extract ZIP file'
-                ], 422);
-            }
+        // Collect images grouped by top-level directory
+        $allowedExt = ['jpg','jpeg','png','gif','webp'];
+        $grouped = [];
 
-            // Process the organized folder structure
-            $results = $this->processOrganizedStructure($extractPath, $user, $request);
-            
-            // Clean up temp files
-            $this->cleanupTempFiles($extractPath);
+        $rii = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator($extractDir));
+        foreach ($rii as $file) {
+            if ($file->isDir()) continue;
+            $ext = strtolower(pathinfo($file->getFilename(), PATHINFO_EXTENSION));
+            if (!in_array($ext, $allowedExt)) continue;
 
-            return response()->json([
-                'message' => 'Intelligent bulk upload completed',
-                'uploaded_count' => $results['uploaded_count'],
-                'error_count' => $results['error_count'],
-                'categories_created' => $results['categories_created'],
-                'products' => $results['products'],
-                'errors' => $results['errors'],
-                'summary' => $results['summary']
-            ]);
-
-        } catch (\Exception $e) {
-            return response()->json([
-                'message' => 'Bulk upload failed: ' . $e->getMessage()
-            ], 500);
+            $fullPath = $file->getPathname();
+            // Determine top-level folder name relative to extract dir
+            $relativePath = str_replace($extractDir . DIRECTORY_SEPARATOR, '', $fullPath);
+            $parts = preg_split('/\\\\|\//', $relativePath);
+            $top = count($parts) > 1 ? $parts[0] : pathinfo($parts[0], PATHINFO_FILENAME);
+            if (!isset($grouped[$top])) $grouped[$top] = [];
+            $grouped[$top][] = $fullPath;
         }
-    }
 
-    /**
-     * Process the organized folder structure
-     */
-    private function processOrganizedStructure(string $path, $user, Request $request): array
-    {
-        $uploadedProducts = [];
+        $uploadedCount = 0;
         $errors = [];
-        $categoriesCreated = [];
+        $createdProducts = [];
         $summary = [
             'branded_frames' => 0,
             'non_branded_frames' => 0,
@@ -99,516 +86,183 @@ class IntelligentBulkUploadController extends Controller
             'sunglasses' => 0,
         ];
 
-        // Process Branded frames
-        $brandedPath = $path . '/Branded';
-        if (is_dir($brandedPath)) {
-            $result = $this->processBrandedFrames($brandedPath, $user, $request);
-            $uploadedProducts = array_merge($uploadedProducts, $result['products']);
-            $errors = array_merge($errors, $result['errors']);
-            $summary['branded_frames'] = $result['count'];
+        $allGroups = array_keys($grouped);
+        if ($maxProducts > 0) {
+            $allGroups = array_slice($allGroups, 0, $maxProducts);
         }
 
-        // Process Non-Branded frames
-        $nonBrandedPath = $path . '/Non-Branded';
-        if (is_dir($nonBrandedPath)) {
-            $result = $this->processNonBrandedFrames($nonBrandedPath, $user, $request);
-            $uploadedProducts = array_merge($uploadedProducts, $result['products']);
-            $errors = array_merge($errors, $result['errors']);
-            $summary['non_branded_frames'] = $result['count'];
-        }
+        DB::beginTransaction();
+        try {
+        foreach ($allGroups as $folderName) {
+            $imageFiles = $grouped[$folderName];
+            try {
+                // Normalize folder name for simple inference
+                $normalized = strtolower(str_replace(['_', '-', '\\', '/'], ' ', $folderName));
 
-        // Process Contact Lenses
-        $contactLensPath = $path . '/Contact Lenses';
-        if (is_dir($contactLensPath)) {
-            $result = $this->processContactLenses($contactLensPath, $user, $request);
-            $uploadedProducts = array_merge($uploadedProducts, $result['products']);
-            $errors = array_merge($errors, $result['errors']);
-            $summary['contact_lenses'] = $result['count'];
-        }
+                // Simple type inference
+                $inferredCategory = 'Frames';
+                $inferredBrand = $this->inferBrandFromText($normalized);
+                $inferredShape = $this->inferShapeFromText($normalized);
+                $inferredColor = $this->inferColorFromText($normalized);
+                if (str_contains($normalized, 'contact')) {
+                    $inferredCategory = 'Contact Lenses';
+                    $summary['contact_lenses']++;
+                } elseif (str_contains($normalized, 'solution') || str_contains($normalized, 'care')) {
+                    $inferredCategory = 'Eye Care Products';
+                    $summary['solutions']++;
+                } elseif (str_contains($normalized, 'sun') || str_contains($normalized, 'sunglass')) {
+                    $inferredCategory = 'Sunglasses';
+                    $summary['sunglasses']++;
+                } else {
+                    // Split branded vs non-branded heuristic (contains brand-like token)
+                    if (preg_match('/\b(rayban|oakley|gucci|prada|nike|adidas|puma|levis|fendi|dior)\b/i', $folderName)) {
+                        $summary['branded_frames']++;
+                    } else {
+                        $summary['non_branded_frames']++;
+                    }
+                }
 
-        // Process Solutions
-        $solutionPath = $path . '/Solution';
-        if (is_dir($solutionPath)) {
-            $result = $this->processSolutions($solutionPath, $user, $request);
-            $uploadedProducts = array_merge($uploadedProducts, $result['products']);
-            $errors = array_merge($errors, $result['errors']);
-            $summary['solutions'] = $result['count'];
-        }
-
-        // Process Sunglasses
-        $sunglassesPath = $path . '/SUNGLASSES';
-        if (is_dir($sunglassesPath)) {
-            $result = $this->processSunglasses($sunglassesPath, $user, $request);
-            $uploadedProducts = array_merge($uploadedProducts, $result['products']);
-            $errors = array_merge($errors, $result['errors']);
-            $summary['sunglasses'] = $result['count'];
-        }
-
-        return [
-            'uploaded_count' => count($uploadedProducts),
-            'error_count' => count($errors),
-            'categories_created' => $categoriesCreated,
-            'products' => $uploadedProducts,
-            'errors' => $errors,
-            'summary' => $summary
-        ];
-    }
-
-    /**
-     * Process branded frames (Brand/Brand/Shape/Color structure)
-     */
-    private function processBrandedFrames(string $path, $user, Request $request): array
-    {
-        $products = [];
-        $errors = [];
-        $count = 0;
-
-        $brandDirs = array_filter(scandir($path), function($item) use ($path) {
-            return is_dir($path . '/' . $item) && !in_array($item, ['.', '..']);
-        });
-
-        foreach ($brandDirs as $brand) {
-            $brandPath = $path . '/' . $brand;
-            $shapeDirs = array_filter(scandir($brandPath), function($item) use ($brandPath) {
-                return is_dir($brandPath . '/' . $item) && !in_array($item, ['.', '..']);
-            });
-
-            foreach ($shapeDirs as $shape) {
-                $shapePath = $brandPath . '/' . $shape;
-                $colorDirs = array_filter(scandir($shapePath), function($item) use ($shapePath) {
-                    return is_dir($shapePath . '/' . $item) && !in_array($item, ['.', '..']);
+                // Choose primary image: prefer names containing 'front' or '01'
+                usort($imageFiles, function($a, $b) {
+                    $an = strtolower(basename($a));
+                    $bn = strtolower(basename($b));
+                    $as = (str_contains($an, 'front') || preg_match('/(^|[^\d])0?1(?!\d)/', $an)) ? 0 : 1;
+                    $bs = (str_contains($bn, 'front') || preg_match('/(^|[^\d])0?1(?!\d)/', $bn)) ? 0 : 1;
+                    return $as <=> $bs;
                 });
 
-                foreach ($colorDirs as $color) {
-                    $colorPath = $shapePath . '/' . $color;
-                    $images = $this->getImageFiles($colorPath);
-
-                    foreach ($images as $imagePath) {
-                        try {
-                            $product = $this->createBrandedFrameProduct($imagePath, $brand, $shape, $color, $user, $request);
-                            $products[] = $product;
-                            $count++;
-                        } catch (\Exception $e) {
-                            $errors[] = [
-                                'file' => basename($imagePath),
-                                'error' => $e->getMessage()
-                            ];
-                        }
+                // Store images under public/products/{slug}/ using fast move when possible
+                $slug = Str::slug($folderName);
+                $storedPaths = [];
+                foreach ($imageFiles as $idx => $full) {
+                    $ext = pathinfo($full, PATHINFO_EXTENSION);
+                    $targetName = $slug . '_' . str_pad((string)($idx+1), 2, '0', STR_PAD_LEFT) . '.' . $ext;
+                    $publicDir = storage_path('app/public/products/' . $slug);
+                    if (!is_dir($publicDir)) @mkdir($publicDir, 0775, true);
+                    $destPath = $publicDir . DIRECTORY_SEPARATOR . $targetName;
+                    // Prefer move (same disk) for speed; fallback to copy
+                    $moved = @rename($full, $destPath);
+                    if (!$moved) {
+                        $moved = @copy($full, $destPath);
                     }
-                }
-            }
-        }
-
-        return ['products' => $products, 'errors' => $errors, 'count' => $count];
-    }
-
-    /**
-     * Process non-branded frames (Shape/Color structure)
-     */
-    private function processNonBrandedFrames(string $path, $user, Request $request): array
-    {
-        $products = [];
-        $errors = [];
-        $count = 0;
-
-        $shapeDirs = array_filter(scandir($path), function($item) use ($path) {
-            return is_dir($path . '/' . $item) && !in_array($item, ['.', '..']);
-        });
-
-        foreach ($shapeDirs as $shape) {
-            $shapePath = $path . '/' . $shape;
-            $colorDirs = array_filter(scandir($shapePath), function($item) use ($shapePath) {
-                return is_dir($shapePath . '/' . $item) && !in_array($item, ['.', '..']);
-            });
-
-            foreach ($colorDirs as $color) {
-                $colorPath = $shapePath . '/' . $color;
-                $images = $this->getImageFiles($colorPath);
-
-                foreach ($images as $imagePath) {
-                    try {
-                        $product = $this->createNonBrandedFrameProduct($imagePath, $shape, $color, $user, $request);
-                        $products[] = $product;
-                        $count++;
-                    } catch (\Exception $e) {
-                        $errors[] = [
-                            'file' => basename($imagePath),
-                            'error' => $e->getMessage()
-                        ];
+                    if (!$moved) {
+                        throw new \RuntimeException('Failed to store image: ' . $full);
                     }
+                    $storedPaths[] = 'products/' . $slug . '/' . $targetName;
                 }
-            }
-        }
 
-        return ['products' => $products, 'errors' => $errors, 'count' => $count];
-    }
+                // Create product record
+                $product = Product::create([
+                    'name' => trim($folderName),
+                    'description' => ucfirst($inferredCategory) . ' uploaded via Intelligent Bulk Upload',
+                    'price' => $defaultPrice,
+                    'stock_quantity' => $defaultStock,
+                    'is_active' => true,
+                    'image_paths' => $storedPaths,
+                    'primary_image' => $storedPaths[0] ?? null,
+                    'created_by' => optional($request->user())->id,
+                    'created_by_role' => optional($request->user())->role->value ?? null,
+                    'approval_status' => 'approved',
+                    'category_id' => $this->getCategoryId($inferredCategory),
+                    'brand' => $inferredBrand,
+                    'model' => trim(($inferredShape ? ucfirst($inferredShape) . ' ' : '') . ($inferredColor ? ucfirst($inferredColor) : '')),
+                    'attributes' => [
+                        'shape' => $inferredShape,
+                        'color' => $inferredColor,
+                        'source' => 'intelligent_bulk_upload',
+                    ],
+                ]);
 
-    /**
-     * Process contact lenses
-     */
-    private function processContactLenses(string $path, $user, Request $request): array
-    {
-        $products = [];
-        $errors = [];
-        $count = 0;
-
-        $images = $this->getImageFiles($path);
-        foreach ($images as $imagePath) {
-            try {
-                $product = $this->createContactLensProduct($imagePath, $user, $request);
-                $products[] = $product;
-                $count++;
-            } catch (\Exception $e) {
-                $errors[] = [
-                    'file' => basename($imagePath),
-                    'error' => $e->getMessage()
+                $uploadedCount++;
+                $createdProducts[] = [
+                    'id' => $product->id,
+                    'name' => $product->name,
+                    'sku' => $product->sku ?? null,
+                    'brand' => $product->brand ?? null,
+                    'category' => [ 'name' => $inferredCategory ],
                 ];
+            } catch (\Throwable $e) {
+                Log::error('Intelligent upload error', [ 'folder' => $folderName, 'error' => $e->getMessage() ]);
+                $errors[] = [ 'file' => $folderName, 'error' => $e->getMessage() ];
             }
         }
-
-        return ['products' => $products, 'errors' => $errors, 'count' => $count];
-    }
-
-    /**
-     * Process solutions
-     */
-    private function processSolutions(string $path, $user, Request $request): array
-    {
-        $products = [];
-        $errors = [];
-        $count = 0;
-
-        $images = $this->getImageFiles($path);
-        foreach ($images as $imagePath) {
-            try {
-                $product = $this->createSolutionProduct($imagePath, $user, $request);
-                $products[] = $product;
-                $count++;
-            } catch (\Exception $e) {
-                $errors[] = [
-                    'file' => basename($imagePath),
-                    'error' => $e->getMessage()
-                ];
-            }
+        DB::commit();
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            throw $e;
         }
 
-        return ['products' => $products, 'errors' => $errors, 'count' => $count];
-    }
-
-    /**
-     * Process sunglasses
-     */
-    private function processSunglasses(string $path, $user, Request $request): array
-    {
-        $products = [];
-        $errors = [];
-        $count = 0;
-
-        // Process branded sunglasses
-        $brandedPath = $path . '/BRANDED';
-        if (is_dir($brandedPath)) {
-            $result = $this->processBrandedFrames($brandedPath, $user, $request);
-            $products = array_merge($products, $result['products']);
-            $errors = array_merge($errors, $result['errors']);
-            $count += $result['count'];
+        // Cleanup temp directory (best-effort)
+        try {
+            $this->rrmdir($tmpDir);
+        } catch (\Throwable $e) {
+            // ignore
         }
 
-        // Process non-branded sunglasses
-        $nonBrandedPath = $path . '/NON-BRANDED';
-        if (is_dir($nonBrandedPath)) {
-            $images = $this->getImageFiles($nonBrandedPath);
-            foreach ($images as $imagePath) {
-                try {
-                    $product = $this->createSunglassProduct($imagePath, $user, $request);
-                    $products[] = $product;
-                    $count++;
-                } catch (\Exception $e) {
-                    $errors[] = [
-                        'file' => basename($imagePath),
-                        'error' => $e->getMessage()
-                    ];
-                }
-            }
-        }
-
-        return ['products' => $products, 'errors' => $errors, 'count' => $count];
-    }
-
-    /**
-     * Create branded frame product
-     */
-    private function createBrandedFrameProduct(string $imagePath, string $brand, string $shape, string $color, $user, Request $request): Product
-    {
-        $imagePath = $this->processImage($imagePath);
-        $approvalStatus = $user->role->value === 'admin' ? 'approved' : 'pending';
-        
-        $name = "{$brand} {$shape} {$color}";
-        $sku = $this->generateSku($brand, $shape, $color);
-
-        return Product::create([
-            'name' => $name,
-            'description' => "{$brand} {$shape} frame in {$color}",
-            'price' => $request->default_price ?? 0,
-            'stock_quantity' => $request->default_stock ?? 0,
-            'is_active' => true,
-            'image_paths' => [$imagePath],
-            'primary_image' => $imagePath,
-            'created_by' => $user->id,
-            'created_by_role' => $user->role->value,
-            'approval_status' => $approvalStatus,
-            'branch_id' => $user->branch_id,
-            'category_id' => $this->getCategoryId('Frames'),
-            'brand' => $brand,
-            'model' => "{$shape} {$color}",
-            'sku' => $sku,
-            'attributes' => [
-                'type' => 'branded_frame',
-                'shape' => $shape,
-                'color' => $color,
-                'original_filename' => basename($imagePath),
-            ],
+        return response()->json([
+            'uploaded_count' => $uploadedCount,
+            'error_count' => count($errors),
+            'categories_created' => [],
+            'products' => $createdProducts,
+            'errors' => $errors,
+            'summary' => $summary,
+            'processed_groups' => count($allGroups),
+            'total_groups' => count($grouped),
         ]);
     }
 
-    /**
-     * Create non-branded frame product
-     */
-    private function createNonBrandedFrameProduct(string $imagePath, string $shape, string $color, $user, Request $request): Product
+    private function rrmdir(string $dir): void
     {
-        $imagePath = $this->processImage($imagePath);
-        $approvalStatus = $user->role->value === 'admin' ? 'approved' : 'pending';
-        
-        $name = "Non-Branded {$shape} {$color}";
-        $sku = $this->generateSku('NB', $shape, $color);
-
-        return Product::create([
-            'name' => $name,
-            'description' => "Non-branded {$shape} frame in {$color}",
-            'price' => $request->default_price ?? 0,
-            'stock_quantity' => $request->default_stock ?? 0,
-            'is_active' => true,
-            'image_paths' => [$imagePath],
-            'primary_image' => $imagePath,
-            'created_by' => $user->id,
-            'created_by_role' => $user->role->value,
-            'approval_status' => $approvalStatus,
-            'branch_id' => $user->branch_id,
-            'category_id' => $this->getCategoryId('Frames'),
-            'brand' => 'Non-Branded',
-            'model' => "{$shape} {$color}",
-            'sku' => $sku,
-            'attributes' => [
-                'type' => 'non_branded_frame',
-                'shape' => $shape,
-                'color' => $color,
-                'original_filename' => basename($imagePath),
-            ],
-        ]);
-    }
-
-    /**
-     * Create contact lens product
-     */
-    private function createContactLensProduct(string $imagePath, $user, Request $request): Product
-    {
-        $imagePath = $this->processImage($imagePath);
-        $approvalStatus = $user->role->value === 'admin' ? 'approved' : 'pending';
-        
-        $filename = basename($imagePath, '.jpg');
-        $name = "Contact Lens {$filename}";
-        $sku = $this->generateSku('CL', $filename, '');
-
-        return Product::create([
-            'name' => $name,
-            'description' => "Contact lens product {$filename}",
-            'price' => $request->default_price ?? 0,
-            'stock_quantity' => $request->default_stock ?? 0,
-            'is_active' => true,
-            'image_paths' => [$imagePath],
-            'primary_image' => $imagePath,
-            'created_by' => $user->id,
-            'created_by_role' => $user->role->value,
-            'approval_status' => $approvalStatus,
-            'branch_id' => $user->branch_id,
-            'category_id' => $this->getCategoryId('Contact Lenses'),
-            'brand' => 'Generic',
-            'model' => $filename,
-            'sku' => $sku,
-            'attributes' => [
-                'type' => 'contact_lens',
-                'original_filename' => basename($imagePath),
-            ],
-        ]);
-    }
-
-    /**
-     * Create solution product
-     */
-    private function createSolutionProduct(string $imagePath, $user, Request $request): Product
-    {
-        $imagePath = $this->processImage($imagePath);
-        $approvalStatus = $user->role->value === 'admin' ? 'approved' : 'pending';
-        
-        $filename = basename($imagePath, '.jpg');
-        $name = "Solution {$filename}";
-        $sku = $this->generateSku('SOL', $filename, '');
-
-        return Product::create([
-            'name' => $name,
-            'description' => "Contact lens solution {$filename}",
-            'price' => $request->default_price ?? 0,
-            'stock_quantity' => $request->default_stock ?? 0,
-            'is_active' => true,
-            'image_paths' => [$imagePath],
-            'primary_image' => $imagePath,
-            'created_by' => $user->id,
-            'created_by_role' => $user->role->value,
-            'approval_status' => $approvalStatus,
-            'branch_id' => $user->branch_id,
-            'category_id' => $this->getCategoryId('Lens Accessories'),
-            'brand' => 'Generic',
-            'model' => $filename,
-            'sku' => $sku,
-            'attributes' => [
-                'type' => 'solution',
-                'original_filename' => basename($imagePath),
-            ],
-        ]);
-    }
-
-    /**
-     * Create sunglass product
-     */
-    private function createSunglassProduct(string $imagePath, $user, Request $request): Product
-    {
-        $imagePath = $this->processImage($imagePath);
-        $approvalStatus = $user->role->value === 'admin' ? 'approved' : 'pending';
-        
-        $filename = basename($imagePath, '.jpg');
-        $name = "Sunglass {$filename}";
-        $sku = $this->generateSku('SG', $filename, '');
-
-        return Product::create([
-            'name' => $name,
-            'description' => "Sunglass product {$filename}",
-            'price' => $request->default_price ?? 0,
-            'stock_quantity' => $request->default_stock ?? 0,
-            'is_active' => true,
-            'image_paths' => [$imagePath],
-            'primary_image' => $imagePath,
-            'created_by' => $user->id,
-            'created_by_role' => $user->role->value,
-            'approval_status' => $approvalStatus,
-            'branch_id' => $user->branch_id,
-            'category_id' => $this->getCategoryId('Sunglasses'),
-            'brand' => 'Generic',
-            'model' => $filename,
-            'sku' => $sku,
-            'attributes' => [
-                'type' => 'sunglass',
-                'original_filename' => basename($imagePath),
-            ],
-        ]);
-    }
-
-    /**
-     * Get category ID by name
-     */
-    private function getCategoryId(string $categoryName): ?int
-    {
-        $category = ProductCategory::where('name', $categoryName)->first();
-        return $category ? $category->id : null;
-    }
-
-    /**
-     * Get all image files from directory
-     */
-    private function getImageFiles(string $path): array
-    {
-        $files = [];
-        $iterator = new \RecursiveIteratorIterator(
-            new \RecursiveDirectoryIterator($path)
-        );
-
-        foreach ($iterator as $file) {
-            if ($file->isFile() && $this->isImageFile($file->getPathname())) {
-                $files[] = $file->getPathname();
+        if (!is_dir($dir)) return;
+        $objects = scandir($dir) ?: [];
+        foreach ($objects as $object) {
+            if ($object === '.' || $object === '..') continue;
+            $path = $dir . DIRECTORY_SEPARATOR . $object;
+            if (is_dir($path)) {
+                $this->rrmdir($path);
+            } else {
+                @unlink($path);
             }
         }
-
-        return $files;
+        @rmdir($dir);
     }
 
-    /**
-     * Check if file is an image
-     */
-    private function isImageFile(string $filePath): bool
+    // Simple heuristics to infer metadata from folder/file names
+    private function inferBrandFromText(string $text): ?string
     {
-        $allowedExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
-        $extension = strtolower(pathinfo($filePath, PATHINFO_EXTENSION));
-        
-        return in_array($extension, $allowedExtensions);
-    }
-
-    /**
-     * Process and store image
-     */
-    private function processImage(string $filePath): string
-    {
-        $image = Image::make($filePath);
-        
-        // Resize if too large
-        if ($image->width() > 1920 || $image->height() > 1920) {
-            $image->resize(1920, 1920, function ($constraint) {
-                $constraint->aspectRatio();
-                $constraint->upsize();
-            });
+        $map = [
+            'rayban' => 'Ray-Ban', 'oakley' => 'Oakley', 'gucci' => 'Gucci', 'prada' => 'Prada',
+            'nike' => 'Nike', 'adidas' => 'Adidas', 'puma' => 'Puma', 'levis' => "Levi's",
+            'fendi' => 'Fendi', 'dior' => 'Dior'
+        ];
+        foreach ($map as $needle => $label) {
+            if (str_contains($text, $needle)) return $label;
         }
-
-        // Generate unique filename
-        $filename = 'intelligent_' . time() . '_' . Str::random(10) . '.jpg';
-        $path = 'products/' . $filename;
-
-        // Save to storage
-        $image->encode('jpg', 85)->save(storage_path('app/public/' . $path));
-
-        return $path;
+        return null;
     }
 
-    /**
-     * Generate SKU from components
-     */
-    private function generateSku(string $brand, string $model, string $color): string
+    private function inferShapeFromText(string $text): ?string
     {
-        $brandCode = strtoupper(substr(preg_replace('/[^a-zA-Z0-9]/', '', $brand), 0, 3));
-        $modelCode = strtoupper(substr(preg_replace('/[^a-zA-Z0-9]/', '', $model), 0, 4));
-        $colorCode = strtoupper(substr(preg_replace('/[^a-zA-Z0-9]/', '', $color), 0, 2));
-        $random = strtoupper(Str::random(3));
-        
-        return $brandCode . '-' . $modelCode . ($colorCode ? '-' . $colorCode : '') . '-' . $random;
-    }
-
-    /**
-     * Clean up temporary files
-     */
-    private function cleanupTempFiles(string $path): void
-    {
-        if (is_dir($path)) {
-            $files = new \RecursiveIteratorIterator(
-                new \RecursiveDirectoryIterator($path, \RecursiveDirectoryIterator::SKIP_DOTS),
-                \RecursiveIteratorIterator::CHILD_FIRST
-            );
-
-            foreach ($files as $file) {
-                if ($file->isDir()) {
-                    rmdir($file->getRealPath());
-                } else {
-                    unlink($file->getRealPath());
-                }
+        $shapes = [
+            'aviator', 'round', 'square', 'rectangle', 'cat eye', 'cateye', 'wayfarer', 'oval'
+        ];
+        foreach ($shapes as $shape) {
+            if (str_contains($text, $shape)) {
+                return $shape === 'cat eye' ? 'cat-eye' : $shape;
             }
-
-            rmdir($path);
         }
+        return null;
+    }
+
+    private function inferColorFromText(string $text): ?string
+    {
+        $colors = ['black','brown','blue','red','green','gold','silver','gray','grey','pink','purple','yellow','white','orange','clear'];
+        foreach ($colors as $color) {
+            if (preg_match('/\b' . preg_quote($color, '/') . '\b/', $text)) {
+                return $color === 'grey' ? 'gray' : $color;
+            }
+        }
+        return null;
     }
 }
 

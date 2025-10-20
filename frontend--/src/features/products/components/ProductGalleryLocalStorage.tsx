@@ -5,20 +5,11 @@ import { getReservations, createReservation } from '@/services/reservationApi';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Search, Plus, Edit, Trash2 } from 'lucide-react';
-
-interface Product {
-  id: string;
-  name: string;
-  description: string;
-  price: number;
-  image_paths: string[];
-  stock_quantity: number;
-  is_active: boolean;
-}
+import { Product } from '@/features/products/types/product.types';
 
 interface Reservation {
-  id: string;
-  product_id: string;
+  id: number;
+  product_id: number;
   quantity: number;
   status: string;
   created_at: string;
@@ -31,7 +22,7 @@ export const ProductGalleryLocalStorage: React.FC = () => {
   const [products, setProducts] = useState<Product[]>([]);
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
-  const [newReservationProductId, setNewReservationProductId] = useState<string | null>(null);
+  const [newReservationProductId, setNewReservationProductId] = useState<number | null>(null);
   const [reservationQuantity, setReservationQuantity] = useState<number>(1);
   const [searchQuery, setSearchQuery] = useState<string>('');
 
@@ -41,6 +32,19 @@ export const ProductGalleryLocalStorage: React.FC = () => {
     if (role === 'customer') {
       fetchReservations();
     }
+    
+    // Listen for product deletion events to refresh immediately
+    const handleProductDeletion = (event: CustomEvent) => {
+      console.log('Product deleted, refreshing localStorage gallery:', event.detail.productId);
+      // Immediately refresh products to reflect deletion
+      fetchProducts();
+    };
+    
+    window.addEventListener('productDeleted', handleProductDeletion as EventListener);
+    
+    return () => {
+      window.removeEventListener('productDeleted', handleProductDeletion as EventListener);
+    };
   }, []);
 
   const fetchProducts = async () => {
@@ -73,13 +77,15 @@ export const ProductGalleryLocalStorage: React.FC = () => {
       setEditingProduct(product);
     } else {
       setEditingProduct({
-        id: '',
+        id: 0,
         name: '',
         description: '',
         price: 0,
         image_paths: [],
         stock_quantity: 0,
         is_active: true,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
       });
     }
   };
@@ -123,7 +129,7 @@ export const ProductGalleryLocalStorage: React.FC = () => {
   };
 
   // Delete product via API
-  const deleteProductById = async (id: string) => {
+  const deleteProductById = async (id: number) => {
     try {
       await deleteProduct(id);
       fetchProducts();
@@ -134,7 +140,7 @@ export const ProductGalleryLocalStorage: React.FC = () => {
   };
 
   // Start reservation for a product
-  const startReservation = (productId: string) => {
+  const startReservation = (productId: number) => {
     setNewReservationProductId(productId);
     setReservationQuantity(1);
   };
@@ -150,7 +156,7 @@ export const ProductGalleryLocalStorage: React.FC = () => {
     if (!newReservationProductId) return;
     try {
       await createReservation({
-        product_id: parseInt(newReservationProductId),
+        product_id: newReservationProductId,
         branch_id: 1, // Default branch ID, you may want to make this dynamic
         quantity: reservationQuantity,
       });
@@ -164,7 +170,7 @@ export const ProductGalleryLocalStorage: React.FC = () => {
   };
 
   // Get reservations count for a product
-  const getReservationCount = (productId: string) => {
+  const getReservationCount = (productId: number) => {
     return reservations.filter(r => r.product_id === productId).length;
   };
 

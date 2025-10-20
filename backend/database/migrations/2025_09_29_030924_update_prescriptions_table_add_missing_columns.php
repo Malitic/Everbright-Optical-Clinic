@@ -11,7 +11,12 @@ return new class extends Migration
      */
     public function up(): void
     {
-        // First, drop the index that includes status
+        // Ensure MySQL keeps an index that satisfies the FK on patient_id
+        Schema::table('prescriptions', function (Blueprint $table) {
+            $table->index('patient_id');
+        });
+        
+        // Then drop the composite index that includes status
         Schema::table('prescriptions', function (Blueprint $table) {
             $table->dropIndex('prescriptions_patient_id_status_index');
         });

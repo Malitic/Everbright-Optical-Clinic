@@ -282,29 +282,109 @@ class ProductController extends Controller
     /**
      * Remove the specified product from storage.
      */
-    public function destroy(Product $product): JsonResponse
+    public function destroy($id): JsonResponse
     {
         $user = Auth::user();
+        
+        // Find the product manually to debug route model binding issue
+        $product = Product::find($id);
+        
+        if (!$product) {
+            \Log::warning('Product not found for deletion', [
+                'product_id' => $id,
+                'user_id' => $user?->id,
+                'user_role' => $user?->role?->value
+            ]);
+            return response()->json([
+                'message' => 'Product not found'
+            ], 404);
+        }
+        
+        // Debug logging
+        \Log::info('Product deletion attempt', [
+            'product_id' => $product->id,
+            'product_name' => $product->name,
+            'user_id' => $user?->id,
+            'user_role' => $user?->role?->value
+        ]);
 
         // Only Admin can delete products (full permissions)
         if (!$user || $user->role->value !== 'admin') {
+            \Log::warning('Product deletion unauthorized', [
+                'product_id' => $product->id,
+                'user_id' => $user?->id,
+                'user_role' => $user?->role?->value
+            ]);
             return response()->json([
                 'message' => 'Unauthorized to delete products. Only Admin can delete products.'
             ], 403);
         }
 
-        // Delete associated images
-        if ($product->image_paths) {
-            foreach ($product->image_paths as $path) {
-                Storage::disk('public')->delete($path);
+        DB::beginTransaction();
+        try {
+            // Check for active reservations
+            $activeReservations = $product->reservations()->whereIn('status', ['pending', 'approved'])->count();
+            if ($activeReservations > 0) {
+                \Log::warning('Product deletion blocked - active reservations', [
+                    'product_id' => $product->id,
+                    'active_reservations' => $activeReservations
+                ]);
+                return response()->json([
+                    'message' => 'Cannot delete product with active reservations. Please cancel or complete all reservations first.',
+                    'active_reservations' => $activeReservations
+                ], 422);
             }
+
+            // Check for branch stock records
+            $branchStockCount = $product->branchStock()->count();
+            if ($branchStockCount > 0) {
+                // Delete all branch stock records first
+                $product->branchStock()->delete();
+                \Log::info('Branch stock records deleted', [
+                    'product_id' => $product->id,
+                    'branch_stock_count' => $branchStockCount
+                ]);
+            }
+
+            // Delete associated images
+            if ($product->image_paths) {
+                foreach ($product->image_paths as $path) {
+                    Storage::disk('public')->delete($path);
+                }
+                \Log::info('Product images deleted', [
+                    'product_id' => $product->id,
+                    'image_paths' => $product->image_paths
+                ]);
+            }
+
+            // Delete the product
+            $deleted = $product->delete();
+            \Log::info('Product deletion executed', [
+                'product_id' => $product->id,
+                'deleted' => $deleted
+            ]);
+
+            DB::commit();
+            \Log::info('Product deletion transaction committed', [
+                'product_id' => $product->id
+            ]);
+
+            return response()->json([
+                'message' => 'Product deleted successfully',
+                'deleted_branch_stock' => $branchStockCount
+            ]);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            \Log::error('Product deletion failed', [
+                'product_id' => $product->id,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            return response()->json([
+                'message' => 'Failed to delete product',
+                'error' => $e->getMessage()
+            ], 500);
         }
-
-        $product->delete();
-
-        return response()->json([
-            'message' => 'Product deleted successfully'
-        ]);
     }
 
     /**

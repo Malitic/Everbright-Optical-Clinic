@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Login Test - Everbright System</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-result { padding: 10px; margin: 10px 0; border-radius: 5px; }
+        .success { background-color: #d4edda; border: 1px solid #c3e6cb; }
+        .error { background-color: #f8d7da; border: 1px solid #f5c6cb; }
+        .info { background-color: #d1ecf1; border: 1px solid #bee5eb; }
+        button { padding: 10px 20px; margin: 5px; cursor: pointer; }
+        input { padding: 8px; margin: 5px; width: 200px; }
+    </style>
+</head>
+<body>
+    <h1>Everbright System - Login Test</h1>
+    
+    <div class="info">
+        <h3>Test Accounts:</h3>
+        <p><strong>Admin:</strong> admin@everbright.com / password</p>
+        <p><strong>Staff:</strong> staff@everbright.com / password</p>
+        <p><strong>Customer:</strong> customer@everbright.com / password</p>
+    </div>
+
+    <div>
+        <h3>Manual Login Test:</h3>
+        <input type="email" id="email" placeholder="Email" value="admin@everbright.com">
+        <input type="password" id="password" placeholder="Password" value="password">
+        <select id="role">
+            <option value="admin">Admin</option>
+            <option value="staff">Staff</option>
+            <option value="customer">Customer</option>
+        </select>
+        <button onclick="testLogin()">Test Login</button>
+    </div>
+
+    <div id="results"></div>
+
+    <script>
+        const testUrls = [
+            'http://127.0.0.1:8000/api/login',
+            'http://localhost:8000/api/login'
+        ];
+
+        async function testLogin() {
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            const role = document.getElementById('role').value;
+            
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.innerHTML = '<div class="info">Testing login...</div>';
+
+            for (const url of testUrls) {
+                try {
+                    const response = await fetch(url, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            email: email,
+                            password: password,
+                            role: role
+                        })
+                    });
+
+                    const data = await response.json();
+                    
+                    if (response.ok) {
+                        resultsDiv.innerHTML += `
+                            <div class="success">
+                                <strong>✅ Login Successful!</strong><br>
+                                URL: ${url}<br>
+                                User: ${data.user?.name} (${data.user?.role})<br>
+                                Token: ${data.token ? 'Received' : 'Missing'}
+                            </div>
+                        `;
+                    } else {
+                        resultsDiv.innerHTML += `
+                            <div class="error">
+                                <strong>❌ Login Failed</strong><br>
+                                URL: ${url}<br>
+                                Status: ${response.status}<br>
+                                Error: ${data.message || 'Unknown error'}
+                            </div>
+                        `;
+                    }
+                } catch (error) {
+                    resultsDiv.innerHTML += `
+                        <div class="error">
+                            <strong>❌ Connection Error</strong><br>
+                            URL: ${url}<br>
+                            Error: ${error.message}
+                        </div>
+                    `;
+                }
+            }
+        }
+
+        // Auto-test on page load
+        window.onload = function() {
+            setTimeout(testLogin, 1000);
+        };
+    </script>
+</body>
+</html>
+

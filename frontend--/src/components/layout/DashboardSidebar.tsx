@@ -21,7 +21,6 @@ import {
   Banknote,
   ScrollText,
   Receipt,
-  Palette,
 } from 'lucide-react';
 import { type ClassValue, clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
@@ -220,18 +219,6 @@ const getNavItems = (role: UserRole): NavItem[] => {
         href: '/admin/products',
         icon: ShoppingCart,
         description: 'Manage eye care products'
-      },
-      {
-        title: 'AI Image Analyzer',
-        href: '/admin/image-analyzer',
-        icon: Palette,
-        description: 'Analyze and categorize product images'
-      },
-      {
-        title: 'Patient Transactions',
-        href: '/admin/transactions',
-        icon: Receipt,
-        description: 'View all patient transactions and receipts'
       },
       {
         title: 'Employee Schedule Management',

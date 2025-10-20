@@ -89,16 +89,30 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const response = await apiLogin({ email, password, role });
       console.log('AuthContext: API response received:', response);
 
+      // Normalize role to a lowercase string for routing compatibility
+      const roleRaw: any = (response.user as any)?.role;
+      console.log('AuthContext: Raw role from API:', roleRaw, 'Type:', typeof roleRaw);
+      const normalizedRole = (typeof roleRaw === 'string' ? roleRaw : (roleRaw?.value ?? String(roleRaw || 'customer'))).toLowerCase();
+      console.log('AuthContext: Normalized role:', normalizedRole);
+      const normalizedUser: User = { ...(response.user as any), role: normalizedRole } as User;
+
       // Store auth data
       sessionStorage.setItem(TOKEN_KEY, response.token);
-      sessionStorage.setItem(CURRENT_USER_KEY, JSON.stringify(response.user));
+      sessionStorage.setItem(CURRENT_USER_KEY, JSON.stringify(normalizedUser));
       console.log('AuthContext: Auth data stored in sessionStorage');
 
-      console.log('AuthContext: Setting user state to:', response.user);
-      setUser(response.user);
+      console.log('AuthContext: Setting user state to:', normalizedUser);
+      setUser(normalizedUser);
       console.log('AuthContext: User state updated');
       
-      return response.user;
+      // Force a synchronous state update by calling setUser again
+      setTimeout(() => {
+        setUser(normalizedUser);
+        console.log('AuthContext: User state force updated');
+      }, 0);
+      
+      // Return normalized user so callers can rely on a simple role string
+      return normalizedUser;
     } catch (error: any) {
       console.error('AuthContext: Login error:', error);
       // Handle API errors
@@ -141,9 +155,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       // Only store auth data if a token is issued (customer). Pending roles get no token
       if (response.token) {
+        // Normalize role to a lowercase string
+        const roleRaw: any = (response.user as any)?.role;
+        const normalizedRole = (typeof roleRaw === 'string' ? roleRaw : (roleRaw?.value ?? String(roleRaw || 'customer'))).toLowerCase();
+        const normalizedUser: User = { ...(response.user as any), role: normalizedRole } as User;
+
         sessionStorage.setItem(TOKEN_KEY, response.token);
-        sessionStorage.setItem(CURRENT_USER_KEY, JSON.stringify(response.user));
-        setUser(response.user);
+        sessionStorage.setItem(CURRENT_USER_KEY, JSON.stringify(normalizedUser));
+        setUser(normalizedUser);
       }
     } catch (error: any) {
       // Handle API errors

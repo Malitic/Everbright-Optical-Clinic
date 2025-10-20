@@ -37,6 +37,15 @@ const DashboardLayout = () => {
 
   if (!user) return null;
 
+  const displayName = (user.name || user.email || '').toString();
+  const initials = displayName
+    .split(' ')
+    .filter(Boolean)
+    .map(n => n[0])
+    .join('')
+    .toUpperCase()
+    .slice(0, 2);
+
   return (
     <div className="min-h-screen bg-slate-50">
       {/* Header */}
@@ -59,9 +68,9 @@ const DashboardLayout = () => {
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" className="relative h-8 w-8 rounded-full">
                 <Avatar className="h-8 w-8">
-                  <AvatarImage src={user.avatar} alt={user.name} />
+                  <AvatarImage src={user.avatar} alt={displayName} />
                   <AvatarFallback>
-                    {user.name.split(' ').map(n => n[0]).join('')}
+                    {initials}
                   </AvatarFallback>
                 </Avatar>
               </Button>

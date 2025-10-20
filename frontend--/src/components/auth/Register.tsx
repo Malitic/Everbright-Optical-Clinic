@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { Eye, EyeOff, User, Lock, Mail, UserPlus } from 'lucide-react';
+import { Eye, EyeOff, User, Lock, Mail, UserPlus, HelpCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -57,6 +57,16 @@ const Register = () => {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
+      {/* Header with FAQ button */}
+      <div className="absolute top-4 right-4">
+        <Button variant="outline" asChild>
+          <Link to="/faq">
+            <HelpCircle className="h-4 w-4 mr-2" />
+            FAQ
+          </Link>
+        </Button>
+      </div>
+      
       <Card className="w-full max-w-sm shadow-sm border border-gray-200">
         <CardHeader className="text-center pb-6">
           <CardTitle className="text-xl font-semibold text-gray-900">Create Account</CardTitle>

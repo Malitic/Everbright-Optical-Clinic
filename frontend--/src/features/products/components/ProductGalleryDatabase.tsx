@@ -49,7 +49,20 @@ export const ProductGalleryDatabase: React.FC = () => {
     const intervalId = setInterval(() => {
       fetchProducts(true);
     }, 5000);
-    return () => clearInterval(intervalId);
+    
+    // Listen for product deletion events to refresh immediately
+    const handleProductDeletion = (event: CustomEvent) => {
+      console.log('Product deleted, refreshing database gallery:', event.detail.productId);
+      // Immediately refresh products to reflect deletion
+      fetchProducts(true);
+    };
+    
+    window.addEventListener('productDeleted', handleProductDeletion as EventListener);
+    
+    return () => {
+      clearInterval(intervalId);
+      window.removeEventListener('productDeleted', handleProductDeletion as EventListener);
+    };
   }, [role]);
 
   const fetchProducts = async (silent: boolean = false) => {

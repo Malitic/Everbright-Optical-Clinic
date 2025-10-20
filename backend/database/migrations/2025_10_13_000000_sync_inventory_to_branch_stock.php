@@ -82,40 +82,42 @@ return new class extends Migration
             echo "Synced " . $enhancedItems->count() . " items from enhanced_inventories to branch_stock\n";
         }
 
-        // Ensure all products with stock_quantity have corresponding branch_stock entries
-        $productsWithStock = DB::table('products')
-            ->where('is_active', true)
-            ->whereNotNull('branch_id')
-            ->get();
+        // Ensure all products have corresponding branch_stock entries (only if products.branch_id exists)
+        if (Schema::hasColumn('products', 'branch_id')) {
+            $productsWithStock = DB::table('products')
+                ->where('is_active', true)
+                ->whereNotNull('branch_id')
+                ->get();
 
-        foreach ($productsWithStock as $product) {
-            $existingStock = DB::table('branch_stock')
-                ->where('product_id', $product->id)
-                ->where('branch_id', $product->branch_id)
-                ->first();
+            foreach ($productsWithStock as $product) {
+                $existingStock = DB::table('branch_stock')
+                    ->where('product_id', $product->id)
+                    ->where('branch_id', $product->branch_id)
+                    ->first();
 
-            if (!$existingStock && $product->branch_id) {
-                $stockQuantity = $product->stock_quantity ?? 0;
-                $minThreshold = $product->min_stock_threshold ?? 5;
-                
-                DB::table('branch_stock')->insert([
-                    'product_id' => $product->id,
-                    'branch_id' => $product->branch_id,
-                    'stock_quantity' => $stockQuantity,
-                    'reserved_quantity' => 0,
-                    'status' => $stockQuantity > $minThreshold ? 'In Stock' : 
-                              ($stockQuantity > 0 ? 'Low Stock' : 'Out of Stock'),
-                    'min_stock_threshold' => $minThreshold,
-                    'auto_restock_enabled' => $product->auto_restock_enabled ?? false,
-                    'auto_restock_quantity' => $product->auto_restock_quantity,
-                    'expiry_date' => $product->expiry_date,
-                    'created_at' => $product->created_at,
-                    'updated_at' => now(),
-                ]);
+                if (!$existingStock && $product->branch_id) {
+                    $stockQuantity = $product->stock_quantity ?? 0;
+                    $minThreshold = $product->min_stock_threshold ?? 5;
+
+                    DB::table('branch_stock')->insert([
+                        'product_id' => $product->id,
+                        'branch_id' => $product->branch_id,
+                        'stock_quantity' => $stockQuantity,
+                        'reserved_quantity' => 0,
+                        'status' => $stockQuantity > $minThreshold ? 'In Stock' :
+                                  ($stockQuantity > 0 ? 'Low Stock' : 'Out of Stock'),
+                        'min_stock_threshold' => $minThreshold,
+                        'auto_restock_enabled' => $product->auto_restock_enabled ?? false,
+                        'auto_restock_quantity' => $product->auto_restock_quantity,
+                        'expiry_date' => $product->expiry_date,
+                        'created_at' => $product->created_at,
+                        'updated_at' => now(),
+                    ]);
+                }
             }
-        }
 
-        echo "Ensured all products have branch_stock entries\n";
+            echo "Ensured all products have branch_stock entries\n";
+        }
     }
 
     /**

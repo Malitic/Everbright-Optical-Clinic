@@ -49,6 +49,21 @@ export const ProductGallerySimple: React.FC = () => {
     if (role === 'customer') {
       loadReservations();
     }
+    
+    // Listen for product deletion events to clear cache
+    const handleProductDeletion = (event: CustomEvent) => {
+      console.log('Product deleted, clearing localStorage cache:', event.detail.productId);
+      // Clear the localStorage cache
+      localStorage.removeItem(PRODUCTS_STORAGE_KEY);
+      // Reload products from API
+      loadProducts();
+    };
+    
+    window.addEventListener('productDeleted', handleProductDeletion as EventListener);
+    
+    return () => {
+      window.removeEventListener('productDeleted', handleProductDeletion as EventListener);
+    };
   }, [role]);
 
   const loadProducts = () => {

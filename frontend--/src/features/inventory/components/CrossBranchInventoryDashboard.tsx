@@ -117,7 +117,7 @@ const CrossBranchInventoryDashboard: React.FC = () => {
 
       const response = await fetch('/api/inventory/realtime', {
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Authorization': `Bearer ${sessionStorage.getItem('auth_token')}`,
           'Content-Type': 'application/json',
         },
       });
@@ -140,7 +140,7 @@ const CrossBranchInventoryDashboard: React.FC = () => {
     try {
       const response = await fetch('/api/inventory/alerts', {
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Authorization': `Bearer ${sessionStorage.getItem('auth_token')}`,
           'Content-Type': 'application/json',
         },
       });
@@ -160,7 +160,7 @@ const CrossBranchInventoryDashboard: React.FC = () => {
     try {
       const response = await fetch('/api/inventory/stock-transfers', {
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Authorization': `Bearer ${sessionStorage.getItem('auth_token')}`,
           'Content-Type': 'application/json',
         },
       });

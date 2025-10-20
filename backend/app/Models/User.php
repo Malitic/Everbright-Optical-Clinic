@@ -28,6 +28,12 @@ class User extends Authenticatable
         'role',
         'branch_id',
         'is_approved',
+        'phone',
+        'social_media',
+        'address',
+        'date_of_birth',
+        'emergency_contact',
+        'emergency_phone',
     ];
 
     /**

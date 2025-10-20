@@ -61,13 +61,26 @@ const CategorizedProductGallery: React.FC = () => {
 
   useEffect(() => {
     fetchProducts();
+    
+    // Listen for product deletion events to refresh immediately
+    const handleProductDeletion = (event: CustomEvent) => {
+      console.log('Product deleted, refreshing categorized gallery:', event.detail.productId);
+      // Immediately refresh products to reflect deletion
+      fetchProducts();
+    };
+    
+    window.addEventListener('productDeleted', handleProductDeletion as EventListener);
+    
+    return () => {
+      window.removeEventListener('productDeleted', handleProductDeletion as EventListener);
+    };
   }, [selectedCategory, selectedBrand, sortBy]);
 
   const fetchCategories = async () => {
     try {
       const response = await fetch('/api/product-categories', {
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Authorization': `Bearer ${sessionStorage.getItem('auth_token')}`,
           'Content-Type': 'application/json',
         },
       });
@@ -92,7 +105,7 @@ const CategorizedProductGallery: React.FC = () => {
 
       const response = await fetch(`/api/products?${params}`, {
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Authorization': `Bearer ${sessionStorage.getItem('auth_token')}`,
           'Content-Type': 'application/json',
         },
       });

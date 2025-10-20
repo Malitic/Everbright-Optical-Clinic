@@ -28,6 +28,7 @@ import OptometristAnalytics from "@/features/analytics/components/OptometristAna
 import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
 import BookAppointmentPage from "./pages/BookAppointmentPage";
+import FAQ from "./pages/FAQ";
 
 // Customer Components
 import CustomerAppointments from "@/features/customer/components/CustomerAppointments";
@@ -59,7 +60,6 @@ import StaffCreateReceipt from "@/features/receipts/components/StaffCreateReceip
 // Admin Components
 import AdminStockManagement from "@/features/admin/components/AdminStockManagement";
 import AdminProductManagement from "@/features/admin/components/AdminProductManagement";
-import ImageAnalyzer from "@/features/admin/components/ImageAnalyzer";
 import { RealtimeProvider } from "@/contexts/RealtimeProvider";
 
 // Optometrist Components
@@ -97,6 +97,7 @@ const App = () => (
             <Route path="/" element={<Index />} />
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
+            <Route path="/faq" element={<FAQ />} />
 
             {/* Customer Routes */}
             <Route path="/customer" element={
@@ -179,7 +180,6 @@ const App = () => (
                   <AdminProductManagement />
                 </ErrorBoundary>
               } />
-              <Route path="image-analyzer" element={<ImageAnalyzer />} />
               <Route path="notifications" element={<NotificationCenter />} />
               <Route path="patients" element={<PatientManagement />} />
               <Route path="sales" element={<AnalyticsDashboard />} />
@@ -188,11 +188,7 @@ const App = () => (
               <Route path="profile" element={<UserProfile />} />
             </Route>
 
-            {/* Redirects */}
-            <Route path="/customer" element={<Navigate to="/customer/dashboard" replace />} />
-            <Route path="/optometrist" element={<Navigate to="/optometrist/dashboard" replace />} />
-            <Route path="/staff" element={<Navigate to="/staff/dashboard" replace />} />
-            <Route path="/admin" element={<Navigate to="/admin/dashboard" replace />} />
+            {/* Redirects - These are handled by the main route groups above */}
 
             {/* 404 Route */}
             <Route path="*" element={<NotFound />} />

@@ -13,6 +13,39 @@ use Carbon\Carbon;
 class OptometristController extends Controller
 {
     /**
+     * Get all optometrists (public endpoint for scheduling)
+     */
+    public function index(): JsonResponse
+    {
+        try {
+            $optometrists = User::where('role', 'optometrist')
+                ->where('is_approved', true)
+                ->select('id', 'name', 'email', 'phone')
+                ->get()
+                ->map(function ($optometrist) {
+                    return [
+                        'id' => $optometrist->id,
+                        'name' => $optometrist->name,
+                        'email' => $optometrist->email,
+                        'phone' => $optometrist->phone,
+                        'specialization' => 'General Optometry', // Default specialization
+                    ];
+                });
+
+            return response()->json([
+                'optometrists' => $optometrists,
+                'total' => $optometrists->count()
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'error' => 'Failed to fetch optometrists',
+                'message' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
      * Get all patients for the authenticated optometrist
      */
     public function getPatients(Request $request): JsonResponse

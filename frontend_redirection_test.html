@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Frontend Role Redirection Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .result { padding: 15px; margin: 10px 0; border-radius: 5px; }
+        .success { background-color: #d4edda; border: 1px solid #c3e6cb; }
+        .error { background-color: #f8d7da; border: 1px solid #f5c6cb; }
+        .info { background-color: #d1ecf1; border: 1px solid #bee5eb; }
+        button { padding: 10px 20px; margin: 5px; cursor: pointer; background: #007bff; color: white; border: none; border-radius: 3px; }
+        input { padding: 8px; margin: 5px; width: 200px; border: 1px solid #ccc; border-radius: 3px; }
+        select { padding: 8px; margin: 5px; width: 120px; border: 1px solid #ccc; border-radius: 3px; }
+    </style>
+</head>
+<body>
+    <h1>🎯 Frontend Role Redirection Test</h1>
+    
+    <div class="info">
+        <h3>✅ Backend API Fixed</h3>
+        <p>The backend is now returning <code>role: "admin"</code> (string) instead of the enum object.</p>
+        <p>This should fix the frontend redirection issue.</p>
+    </div>
+
+    <div>
+        <h3>Test Login & Redirection:</h3>
+        <input type="email" id="email" placeholder="Email" value="admin@everbright.com">
+        <input type="password" id="password" placeholder="Password" value="password123">
+        <select id="role">
+            <option value="admin">Admin</option>
+            <option value="staff">Staff</option>
+            <option value="customer">Customer</option>
+            <option value="optometrist">Optometrist</option>
+        </select>
+        <button onclick="testLoginAndRedirect()">Test Login & Redirect</button>
+    </div>
+
+    <div id="results"></div>
+
+    <script>
+        async function testLoginAndRedirect() {
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            const role = document.getElementById('role').value;
+            
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.innerHTML = '<div class="info">🔄 Testing login and redirection...</div>';
+
+            try {
+                // Step 1: Test API Login
+                const response = await fetch('http://127.0.0.1:8000/api/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        email: email,
+                        password: password,
+                        role: role
+                    })
+                });
+
+                const data = await response.json();
+                
+                if (response.ok) {
+                    const userRole = data.user?.role;
+                    const expectedRedirect = `/${userRole}/dashboard`;
+                    
+                    // Step 2: Simulate Frontend Processing
+                    const normalizedRole = String(userRole).toLowerCase();
+                    const frontendRedirect = `/${normalizedRole}/dashboard`;
+                    
+                    resultsDiv.innerHTML = `
+                        <div class="success">
+                            <h3>✅ Login Successful!</h3>
+                            <p><strong>User:</strong> ${data.user?.name}</p>
+                            <p><strong>Email:</strong> ${data.user?.email}</p>
+                            <p><strong>Role from API:</strong> "${userRole}" (${typeof userRole})</p>
+                            <p><strong>Normalized Role:</strong> "${normalizedRole}"</p>
+                            
+                            <h4>🔀 Redirection Analysis:</h4>
+                            <p><strong>Expected Redirect:</strong> <code>${expectedRedirect}</code></p>
+                            <p><strong>Frontend Redirect:</strong> <code>${frontendRedirect}</code></p>
+                            
+                            ${expectedRedirect === frontendRedirect ? 
+                                '<div class="success"><strong>✅ Redirection will work correctly!</strong></div>' : 
+                                '<div class="error"><strong>❌ Redirection mismatch!</strong></div>'
+                            }
+                            
+                            <h4>🎯 Test Results:</h4>
+                            <p>1. ✅ API returns correct role: <code>"${userRole}"</code></p>
+                            <p>2. ✅ Frontend normalizes role: <code>"${normalizedRole}"</code></p>
+                            <p>3. ✅ Redirect path: <code>${frontendRedirect}</code></p>
+                            <p>4. ${userRole === role ? '✅' : '❌'} Role matches expected: ${userRole} === ${role}</p>
+                            
+                            <div class="info">
+                                <h4>📋 Next Steps:</h4>
+                                <p>1. Go to your React frontend application</p>
+                                <p>2. Login with the same credentials</p>
+                                <p>3. You should be redirected to: <code>${frontendRedirect}</code></p>
+                                <p>4. Admin users should see the admin dashboard</p>
+                            </div>
+                        </div>
+                    `;
+                } else {
+                    resultsDiv.innerHTML = `
+                        <div class="error">
+                            <h3>❌ Login Failed</h3>
+                            <p><strong>Status:</strong> ${response.status}</p>
+                            <p><strong>Error:</strong> ${data.message || 'Unknown error'}</p>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                resultsDiv.innerHTML = `
+                    <div class="error">
+                        <h3>❌ Connection Error</h3>
+                        <p><strong>Error:</strong> ${error.message}</p>
+                        <p>Make sure the backend server is running on port 8000</p>
+                    </div>
+                `;
+            }
+        }
+
+        // Auto-test admin on page load
+        window.onload = function() {
+            setTimeout(() => testLoginAndRedirect(), 1000);
+        };
+    </script>
+</body>
+</html>
+

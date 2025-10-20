@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Enhanced ZIP Upload - Quick Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .status {
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 8px;
+            font-weight: bold;
+        }
+        .status.success { background-color: #d4edda; color: #155724; }
+        .status.error { background-color: #f8d7da; color: #721c24; }
+        .status.info { background-color: #d1ecf1; color: #0c5460; }
+        .link {
+            display: inline-block;
+            margin: 10px;
+            padding: 12px 24px;
+            background-color: #007bff;
+            color: white;
+            text-decoration: none;
+            border-radius: 6px;
+            font-weight: bold;
+        }
+        .link:hover { background-color: #0056b3; }
+        .link.admin { background-color: #28a745; }
+        .link.admin:hover { background-color: #218838; }
+        .test-section {
+            background-color: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+        .test-section h3 {
+            margin-top: 0;
+            color: #333;
+        }
+        .checklist {
+            list-style-type: none;
+            padding: 0;
+        }
+        .checklist li {
+            padding: 8px 0;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        .checklist li:before {
+            content: "✅ ";
+            margin-right: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚀 Enhanced ZIP Upload - Quick Test</h1>
+        
+        <div class="status info">
+            <strong>🔍 Testing Enhanced ZIP Upload Access</strong><br>
+            Let's verify that the Enhanced ZIP Upload page is working correctly.
+        </div>
+
+        <div class="test-section">
+            <h3>📋 Quick Access Test</h3>
+            <p>Click the links below to test different access methods:</p>
+            
+            <div style="text-align: center; margin: 20px 0;">
+                <a href="/admin/intelligent-upload" class="link admin">Enhanced ZIP Upload (Main)</a>
+                <a href="/admin/upload-timeout-fix" class="link">Timeout Fix Page</a>
+                <a href="/admin/dashboard" class="link">Admin Dashboard</a>
+            </div>
+        </div>
+
+        <div class="test-section">
+            <h3>✅ What Should Happen</h3>
+            <ul class="checklist">
+                <li>Enhanced ZIP Upload page loads without errors</li>
+                <li>File input field is visible and functional</li>
+                <li>Upload settings (price, stock, batch size) are editable</li>
+                <li>Auto-categorize and optimize images checkboxes work</li>
+                <li>Upload button is clickable when file is selected</li>
+                <li>Progress bar appears during upload</li>
+                <li>Results are displayed after upload completion</li>
+            </ul>
+        </div>
+
+        <div class="test-section">
+            <h3>🐛 Troubleshooting</h3>
+            <p><strong>If the page shows nothing or is blank:</strong></p>
+            <ul>
+                <li>Check browser console for JavaScript errors (F12 → Console)</li>
+                <li>Verify you're logged in as an admin user</li>
+                <li>Check if the backend server is running on port 8000</li>
+                <li>Try refreshing the page (Ctrl+F5)</li>
+                <li>Clear browser cache and try again</li>
+            </ul>
+            
+            <p><strong>If you get a 404 error:</strong></p>
+            <ul>
+                <li>Make sure you're accessing the correct URL</li>
+                <li>Check that the React app is running on port 5174</li>
+                <li>Verify the route is properly configured</li>
+            </ul>
+        </div>
+
+        <div class="status success">
+            <strong>💡 Quick Test Steps:</strong><br>
+            1. Click "Enhanced ZIP Upload (Main)" above<br>
+            2. If page loads → ✅ Working correctly<br>
+            3. If blank/error → Check console and try troubleshooting steps<br>
+            4. Test with a small ZIP file to verify functionality
+        </div>
+
+        <div style="text-align: center; margin-top: 30px;">
+            <h3>🔗 Direct Links</h3>
+            <p>Copy these URLs to test directly:</p>
+            <div style="background-color: #f8f9fa; padding: 15px; border-radius: 5px; font-family: monospace;">
+                <div>Main Upload: <a href="/admin/intelligent-upload">/admin/intelligent-upload</a></div>
+                <div>Timeout Fix: <a href="/admin/upload-timeout-fix">/admin/upload-timeout-fix</a></div>
+                <div>Admin Dashboard: <a href="/admin/dashboard">/admin/dashboard</a></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Check if we're on the right page
+        if (window.location.pathname.includes('/admin/intelligent-upload')) {
+            document.querySelector('.status.info').innerHTML = 
+                '🎉 <strong>You\'re Here!</strong> You\'ve successfully navigated to the Enhanced ZIP Upload page.';
+        }
+
+        // Add some interactive feedback
+        document.addEventListener('DOMContentLoaded', function() {
+            const links = document.querySelectorAll('.link');
+            links.forEach(link => {
+                link.addEventListener('click', function(e) {
+                    if (this.href.includes('/admin/intelligent-upload')) {
+                        console.log('Testing Enhanced ZIP Upload access...');
+                    }
+                });
+            });
+        });
+    </script>
+</body>
+</html>

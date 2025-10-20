@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Product Deletion Fix</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .test-section {
+            background: white;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .success { border-left: 4px solid #10b981; }
+        .info { border-left: 4px solid #3b82f6; }
+        .warning { border-left: 4px solid #f59e0b; }
+        .error { border-left: 4px solid #ef4444; }
+        h1 { color: #1f2937; }
+        h2 { color: #374151; margin-top: 0; }
+        code {
+            background: #f3f4f6;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+        }
+        ul { margin: 10px 0; }
+        li { margin: 5px 0; }
+        .test-steps {
+            background: #f8fafc;
+            padding: 15px;
+            border-radius: 6px;
+            margin: 10px 0;
+        }
+        .fix-section {
+            background: #fef3c7;
+            padding: 15px;
+            border-radius: 6px;
+            margin: 10px 0;
+        }
+        .checklist {
+            background: #ecfdf5;
+            padding: 15px;
+            border-radius: 6px;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔧 Product Deletion Fix</h1>
+    
+    <div class="test-section error">
+        <h2>❌ Problem Identified</h2>
+        <p><strong>Issue:</strong> Products cannot be deleted in admin panel</p>
+        <p><strong>Root Cause:</strong> Foreign key constraints preventing deletion due to related records</p>
+        
+        <h3>Database Constraints:</h3>
+        <ul>
+            <li><strong>branch_stock table:</strong> <code>product_id</code> → <code>products.id</code> (CASCADE DELETE)</li>
+            <li><strong>reservations table:</strong> <code>product_id</code> → <code>products.id</code> (CASCADE DELETE)</li>
+        </ul>
+        
+        <h3>Why Deletion Failed:</h3>
+        <ul>
+            <li>Products with active reservations cannot be deleted</li>
+            <li>Products with branch stock records need proper cleanup</li>
+            <li>No proper error handling for constraint violations</li>
+        </ul>
+    </div>
+
+    <div class="test-section success">
+        <h2>✅ Fixes Applied</h2>
+        
+        <div class="fix-section">
+            <h3>1. Backend ProductController Fixed</h3>
+            <p><strong>File:</strong> <code>backend/app/Http/Controllers/ProductController.php</code></p>
+            <p><strong>Changes:</strong></p>
+            <ul>
+                <li>✅ Added database transaction for safe deletion</li>
+                <li>✅ Check for active reservations before deletion</li>
+                <li>✅ Delete branch stock records first</li>
+                <li>✅ Proper error handling with rollback</li>
+                <li>✅ Informative error messages</li>
+            </ul>
+            
+            <h4>New Deletion Logic:</h4>
+            <pre><code>// Check for active reservations
+$activeReservations = $product->reservations()
+    ->whereIn('status', ['pending', 'approved'])->count();
+if ($activeReservations > 0) {
+    return error with message
+}
+
+// Delete branch stock records first
+$product->branchStock()->delete();
+
+// Delete product images
+// Delete the product
+$product->delete();</code></pre>
+        </div>
+
+        <div class="fix-section">
+            <h3>2. Frontend Error Handling Enhanced</h3>
+            <p><strong>File:</strong> <code>frontend--/src/features/admin/components/AdminProductManagement.tsx</code></p>
+            <p><strong>Changes:</strong></p>
+            <ul>
+                <li>✅ Better confirmation message</li>
+                <li>✅ Detailed error messages</li>
+                <li>✅ Show active reservation count</li>
+                <li>✅ Robust error handling</li>
+            </ul>
+        </div>
+    </div>
+
+    <div class="test-section info">
+        <h2>🧪 Testing Instructions</h2>
+        
+        <div class="test-steps">
+            <h3>Test 1: Delete Product Without Reservations</h3>
+            <ol>
+                <li>Login as admin</li>
+                <li>Go to Product Gallery Management</li>
+                <li>Find a product with no active reservations</li>
+                <li>Click the delete button (trash icon)</li>
+                <li>Confirm deletion</li>
+                <li><strong>Expected:</strong> Product deleted successfully</li>
+            </ol>
+        </div>
+
+        <div class="test-steps">
+            <h3>Test 2: Delete Product With Active Reservations</h3>
+            <ol>
+                <li>Find a product that has active reservations</li>
+                <li>Try to delete it</li>
+                <li><strong>Expected:</strong> Error message: "Cannot delete product with active reservations"</li>
+                <li>Check that the product is still in the list</li>
+            </ol>
+        </div>
+
+        <div class="test-steps">
+            <h3>Test 3: Delete Product With Branch Stock</h3>
+            <ol>
+                <li>Find a product with branch stock records</li>
+                <li>Delete it (if no active reservations)</li>
+                <li><strong>Expected:</strong> Product deleted, branch stock records also deleted</li>
+                <li>Verify success message shows deleted branch stock count</li>
+            </ol>
+        </div>
+    </div>
+
+    <div class="test-section warning">
+        <h2>🔍 What to Look For</h2>
+        
+        <div class="checklist">
+            <h3>✅ Success Indicators:</h3>
+            <ul>
+                <li>Products without reservations delete successfully</li>
+                <li>Success toast notification appears</li>
+                <li>Product disappears from the list</li>
+                <li>Branch stock records are cleaned up</li>
+                <li>Product images are deleted from storage</li>
+            </ul>
+        </div>
+
+        <div class="checklist">
+            <h3>⚠️ Expected Error Messages:</h3>
+            <ul>
+                <li><strong>Active Reservations:</strong> "Cannot delete product with active reservations. Please cancel or complete all reservations first."</li>
+                <li><strong>Unauthorized:</strong> "Unauthorized to delete products. Only Admin can delete products."</li>
+                <li><strong>Database Error:</strong> "Failed to delete product" with error details</li>
+            </ul>
+        </div>
+    </div>
+
+    <div class="test-section info">
+        <h2>🔧 How to Handle Active Reservations</h2>
+        
+        <div class="test-steps">
+            <h3>Before Deleting Products:</h3>
+            <ol>
+                <li><strong>Check Reservations:</strong> Go to reservations management</li>
+                <li><strong>Cancel/Complete:</strong> Cancel pending reservations or mark approved ones as completed</li>
+                <li><strong>Then Delete:</strong> Once no active reservations, product can be deleted</li>
+            </ol>
+        </div>
+
+        <div class="test-steps">
+            <h3>Alternative: Soft Delete</h3>
+            <p>Instead of hard deletion, you can:</p>
+            <ul>
+                <li>Set <code>is_active = false</code> to hide from customers</li>
+                <li>Set <code>approval_status = 'rejected'</code></li>
+                <li>Keep the product for historical records</li>
+            </ul>
+        </div>
+    </div>
+
+    <div class="test-section success">
+        <h2>📊 Expected Results</h2>
+        <p>After applying the fixes:</p>
+        <ul>
+            <li><strong>✅ Clean Deletion:</strong> Products without reservations delete successfully</li>
+            <li><strong>✅ Protected Deletion:</strong> Products with reservations are protected</li>
+            <li><strong>✅ Clear Messages:</strong> Users understand why deletion failed</li>
+            <li><strong>✅ Data Integrity:</strong> No orphaned records or broken references</li>
+            <li><strong>✅ Safe Operations:</strong> Database transactions prevent partial deletions</li>
+        </ul>
+    </div>
+
+    <div class="test-section info">
+        <h2>🚀 Additional Features</h2>
+        
+        <div class="test-steps">
+            <h3>Future Enhancements:</h3>
+            <ul>
+                <li><strong>Bulk Delete:</strong> Delete multiple products at once</li>
+                <li><strong>Force Delete:</strong> Admin option to delete despite reservations</li>
+                <li><strong>Archive Mode:</strong> Soft delete with restore option</li>
+                <li><strong>Deletion Log:</strong> Track what was deleted and when</li>
+            </ul>
+        </div>
+    </div>
+
+    <div class="test-section success">
+        <h2>🎯 Summary</h2>
+        <p><strong>Problem:</strong> Foreign key constraints preventing product deletion</p>
+        <p><strong>Solution:</strong> Proper constraint handling + transaction safety</p>
+        <p><strong>Status:</strong> ✅ FIXED - Ready for testing</p>
+        <p><strong>Impact:</strong> Safe product deletion with data integrity</p>
+    </div>
+</body>
+</html>

@@ -2,15 +2,36 @@ import axios from 'axios';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api';
 
-// Include auth token if present
-axios.interceptors.request.use((config) => {
-  const token = localStorage.getItem('token');
+// Create axios instance with default config
+const api = axios.create({
+  baseURL: API_BASE_URL,
+  headers: {
+    'Content-Type': 'application/json',
+    'Accept': 'application/json',
+  },
+});
+
+// Add request interceptor to include auth token
+api.interceptors.request.use((config) => {
+  const token = sessionStorage.getItem('auth_token');
   if (token) {
-    config.headers = config.headers || {};
     config.headers.Authorization = `Bearer ${token}`;
   }
   return config;
 });
+
+// Add response interceptor for error handling
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401) {
+      sessionStorage.removeItem('auth_token');
+      sessionStorage.removeItem('user');
+      window.location.href = '/login';
+    }
+    return Promise.reject(error);
+  }
+);
 
 // Types for Analytics Data
 export interface CustomerAnalytics {
@@ -190,7 +211,7 @@ class AnalyticsApiService {
     if (filters.start_date) params.append('start_date', filters.start_date);
     if (filters.end_date) params.append('end_date', filters.end_date);
 
-    const response = await axios.get(`${API_BASE_URL}/customers/${customerId}/analytics?${params}`);
+    const response = await api.get(`${API_BASE_URL}/customers/${customerId}/analytics?${params}`);
     return response.data;
   }
 
@@ -203,7 +224,7 @@ class AnalyticsApiService {
     if (filters.start_date) params.append('start_date', filters.start_date);
     if (filters.end_date) params.append('end_date', filters.end_date);
 
-    const response = await axios.get(`${API_BASE_URL}/optometrists/${optometristId}/analytics?${params}`);
+    const response = await api.get(`${API_BASE_URL}/optometrists/${optometristId}/analytics?${params}`);
     return response.data;
   }
 
@@ -219,13 +240,13 @@ class AnalyticsApiService {
     if (filters.branch_id) params.append('branch_id', filters.branch_id.toString());
 
     try {
-      const response = await axios.get(`${API_BASE_URL}/admin/analytics?${params}`);
+      const response = await api.get(`${API_BASE_URL}/admin/analytics?${params}`);
       return response.data;
     } catch (error) {
       console.error('Error fetching admin analytics:', error);
       // Return default values to prevent crashes
       return {
-        period: { days: '30', start_date: '', end_date: '' },
+        period: { days: 30, start_date: '', end_date: '' },
         branch_performance: [],
         optometrist_workload: [],
         staff_activity: [],
@@ -262,7 +283,7 @@ class AnalyticsApiService {
     };
   }> {
     try {
-      const response = await axios.get(`${API_BASE_URL}/analytics/realtime`);
+      const response = await api.get(`${API_BASE_URL}/analytics/realtime`);
       return response.data;
     } catch (error) {
       console.error('Error fetching real-time analytics:', error);
@@ -293,7 +314,7 @@ class AnalyticsApiService {
     if (filters.branch_id) params.append('branch_id', filters.branch_id.toString());
 
     try {
-      const response = await axios.get(`${API_BASE_URL}/analytics/trends?${params}`);
+      const response = await api.get(`${API_BASE_URL}/analytics/trends?${params}`);
       return response.data;
     } catch (error) {
       console.error('Error fetching analytics trends:', error);
@@ -323,7 +344,7 @@ class AnalyticsApiService {
     if (filters.end_date) params.append('end_date', filters.end_date);
     if (filters.branch_id) params.append('branch_id', filters.branch_id.toString());
 
-    const response = await axios.get(`${API_BASE_URL}/analytics/export?${params}`, {
+    const response = await api.get(`${API_BASE_URL}/analytics/export?${params}`, {
       responseType: 'blob',
     });
     return response.data;

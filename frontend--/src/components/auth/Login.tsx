@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { User, Mail, Lock, Eye, EyeOff } from 'lucide-react';
+import { User, Mail, Lock, Eye, EyeOff, HelpCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -15,7 +15,7 @@ const Login = () => {
   const [role, setRole] = useState<'customer' | 'staff' | 'admin' | 'optometrist'>('customer');
   const [isLoading, setIsLoading] = useState(false);
 
-  const { login } = useAuth();
+  const { login, user } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -26,28 +26,31 @@ const Login = () => {
     try {
       console.log('Starting login with:', { email, password, role });
       const loggedIn = await login(email, password, role);
-      console.log('Login response:', loggedIn);
+      console.log('Login response (normalized):', loggedIn);
       
-      const roleName = (loggedIn as any)?.role ?? role;
-      console.log('Role name:', roleName);
+      // Use normalized role from login response - prioritize the role from loggedIn user
+      const roleFromResponse = (loggedIn as any)?.role;
+      const roleName = roleFromResponse ? String(roleFromResponse).toLowerCase() : String(role).toLowerCase();
+      console.log('Role from API response:', roleFromResponse);
+      console.log('Selected role in form:', role);
+      console.log('Final role name:', roleName);
 
       toast({
         title: "Login successful",
         description: `Welcome back! Redirecting to your ${roleName} dashboard.`,
       });
 
-      // Fallback to stored user if needed
-      const stored = sessionStorage.getItem('auth_current_user');
-      console.log('Stored user:', stored);
-      const destRole = roleName || (stored ? (JSON.parse(stored).role || 'customer') : 'customer');
+      // Use the role from the successful login response
+      const destRole = roleName;
       console.log('Destination role:', destRole);
       console.log('Navigating to:', `/${destRole}/dashboard`);
       
-      // Add a small delay to ensure state is updated
+      // Wait for the user state to be updated, then navigate
+      console.log('Waiting for user state update...');
       setTimeout(() => {
-        console.log('Executing navigation after delay');
-        navigate(`/${destRole}/dashboard`);
-      }, 100);
+        console.log('Executing delayed navigation to:', `/${destRole}/dashboard`);
+        navigate(`/${destRole}/dashboard`, { replace: true });
+      }, 500);
     } catch (error: any) {
       console.error('Login error:', error);
       const apiMsg = error?.response?.data?.message;
@@ -63,8 +66,28 @@ const Login = () => {
     }
   };
 
+  // Redirect to dashboard if user is already logged in
+  useEffect(() => {
+    if (user && window.location.pathname === '/login') {
+      const roleStr = String(user.role).toLowerCase();
+      console.log('Login useEffect: User already logged in, user role:', user.role);
+      console.log('Login useEffect: Redirecting to:', `/${roleStr}/dashboard`);
+      navigate(`/${roleStr}/dashboard`, { replace: true });
+    }
+  }, [user, navigate]);
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
+      {/* Header with FAQ button */}
+      <div className="absolute top-4 right-4">
+        <Button variant="outline" asChild>
+          <Link to="/faq">
+            <HelpCircle className="h-4 w-4 mr-2" />
+            FAQ
+          </Link>
+        </Button>
+      </div>
+      
       <Card className="w-full max-w-sm shadow-sm border border-gray-200">
         <CardHeader className="text-center pb-6">
           <CardTitle className="text-xl font-semibold text-gray-900">Sign In</CardTitle>

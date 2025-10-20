@@ -2,9 +2,9 @@ import axios from 'axios';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
 
-// Include auth token if present
+// Include auth token if present (use sessionStorage for consistency)
 axios.interceptors.request.use((config) => {
-  const token = localStorage.getItem('token');
+  const token = sessionStorage.getItem('auth_token');
   if (token) {
     config.headers = config.headers || {};
     config.headers.Authorization = `Bearer ${token}`;
@@ -130,7 +130,9 @@ class InventoryApiService {
     if (filters.force_refresh) params.append('force_refresh', 'true');
 
     const response = await axios.get(`${API_BASE_URL}/inventory/enhanced?${params}`);
-    return response.data;
+    const data = response.data || {};
+    const inventory = (data.inventory ?? data.inventories) || [];
+    return { ...data, inventory };
   }
 
   /**
@@ -190,7 +192,7 @@ class InventoryApiService {
     };
     timestamp: string;
   }> {
-    const response = await axios.get(`${API_BASE_URL}/inventory/alerts`);
+    const response = await axios.get(`${API_BASE_URL}/inventory/low-stock-alerts`);
     return response.data;
   }
 
@@ -209,7 +211,7 @@ class InventoryApiService {
       difference: number;
     };
   }> {
-    const response = await axios.put(`${API_BASE_URL}/inventory/branch-stock/${branchStockId}/quantity`, updateData);
+    const response = await axios.put(`${API_BASE_URL}/branch-stock/${branchStockId}`, updateData);
     return response.data;
   }
 

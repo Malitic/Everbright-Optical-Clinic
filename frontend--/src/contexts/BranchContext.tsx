@@ -50,10 +50,13 @@ export const BranchProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   );
 };
 
-export const useBranch = () => {
+// Fix HMR compatibility by ensuring consistent exports
+const useBranch = () => {
   const context = useContext(BranchContext);
   if (context === undefined) {
     throw new Error('useBranch must be used within a BranchProvider');
   }
   return context;
 };
+
+export { useBranch };

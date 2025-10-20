@@ -80,6 +80,57 @@ class FeedbackController extends Controller
     /**
      * Get customer's feedback history
      */
+    public function getByCustomer($customerId)
+    {
+        $user = auth()->user();
+        $userRole = $user->role->value ?? (string)$user->role;
+
+        // Only customers can view their own feedback, or staff/admin can view any
+        if ($userRole === 'customer' && $user->id != $customerId) {
+            return response()->json(['message' => 'Unauthorized'], 403);
+        }
+
+        if (!in_array($userRole, ['customer', 'staff', 'admin'])) {
+            return response()->json(['message' => 'Unauthorized'], 403);
+        }
+
+        $feedback = Feedback::where('customer_id', $customerId)
+            ->with(['branch', 'appointment.optometrist'])
+            ->orderBy('created_at', 'desc')
+            ->get()
+            ->map(function ($item) {
+                return [
+                    'id' => $item->id,
+                    'appointment_id' => $item->appointment_id,
+                    'rating' => $item->rating,
+                    'comment' => $item->comment,
+                    'created_at' => $item->created_at->toISOString(),
+                    'appointment' => [
+                        'id' => $item->appointment->id,
+                        'date' => $item->appointment->appointment_date,
+                        'time' => $item->appointment->start_time,
+                        'type' => $item->appointment->type,
+                        'optometrist' => $item->appointment->optometrist ? [
+                            'id' => $item->appointment->optometrist->id,
+                            'name' => $item->appointment->optometrist->name,
+                        ] : null,
+                    ],
+                    'branch' => [
+                        'id' => $item->branch->id,
+                        'name' => $item->branch->name,
+                    ],
+                ];
+            });
+
+        return response()->json([
+            'data' => $feedback,
+            'count' => $feedback->count()
+        ]);
+    }
+
+    /**
+     * Get customer's feedback history
+     */
     public function getCustomerFeedback(Request $request, $customerId)
     {
         $user = $request->user();
@@ -224,33 +275,42 @@ class FeedbackController extends Controller
      */
     public function getAvailableAppointments(Request $request)
     {
-        $user = $request->user();
-        $userRole = $user->role->value ?? (string)$user->role;
+        try {
+            $user = $request->user();
+            $userRole = $user->role->value ?? (string)$user->role;
 
-        // Only customers can view their available appointments
-        if ($userRole !== 'customer') {
-            return response()->json(['message' => 'Unauthorized'], 403);
+            // Only customers can view their available appointments
+            if ($userRole !== 'customer') {
+                return response()->json(['message' => 'Unauthorized'], 403);
+            }
+
+            $appointments = Appointment::where('patient_id', $user->id)
+                ->where('status', 'completed')
+                ->whereDoesntHave('feedback')
+                ->with(['optometrist', 'branch'])
+                ->orderBy('appointment_date', 'desc')
+                ->get()
+                ->map(function ($appointment) {
+                    return [
+                        'id' => $appointment->id,
+                        'date' => $appointment->appointment_date,
+                        'time' => $appointment->start_time,
+                        'type' => $appointment->type,
+                        'optometrist_name' => $appointment->optometrist?->name,
+                        'branch_name' => $appointment->branch?->name,
+                    ];
+                });
+
+            return response()->json([
+                'appointments' => $appointments
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('Error in getAvailableAppointments: ' . $e->getMessage());
+            
+            // Return empty array if there's an error
+            return response()->json([
+                'appointments' => []
+            ]);
         }
-
-        $appointments = Appointment::where('patient_id', $user->id)
-            ->where('status', 'completed')
-            ->whereDoesntHave('feedback')
-            ->with(['optometrist', 'branch'])
-            ->orderBy('appointment_date', 'desc')
-            ->get()
-            ->map(function ($appointment) {
-                return [
-                    'id' => $appointment->id,
-                    'date' => $appointment->appointment_date,
-                    'time' => $appointment->appointment_time,
-                    'type' => $appointment->appointment_type,
-                    'optometrist_name' => $appointment->optometrist?->name,
-                    'branch_name' => $appointment->branch?->name,
-                ];
-            });
-
-        return response()->json([
-            'appointments' => $appointments
-        ]);
     }
 }

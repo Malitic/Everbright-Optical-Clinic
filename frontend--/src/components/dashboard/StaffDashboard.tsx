@@ -20,31 +20,35 @@ const StaffDashboard = () => {
   const { appointments, loading: appointmentsLoading } = useAppointments();
   
   // Fetch inventory data
-  const { data: inventoryData, isLoading: inventoryLoading } = useQuery({
+  const { data: inventoryData, isLoading: inventoryLoading, error: inventoryError } = useQuery({
     queryKey: ['staff-inventory', user?.branch?.id],
     queryFn: async () => {
       if (!user?.branch?.id) return null;
       const response = await axios.get(`http://127.0.0.1:8000/api/enhanced-inventory/branch/${user.branch.id}`, {
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Authorization': `Bearer ${sessionStorage.getItem('auth_token')}`,
         },
       });
       return response.data;
     },
     enabled: !!user?.branch?.id,
+    retry: 3,
+    refetchInterval: 30000, // Refetch every 30 seconds
   });
 
   // Fetch reservations data
-  const { data: reservationsData, isLoading: reservationsLoading } = useQuery({
+  const { data: reservationsData, isLoading: reservationsLoading, error: reservationsError } = useQuery({
     queryKey: ['staff-reservations', user?.branch?.id],
     queryFn: async () => {
       const response = await axios.get('http://127.0.0.1:8000/api/reservations', {
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Authorization': `Bearer ${sessionStorage.getItem('auth_token')}`,
         },
       });
       return response.data;
     },
+    retry: 3,
+    refetchInterval: 30000, // Refetch every 30 seconds
   });
 
   // Process today's appointments
@@ -145,10 +149,10 @@ const StaffDashboard = () => {
         
         <DashboardCard
           title="Inventory Items"
-          value={inventoryData?.inventories?.length || 0}
-          description="Items in stock"
+          value={inventoryError ? 'Error' : (inventoryData?.inventories?.length || 0)}
+          description={inventoryError ? 'Failed to load' : "Items in stock"}
           icon={Package}
-          trend={{ 
+          trend={inventoryError ? undefined : { 
             value: processedInventoryData.filter(item => item.status === 'low' || item.status === 'critical').length, 
             label: 'items need attention', 
             isPositive: false 
@@ -163,8 +167,8 @@ const StaffDashboard = () => {
         
         <DashboardCard
           title="Pending Reservations"
-          value={reservationsData?.filter((r: any) => r.status === 'pending').length || 0}
-          description="Awaiting approval"
+          value={reservationsError ? 'Error' : (reservationsData?.filter((r: any) => r.status === 'pending').length || 0)}
+          description={reservationsError ? 'Failed to load' : "Awaiting approval"}
           icon={Users}
           action={{
             label: 'View All',
@@ -181,7 +185,62 @@ const StaffDashboard = () => {
           icon={FileText}
           action={{
             label: 'Create Receipts',
-            onClick: () => navigate('/staff/appointments'),
+            onClick: () => navigate('/staff/reservations'),
+            variant: 'staff'
+          }}
+          gradient
+        />
+      </div>
+
+      {/* Additional Quick Access Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <DashboardCard
+          title="Patient Management"
+          value="Manage"
+          description="View and update patient records"
+          icon={Users}
+          action={{
+            label: 'View Patients',
+            onClick: () => navigate('/staff/patients'),
+            variant: 'staff'
+          }}
+          gradient
+        />
+
+        <DashboardCard
+          title="Notifications"
+          value="Send"
+          description="Communicate with patients"
+          icon={Clock}
+          action={{
+            label: 'Send Notifications',
+            onClick: () => navigate('/staff/notifications'),
+            variant: 'staff'
+          }}
+          gradient
+        />
+
+        <DashboardCard
+          title="Restock Requests"
+          value="Manage"
+          description="Handle inventory requests"
+          icon={Package}
+          action={{
+            label: 'View Requests',
+            onClick: () => navigate('/staff/restock-requests'),
+            variant: 'staff'
+          }}
+          gradient
+        />
+
+        <DashboardCard
+          title="Profile & Settings"
+          value="Manage"
+          description="Update your profile and branch info"
+          icon={Users}
+          action={{
+            label: 'View Profile',
+            onClick: () => navigate('/staff/profile'),
             variant: 'staff'
           }}
           gradient

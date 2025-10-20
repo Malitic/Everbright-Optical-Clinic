@@ -22,6 +22,22 @@ const ProductGallery: React.FC = () => {
       options: p.options || { prescription: false },
     }));
     setProducts(migratedProducts);
+    
+    // Listen for product deletion events to clear cache
+    const handleProductDeletion = (event: CustomEvent) => {
+      console.log('Product deleted, clearing storage cache:', event.detail.productId);
+      // Clear the storage cache
+      storage.clearAll();
+      // Reload products from storage (which will be empty, forcing API fetch)
+      const clearedProducts = storage.getProducts();
+      setProducts(clearedProducts);
+    };
+    
+    window.addEventListener('productDeleted', handleProductDeletion as EventListener);
+    
+    return () => {
+      window.removeEventListener('productDeleted', handleProductDeletion as EventListener);
+    };
   }, []);
 
   const handleProductClick = (productId: string) => {

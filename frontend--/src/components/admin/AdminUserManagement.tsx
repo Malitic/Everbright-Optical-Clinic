@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Users, Search, Plus, Edit, Eye, Trash2, Building2, UserCheck } from 'lucide-react';
+import { Users, Search, Plus, Edit, Eye, Trash2, Building2, UserCheck, CheckSquare, Square } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -35,6 +35,9 @@ const AdminUserManagement: React.FC = () => {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedUsers, setSelectedUsers] = useState<Set<number>>(new Set());
+  const [isAllSelected, setIsAllSelected] = useState(false);
+  const [deletedUserIds, setDeletedUserIds] = useState<Set<number>>(new Set());
 
   // Fetch branches
   const { data: branches = [] } = useQuery({
@@ -63,7 +66,7 @@ const AdminUserManagement: React.FC = () => {
       const token = sessionStorage.getItem('auth_token');
       console.log('Fetching users with token:', token ? 'Present' : 'Missing');
       
-      const response = await fetch('http://localhost:8000/api/admin/users', {
+      const response = await fetch('http://192.168.100.6:8000/api/admin/users', {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Accept': 'application/json',
@@ -80,7 +83,11 @@ const AdminUserManagement: React.FC = () => {
 
       const data = await response.json();
       console.log('Users data received:', data);
-      setUsers(data.data || []);
+      const allUsers = data.data || [];
+      
+      // Filter out deleted users to prevent them from reappearing
+      const filteredUsers = allUsers.filter((user: User) => !deletedUserIds.has(user.id));
+      setUsers(filteredUsers);
     } catch (error) {
       console.error('Error fetching users:', error);
       toast({
@@ -115,7 +122,7 @@ const AdminUserManagement: React.FC = () => {
       
       console.log('Creating user with data:', requestData);
       
-      const response = await fetch('http://localhost:8000/api/admin/users', {
+      const response = await fetch('http://192.168.100.6:8000/api/admin/users', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -187,7 +194,7 @@ const AdminUserManagement: React.FC = () => {
       
       console.log('Updating user with data:', requestData);
       
-      const response = await fetch(`http://localhost:8000/api/admin/users/${selectedUser.id}`, {
+      const response = await fetch(`http://192.168.100.6:8000/api/admin/users/${selectedUser.id}`, {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -235,7 +242,7 @@ const AdminUserManagement: React.FC = () => {
       console.log('Deleting user ID:', userId);
       console.log('Auth token present:', token ? 'Yes' : 'No');
       
-      const response = await fetch(`http://localhost:8000/api/admin/users/${userId}`, {
+      const response = await fetch(`http://192.168.100.6:8000/api/admin/users/${userId}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -254,12 +261,20 @@ const AdminUserManagement: React.FC = () => {
 
       const result = await response.json();
       console.log('User deleted successfully:', result);
+      
+      // Add to deleted users set to prevent reappearing
+      setDeletedUserIds(prev => new Set([...prev, userId]));
+      
+      // Immediately remove the user from the local state
+      setUsers(prevUsers => prevUsers.filter(user => user.id !== userId));
+      
       toast({
         title: "Success",
         description: "User deleted successfully",
       });
 
-      fetchUsers();
+      // Don't call fetchUsers() as it might override the immediate update
+      // The immediate state update is sufficient for good UX
     } catch (error: any) {
       console.error('Error deleting user:', error);
       toast({
@@ -316,6 +331,143 @@ const AdminUserManagement: React.FC = () => {
     user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
     user.role.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  // Update select all state when filtered users change
+  useEffect(() => {
+    setIsAllSelected(selectedUsers.size === filteredUsers.length && filteredUsers.length > 0);
+  }, [selectedUsers, filteredUsers]);
+
+  // Handle individual user selection
+  const handleUserSelect = (userId: number) => {
+    const newSelected = new Set(selectedUsers);
+    if (newSelected.has(userId)) {
+      newSelected.delete(userId);
+    } else {
+      newSelected.add(userId);
+    }
+    setSelectedUsers(newSelected);
+    setIsAllSelected(newSelected.size === filteredUsers.length && filteredUsers.length > 0);
+  };
+
+  // Handle select all functionality
+  const handleSelectAll = () => {
+    if (isAllSelected) {
+      setSelectedUsers(new Set());
+      setIsAllSelected(false);
+    } else {
+      const allUserIds = new Set(filteredUsers.map(user => user.id));
+      setSelectedUsers(allUserIds);
+      setIsAllSelected(true);
+    }
+  };
+
+  // Bulk delete selected users
+  const handleBulkDelete = async () => {
+    if (selectedUsers.size === 0) {
+      toast({
+        title: "No users selected",
+        description: "Please select users to delete.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!confirm(`Are you sure you want to delete ${selectedUsers.size} user(s)? This action cannot be undone.`)) {
+      return;
+    }
+
+    try {
+      const token = sessionStorage.getItem('auth_token');
+      const deletePromises = Array.from(selectedUsers).map(userId =>
+        fetch(`http://192.168.100.6:8000/api/admin/users/${userId}`, {
+          method: 'DELETE',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Accept': 'application/json',
+          },
+        })
+      );
+
+      const results = await Promise.all(deletePromises);
+      const failed = results.filter(result => !result.ok);
+      
+      if (failed.length > 0) {
+        throw new Error(`Failed to delete ${failed.length} user(s)`);
+      }
+
+      // Add to deleted users set to prevent reappearing
+      setDeletedUserIds(prev => new Set([...prev, ...selectedUsers]));
+      
+      // Immediately remove deleted users from local state
+      setUsers(prevUsers => prevUsers.filter(user => !selectedUsers.has(user.id)));
+
+      toast({
+        title: "Success",
+        description: `Successfully deleted ${selectedUsers.size} user(s).`,
+      });
+
+      setSelectedUsers(new Set());
+      setIsAllSelected(false);
+      
+      // Don't call fetchUsers() as it might override the immediate update
+      // The immediate state update is sufficient for good UX
+    } catch (error) {
+      console.error('Error deleting users:', error);
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to delete users",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Bulk approve selected users
+  const handleBulkApprove = async () => {
+    if (selectedUsers.size === 0) {
+      toast({
+        title: "No users selected",
+        description: "Please select users to approve.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const token = sessionStorage.getItem('auth_token');
+      const approvePromises = Array.from(selectedUsers).map(userId =>
+        fetch(`http://192.168.100.6:8000/api/admin/users/${userId}/approve`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Accept': 'application/json',
+          },
+        })
+      );
+
+      const results = await Promise.all(approvePromises);
+      const failed = results.filter(result => !result.ok);
+      
+      if (failed.length > 0) {
+        throw new Error(`Failed to approve ${failed.length} user(s)`);
+      }
+
+      toast({
+        title: "Success",
+        description: `Successfully approved ${selectedUsers.size} user(s).`,
+      });
+
+      setSelectedUsers(new Set());
+      setIsAllSelected(false);
+      fetchUsers();
+    } catch (error) {
+      console.error('Error approving users:', error);
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to approve users",
+        variant: "destructive",
+      });
+    }
+  };
 
   if (loading) {
     return (
@@ -465,19 +617,59 @@ const AdminUserManagement: React.FC = () => {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="flex items-center space-x-2 mb-4">
-            <Search className="h-4 w-4 text-gray-400" />
-            <Input
-              placeholder="Search users..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="max-w-sm"
-            />
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center space-x-2">
+              <Search className="h-4 w-4 text-gray-400" />
+              <Input
+                placeholder="Search users..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="max-w-sm"
+              />
+            </div>
+            
+            {selectedUsers.size > 0 && (
+              <div className="flex items-center space-x-2">
+                <span className="text-sm text-gray-600">
+                  {selectedUsers.size} user(s) selected
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleBulkApprove}
+                  className="text-green-600 hover:text-green-700"
+                >
+                  <UserCheck className="h-4 w-4 mr-1" />
+                  Approve All
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleBulkDelete}
+                  className="text-red-600 hover:text-red-700"
+                >
+                  <Trash2 className="h-4 w-4 mr-1" />
+                  Delete All
+                </Button>
+              </div>
+            )}
           </div>
 
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-12">
+                  <button
+                    onClick={handleSelectAll}
+                    className="flex items-center justify-center w-4 h-4 rounded border border-gray-300 hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    {isAllSelected ? (
+                      <CheckSquare className="h-4 w-4 text-blue-600" />
+                    ) : (
+                      <Square className="h-4 w-4 text-gray-400" />
+                    )}
+                  </button>
+                </TableHead>
                 <TableHead>Name</TableHead>
                 <TableHead>Email</TableHead>
                 <TableHead>Role</TableHead>
@@ -489,7 +681,19 @@ const AdminUserManagement: React.FC = () => {
             </TableHeader>
             <TableBody>
               {filteredUsers.map((user) => (
-                <TableRow key={user.id}>
+                <TableRow key={user.id} className={selectedUsers.has(user.id) ? 'bg-blue-50' : ''}>
+                  <TableCell>
+                    <button
+                      onClick={() => handleUserSelect(user.id)}
+                      className="flex items-center justify-center w-4 h-4 rounded border border-gray-300 hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      {selectedUsers.has(user.id) ? (
+                        <CheckSquare className="h-4 w-4 text-blue-600" />
+                      ) : (
+                        <Square className="h-4 w-4 text-gray-400" />
+                      )}
+                    </button>
+                  </TableCell>
                   <TableCell className="font-medium">{user.name}</TableCell>
                   <TableCell>{user.email}</TableCell>
                   <TableCell>

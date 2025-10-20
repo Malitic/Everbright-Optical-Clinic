@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Eye, Users, Calendar, BarChart3, ArrowRight } from 'lucide-react';
+import { Eye, Users, Calendar, BarChart3, ArrowRight, HelpCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import everbrightBg from '@/assets/everbright-bg.png';
@@ -65,6 +65,12 @@ const Index = () => {
             <h1 className="text-2xl font-bold text-slate-900">Everbright Optical Clinic</h1>
           </div>
           <div className="flex space-x-4">
+            <Button variant="outline" asChild>
+              <Link to="/faq">
+                <HelpCircle className="h-4 w-4 mr-2" />
+                FAQ
+              </Link>
+            </Button>
             <Button variant="outline" asChild>
               <Link to="/register">Sign Up</Link>
             </Button>

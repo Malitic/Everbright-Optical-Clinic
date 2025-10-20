@@ -3,16 +3,16 @@
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AuthController;
-// use App\Http\Controllers\UserController; // Controller doesn't exist
 use App\Http\Controllers\BranchController;
 use App\Http\Controllers\ScheduleController;
 use App\Http\Controllers\AppointmentController;
 use App\Http\Controllers\PrescriptionController;
-// use App\Http\Controllers\InventoryController; // Controller does not exist
 use App\Http\Controllers\NotificationController;
+use App\Http\Controllers\EyewearReminderController;
 use App\Http\Controllers\ImageUploadController;
 use App\Http\Controllers\OptometristController;
 use App\Http\Controllers\ProductController;
+use App\Http\Controllers\ProductCategoryController;
 use App\Http\Controllers\PatientController;
 use App\Http\Controllers\AnalyticsController;
 use App\Http\Controllers\TransactionController;
@@ -26,7 +26,7 @@ use App\Http\Controllers\StockTransferController;
 use App\Http\Controllers\EnhancedInventoryController;
 use App\Http\Controllers\RealTimeInventoryController;
 use App\Http\Controllers\CrossBranchInventoryController;
-// use App\Http\Controllers\AdminProductController; // Controller does not exist
+use App\Http\Controllers\BranchContactController;
 
 /*
 |--------------------------------------------------------------------------
@@ -36,8 +36,7 @@ use App\Http\Controllers\CrossBranchInventoryController;
 
 // Test route to verify inventory data
 Route::get('/test-unitop-inventory', function() {
-    $branchStocks = \App\Models\BranchStock::where('branch_id', 2)
-        ->with(['product', 'branch'])
+    $branchStocks = \App\Models\BranchStock::with(['product', 'branch'])
         ->get();
     
     $lowStock = $branchStocks->filter(function($item) {
@@ -65,9 +64,11 @@ Route::get('/test-unitop-inventory', function() {
 });
 
 // Public routes
-Route::post('/register', [AuthController::class, 'register']);
-Route::post('/login', [AuthController::class, 'login']);
+Route::post('/register', [AuthController::class, 'register'])->middleware('rate.api:10,1');
+Route::post('/login', [AuthController::class, 'login'])->middleware('rate.api:10,1');
 Route::get('/branches/active', [BranchController::class, 'getActiveBranches']); // Public - for customers
+Route::get('/optometrists', [OptometristController::class, 'index']); // Public - for scheduling
+Route::get('/appointments/availability', [App\Http\Controllers\AppointmentAvailabilityController::class, 'getAvailability']); // Public - for scheduling
 
 // Protected routes
 Route::middleware('auth:sanctum')->group(function () {
@@ -92,6 +93,28 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/analytics/realtime', [AnalyticsController::class, 'getRealTimeAnalytics']);
     Route::get('/analytics/trends', [AnalyticsController::class, 'getAnalyticsTrends']);
     Route::post('/inventory/send-low-stock-alert', [EnhancedInventoryController::class, 'sendLowStockAlert']);
+    
+    // Realtime stream endpoint for Server-Sent Events
+    Route::get('/realtime/stream', function(Request $request) {
+        return response()->stream(function() {
+            echo "data: " . json_encode(['type' => 'connected', 'timestamp' => now()]) . "\n\n";
+            
+            // Keep connection alive for 30 seconds
+            $endTime = time() + 30;
+            while (time() < $endTime) {
+                echo "data: " . json_encode(['type' => 'heartbeat', 'timestamp' => now()]) . "\n\n";
+                ob_flush();
+                flush();
+                sleep(5);
+            }
+        }, 200, [
+            'Content-Type' => 'text/event-stream',
+            'Cache-Control' => 'no-cache',
+            'Connection' => 'keep-alive',
+            'Access-Control-Allow-Origin' => '*',
+            'Access-Control-Allow-Headers' => 'Cache-Control',
+        ]);
+    });
 
     // Branch Stock Routes
     Route::get('/branch-stock', [BranchStockController::class, 'index']);
@@ -100,125 +123,88 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::delete('/branch-stock/{branchStock}', [BranchStockController::class, 'destroy']);
     Route::get('/branch-stock/product/{productId}', [BranchStockController::class, 'getByProduct']);
     Route::get('/branch-stock/branch/{branchId}', [BranchStockController::class, 'getByBranch']);
+    
+    // Product stock by branch - specific endpoint for frontend calls
+    Route::get('/products/{product}/branches/{branch}/stock', [BranchStockController::class, 'getProductBranchStock']);
+    Route::put('/products/{product}/branches/{branch}/stock', [BranchStockController::class, 'updateStock']);
 
-    // Manufacturers
-    Route::get('/manufacturers-directory', function() {
-        return response()->json([
-            'manufacturers' => \App\Models\Manufacturer::all()
-        ]);
-    });
+    // Cross-branch availability
+    Route::get('/inventory/cross-branch-availability', [CrossBranchInventoryController::class, 'getCrossBranchAvailability']);
 
-    // Admin routes
-    Route::middleware('role:admin')->prefix('admin')->group(function () {
-        // User management routes
-        Route::get('/users', [AuthController::class, 'getAllUsers']);
-        Route::post('/users', [AuthController::class, 'createUser']);
-        Route::get('/users/{id}', [AuthController::class, 'getUserById']);
-        Route::put('/users/{id}', [AuthController::class, 'updateUser']);
-        Route::delete('/users/{id}', [AuthController::class, 'deleteUser']);
-        Route::post('/users/{id}/approve', [AuthController::class, 'approveUser']);
-        Route::post('/users/{id}/reject', [AuthController::class, 'rejectUser']);
-        
-        // Product management - Routes commented out due to missing AdminProductController
-        // Route::get('/products', [AdminProductController::class, 'index']);
-        // Route::post('/products/{product}/approve', [AdminProductController::class, 'approve']);
-        // Route::post('/products/{product}/reject', [AdminProductController::class, 'reject']);
-        
-        Route::get('/analytics/dashboard', [AnalyticsController::class, 'getDashboardStats']);
-        Route::get('/analytics/branch-performance', [AnalyticsController::class, 'getBranchPerformance']);
-        
-        // Additional analytics routes
-        Route::get('/analytics', [AnalyticsController::class, 'getAdminAnalytics']);
-        Route::get('/analytics/realtime', [AnalyticsController::class, 'getRealTimeAnalytics']);
-        Route::get('/analytics/trends', [AnalyticsController::class, 'getAnalyticsTrends']);
-        Route::get('/customers/{id}/analytics', [AnalyticsController::class, 'getCustomerAnalytics']);
-        Route::get('/optometrists/{id}/analytics', [AnalyticsController::class, 'getOptometristAnalytics']);
-        
-            // Feedback analytics
-            Route::get('/feedback/analytics', [FeedbackController::class, 'getAnalytics']);
-            
-            // Product analytics
-            Route::get('/products/analytics', [App\Http\Controllers\ProductAnalyticsController::class, 'getTopSellingProducts']);
-            Route::get('/products/category-analytics', [App\Http\Controllers\ProductAnalyticsController::class, 'getCategoryAnalytics']);
-            Route::get('/products/low-performing', [App\Http\Controllers\ProductAnalyticsController::class, 'getLowPerformingProducts']);
-            
-            // Revenue analytics
-            Route::get('/revenue/monthly-comparison', [App\Http\Controllers\RevenueAnalyticsController::class, 'getMonthlyComparison']);
-            Route::get('/revenue/by-service', [App\Http\Controllers\RevenueAnalyticsController::class, 'getRevenueByService']);
-    });
+    // Stock transfers
+    Route::post('/inventory/stock-transfer-request', [CrossBranchInventoryController::class, 'requestStockTransfer']);
+    Route::get('/inventory/stock-transfers', [CrossBranchInventoryController::class, 'getStockTransferHistory']);
 
-    // Optometrist routes
-    Route::middleware('role:optometrist')->prefix('optometrist')->group(function () {
-        Route::get('/appointments', [AppointmentController::class, 'getOptometristAppointments']);
-        Route::get('/appointments/today', [OptometristController::class, 'getTodayAppointments']);
-        Route::put('/appointments/{appointment}/complete', [AppointmentController::class, 'completeAppointment']);
-        Route::get('/patients', [OptometristController::class, 'getPatients']);
-        Route::get('/patients/{patient}', [OptometristController::class, 'getPatient']);
-        Route::get('/prescriptions', [OptometristController::class, 'getPrescriptions']);
-    });
+    // Real-time inventory routes
+    Route::get('/inventory/realtime', [RealTimeInventoryController::class, 'getRealTimeInventory']);
+    Route::post('/inventory/realtime/update', [RealTimeInventoryController::class, 'updateInventory']);
+    Route::get('/inventory/realtime/alerts', [RealTimeInventoryController::class, 'getInventoryAlerts']);
 
-    // Staff routes
-    Route::middleware('role:staff')->prefix('staff')->group(function () {
-        Route::get('/appointments', [AppointmentController::class, 'getStaffAppointments']);
-        Route::post('/restock-requests', [RestockRequestController::class, 'store']);
-        Route::get('/reservations', [ReservationController::class, 'getStaffReservations']);
-        
-        // Staff products
-        // Routes commented out due to missing AdminProductController
-        // Route::get('/products', [AdminProductController::class, 'getStaffProducts']);
-        // Route::post('/products', [AdminProductController::class, 'storeStaffProduct']);
-        
-        // Staff analytics
-        Route::get('/analytics', [AnalyticsController::class, 'getStaffAnalytics']);
-    });
+    // Product routes
+    Route::get('/products', [ProductController::class, 'index']);
+    Route::post('/products', [ProductController::class, 'store']);
+    Route::get('/products/{product}', [ProductController::class, 'show']);
+    Route::put('/products/{product}', [ProductController::class, 'update']);
+    Route::delete('/products/{product}', [ProductController::class, 'destroy']);
+    Route::get('/products/search/{query}', [ProductController::class, 'search']);
 
-    // Customer routes
-    Route::middleware('role:customer')->prefix('customer')->group(function () {
-        Route::post('/reservations', [ReservationController::class, 'store']);
-        Route::get('/reservations', [ReservationController::class, 'getCustomerReservations']);
-    });
+    // Product categories
+    Route::get('/product-categories', [ProductCategoryController::class, 'index']);
+    Route::post('/product-categories', [ProductCategoryController::class, 'store']);
+    Route::get('/product-categories/{category}', [ProductCategoryController::class, 'show']);
+    Route::put('/product-categories/{category}', [ProductCategoryController::class, 'update']);
+    Route::delete('/product-categories/{category}', [ProductCategoryController::class, 'destroy']);
 
-    // Shared routes (multiple roles)
+    // Appointment routes
     Route::get('/appointments', [AppointmentController::class, 'index']);
     Route::post('/appointments', [AppointmentController::class, 'store']);
     Route::get('/appointments/{appointment}', [AppointmentController::class, 'show']);
     Route::put('/appointments/{appointment}', [AppointmentController::class, 'update']);
     Route::delete('/appointments/{appointment}', [AppointmentController::class, 'destroy']);
+    Route::get('/appointments/patient/{patientId}', [AppointmentController::class, 'getByPatient']);
+    Route::get('/appointments/optometrist/{optometristId}', [AppointmentController::class, 'getByOptometrist']);
+    Route::get('/appointments/branch/{branchId}', [AppointmentController::class, 'getByBranch']);
+    Route::post('/appointments/{appointment}/confirm', [AppointmentController::class, 'confirm']);
+    Route::post('/appointments/{appointment}/cancel', [AppointmentController::class, 'cancel']);
+    Route::post('/appointments/{appointment}/complete', [AppointmentController::class, 'complete']);
 
+    // Prescription routes
     Route::get('/prescriptions', [PrescriptionController::class, 'index']);
     Route::post('/prescriptions', [PrescriptionController::class, 'store']);
     Route::get('/prescriptions/{prescription}', [PrescriptionController::class, 'show']);
     Route::put('/prescriptions/{prescription}', [PrescriptionController::class, 'update']);
+    Route::delete('/prescriptions/{prescription}', [PrescriptionController::class, 'destroy']);
+    Route::get('/prescriptions/patient/{patientId}', [PrescriptionController::class, 'getByPatient']);
 
-    Route::get('/products', [ProductController::class, 'index']);
-    Route::post('/products', [ProductController::class, 'store']);
-    Route::get('/products/{id}', [ProductController::class, 'show']);
-    Route::post('/products/{id}', [ProductController::class, 'update']);
-    Route::delete('/products/{id}', [ProductController::class, 'destroy']);
-    Route::post('/products/{product}/toggle-status', [ProductController::class, 'toggleStatus']);
-
-    // Routes commented out due to missing InventoryController
-    // Route::get('/inventory', [InventoryController::class, 'index']);
-    // Route::post('/inventory', [InventoryController::class, 'store']);
-    // Route::get('/inventory/{inventory}', [InventoryController::class, 'show']);
-    // Route::put('/inventory/{inventory}', [InventoryController::class, 'update']);
-    // Route::delete('/inventory/{inventory}', [InventoryController::class, 'destroy']);
-
+    // Notification routes
     Route::get('/notifications', [NotificationController::class, 'index']);
-    Route::get('/notifications/unread-count', [NotificationController::class, 'getUnreadCount']);
-    Route::post('/notifications/{notification}/mark-read', [NotificationController::class, 'markAsRead']);
-    Route::post('/notifications/mark-all-read', [NotificationController::class, 'markAllAsRead']);
+    Route::post('/notifications/mark-read', [NotificationController::class, 'markAsRead']);
     Route::put('/notifications/mark-all-read', [NotificationController::class, 'markAllAsRead']);
+    Route::post('/notifications/eyewear-condition', [NotificationController::class, 'sendEyewearConditionNotification']);
+
+    // Eyewear reminder routes
+    Route::get('/eyewear/reminders', [EyewearReminderController::class, 'getReminders']);
+    Route::post('/eyewear/{id}/condition-form', [EyewearReminderController::class, 'submitConditionForm']);
+    Route::post('/eyewear/{id}/set-appointment', [EyewearReminderController::class, 'setAppointment']);
+
+    // Branch contact routes
+    Route::get('/branch-contacts', [BranchContactController::class, 'index']);
+    Route::get('/branch-contacts/{branchId}', [BranchContactController::class, 'show']);
+    Route::get('/branch-contacts/my-branch', [BranchContactController::class, 'getMyBranchContact']);
+    Route::post('/branch-contacts', [BranchContactController::class, 'store']);
+    Route::put('/branch-contacts/{id}', [BranchContactController::class, 'update']);
+    Route::delete('/branch-contacts/{id}', [BranchContactController::class, 'destroy']);
 
     Route::get('/schedules', [ScheduleController::class, 'index']);
     Route::get('/schedules/doctor/{doctorId}', [ScheduleController::class, 'getDoctorSchedule']);
     Route::get('/schedules/weekly', [ScheduleController::class, 'getWeeklySchedule']);
 
-    Route::get('/optometrists', [OptometristController::class, 'index']);
     Route::get('/patients', [PatientController::class, 'index']);
 
     Route::post('/upload/image', [ImageUploadController::class, 'uploadImage']);
     Route::post('/upload/images', [ImageUploadController::class, 'uploadMultiple']);
+    // Intelligent bulk upload from ZIP (AI analyzer)
+    Route::post('/intelligent-bulk-upload', [\App\Http\Controllers\IntelligentBulkUploadController::class, 'upload']);
 
     Route::get('/transactions', [TransactionController::class, 'index']);
     Route::post('/transactions', [TransactionController::class, 'store']);
@@ -226,23 +212,44 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/receipts', [ReceiptController::class, 'index']);
     Route::post('/receipts', [ReceiptController::class, 'store']);
     Route::get('/receipts/{receipt}', [ReceiptController::class, 'show']);
+    Route::get('/customers/{customerId}/receipts', [ReceiptController::class, 'getByCustomer']);
 
-    Route::post('/feedback', [FeedbackController::class, 'store']);
+    // Feedback routes
     Route::get('/feedback', [FeedbackController::class, 'index']);
+    Route::post('/feedback', [FeedbackController::class, 'store']);
+    Route::get('/feedback/{feedback}', [FeedbackController::class, 'show']);
+    Route::put('/feedback/{feedback}', [FeedbackController::class, 'update']);
+    Route::delete('/feedback/{feedback}', [FeedbackController::class, 'destroy']);
+    Route::get('/feedback/available-appointments', [FeedbackController::class, 'getAvailableAppointments']);
+    Route::get('/customers/{customerId}/feedback', [FeedbackController::class, 'getByCustomer']);
 
-    // Staff Schedule Management
+    // Staff schedule routes
     Route::get('/staff-schedules', [StaffScheduleController::class, 'index']);
     Route::post('/staff-schedules', [StaffScheduleController::class, 'store']);
+    Route::get('/staff-schedules/{schedule}', [StaffScheduleController::class, 'show']);
     Route::put('/staff-schedules/{schedule}', [StaffScheduleController::class, 'update']);
     Route::delete('/staff-schedules/{schedule}', [StaffScheduleController::class, 'destroy']);
-    Route::get('/staff-schedules/weekly', [StaffScheduleController::class, 'getWeeklySchedule']);
-    Route::post('/staff-schedules/change-requests', [StaffScheduleController::class, 'createChangeRequest']);
-    Route::get('/staff-schedules/change-requests', [StaffScheduleController::class, 'getChangeRequests']);
-    Route::put('/staff-schedules/change-requests/{request}', [StaffScheduleController::class, 'updateChangeRequest']);
 
-    // Reservations
+    // Restock request routes
+    Route::get('/restock-requests', [RestockRequestController::class, 'index']);
+    Route::post('/restock-requests', [RestockRequestController::class, 'store']);
+    Route::get('/restock-requests/{request}', [RestockRequestController::class, 'show']);
+    Route::put('/restock-requests/{request}', [RestockRequestController::class, 'update']);
+    Route::delete('/restock-requests/{request}', [RestockRequestController::class, 'destroy']);
+
+    // Reservation routes
     Route::get('/reservations', [ReservationController::class, 'index']);
-    Route::post('/reservations/{reservation}/confirm', [ReservationController::class, 'confirm']);
-    Route::post('/reservations/{reservation}/cancel', [ReservationController::class, 'cancel']);
-    Route::post('/reservations/{reservation}/complete', [ReservationController::class, 'complete']);
+    Route::post('/reservations', [ReservationController::class, 'store']);
+    Route::get('/reservations/{reservation}', [ReservationController::class, 'show']);
+    Route::put('/reservations/{reservation}', [ReservationController::class, 'update']);
+    Route::delete('/reservations/{reservation}', [ReservationController::class, 'destroy']);
+
+    // Test route for contact API
+    Route::get('/test-contact', function() {
+        return response()->json([
+            'message' => 'Contact API is working',
+            'timestamp' => now(),
+            'user' => auth()->user() ? auth()->user()->name : 'Not authenticated'
+        ]);
+    });
 });

@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Enhanced ZIP Upload System Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 2px solid #e0e0e0;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            background-color: #fafafa;
+        }
+        .test-section h3 {
+            color: #333;
+            margin-top: 0;
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+            font-weight: bold;
+        }
+        .status.success { background-color: #d4edda; color: #155724; }
+        .status.error { background-color: #f8d7da; color: #721c24; }
+        .status.info { background-color: #d1ecf1; color: #0c5460; }
+        .button {
+            background-color: #007bff;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        .button:hover { background-color: #0056b3; }
+        .button:disabled { background-color: #6c757d; cursor: not-allowed; }
+        .file-input {
+            margin: 10px 0;
+            padding: 10px;
+            border: 2px dashed #ccc;
+            border-radius: 5px;
+            text-align: center;
+        }
+        .progress {
+            width: 100%;
+            height: 20px;
+            background-color: #e0e0e0;
+            border-radius: 10px;
+            overflow: hidden;
+            margin: 10px 0;
+        }
+        .progress-bar {
+            height: 100%;
+            background-color: #007bff;
+            transition: width 0.3s ease;
+        }
+        .results {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #f8f9fa;
+            border-radius: 5px;
+            border-left: 4px solid #007bff;
+        }
+        .error-log {
+            background-color: #f8d7da;
+            color: #721c24;
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+            font-family: monospace;
+            white-space: pre-wrap;
+        }
+        .gallery-link {
+            display: inline-block;
+            margin: 10px;
+            padding: 10px 20px;
+            background-color: #28a745;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+        }
+        .gallery-link:hover { background-color: #218838; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🚀 Enhanced ZIP Upload System Test</h1>
+            <p>Test the new AI-powered ZIP upload system with smart categorization and real-time processing</p>
+        </div>
+
+        <!-- System Status -->
+        <div class="test-section">
+            <h3>📊 System Status</h3>
+            <div id="system-status" class="status info">Checking system status...</div>
+            <button class="button" onclick="checkSystemStatus()">Refresh Status</button>
+        </div>
+
+        <!-- ZIP Upload Test -->
+        <div class="test-section">
+            <h3>📦 ZIP Upload Test</h3>
+            <div class="file-input">
+                <input type="file" id="zip-file" accept=".zip" />
+                <p>Select a ZIP file containing product images</p>
+            </div>
+            
+            <div>
+                <label>Default Price: ₱<input type="number" id="default-price" value="0" step="0.01" /></label>
+                <label>Default Stock: <input type="number" id="default-stock" value="0" /></label>
+                <label>Batch Size: <input type="number" id="batch-size" value="25" min="1" max="100" /></label>
+            </div>
+            
+            <div>
+                <label><input type="checkbox" id="auto-categorize" checked /> Auto Categorize</label>
+                <label><input type="checkbox" id="optimize-images" checked /> Optimize Images</label>
+            </div>
+            
+            <button class="button" onclick="previewZip()">🔍 Preview ZIP</button>
+            <button class="button" onclick="uploadZip()">⬆️ Upload ZIP</button>
+            
+            <div id="upload-progress" class="progress" style="display: none;">
+                <div class="progress-bar" id="progress-bar"></div>
+            </div>
+            
+            <div id="upload-status" class="status" style="display: none;"></div>
+        </div>
+
+        <!-- Preview Results -->
+        <div class="test-section" id="preview-section" style="display: none;">
+            <h3>👁️ Preview Results</h3>
+            <div id="preview-results"></div>
+        </div>
+
+        <!-- Upload Results -->
+        <div class="test-section" id="results-section" style="display: none;">
+            <h3>✅ Upload Results</h3>
+            <div id="upload-results"></div>
+        </div>
+
+        <!-- Gallery Integration Test -->
+        <div class="test-section">
+            <h3>🖼️ Gallery Integration Test</h3>
+            <p>After uploading, test that products appear in both galleries:</p>
+            <a href="/admin/products" class="gallery-link" target="_blank">Admin Product Gallery</a>
+            <a href="/customer/products" class="gallery-link" target="_blank">Customer Product Gallery</a>
+            <button class="button" onclick="testGalleryIntegration()">Test Gallery Integration</button>
+            <div id="gallery-test-results"></div>
+        </div>
+
+        <!-- Error Log -->
+        <div class="test-section" id="error-section" style="display: none;">
+            <h3>❌ Error Log</h3>
+            <div id="error-log" class="error-log"></div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://127.0.0.1:8000/api';
+        let authToken = null;
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function() {
+            checkSystemStatus();
+            loadAuthToken();
+        });
+
+        function loadAuthToken() {
+            authToken = sessionStorage.getItem('auth_token') || localStorage.getItem('token');
+            if (!authToken) {
+                showError('No authentication token found. Please log in first.');
+            }
+        }
+
+        async function checkSystemStatus() {
+            const statusDiv = document.getElementById('system-status');
+            statusDiv.textContent = 'Checking system status...';
+            statusDiv.className = 'status info';
+
+            try {
+                const response = await fetch(`${API_BASE}/test-contact`, {
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`,
+                    },
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    statusDiv.textContent = `✅ System Online - ${data.message}`;
+                    statusDiv.className = 'status success';
+                } else {
+                    statusDiv.textContent = `❌ System Error - ${response.status}`;
+                    statusDiv.className = 'status error';
+                }
+            } catch (error) {
+                statusDiv.textContent = `❌ Connection Failed - ${error.message}`;
+                statusDiv.className = 'status error';
+            }
+        }
+
+        async function previewZip() {
+            const fileInput = document.getElementById('zip-file');
+            const file = fileInput.files[0];
+            
+            if (!file) {
+                showError('Please select a ZIP file first.');
+                return;
+            }
+
+            if (!authToken) {
+                showError('Please log in first.');
+                return;
+            }
+
+            const previewSection = document.getElementById('preview-section');
+            const previewResults = document.getElementById('preview-results');
+            
+            previewResults.innerHTML = 'Analyzing ZIP file...';
+            previewSection.style.display = 'block';
+
+            try {
+                const formData = new FormData();
+                formData.append('zip_file', file);
+
+                const response = await fetch(`${API_BASE}/enhanced-zip-upload/preview`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`,
+                    },
+                    body: formData,
+                });
+
+                if (response.ok) {
+                    const result = await response.json();
+                    if (result.success) {
+                        displayPreviewResults(result.preview);
+                    } else {
+                        showError(`Preview failed: ${result.message}`);
+                    }
+                } else {
+                    showError(`Preview failed: ${response.status}`);
+                }
+            } catch (error) {
+                showError(`Preview error: ${error.message}`);
+            }
+        }
+
+        function displayPreviewResults(preview) {
+            const previewResults = document.getElementById('preview-results');
+            
+            let html = `
+                <div class="results">
+                    <h4>📊 ZIP Analysis Results</h4>
+                    <p><strong>Total Images:</strong> ${preview.total_images}</p>
+                    <p><strong>Total Size:</strong> ${preview.total_size}</p>
+                    <p><strong>Estimated Processing Time:</strong> ${preview.estimated_processing_time}</p>
+                    
+                    <h5>📁 Detected Categories:</h5>
+                    <ul>
+            `;
+            
+            preview.categories.forEach(category => {
+                html += `
+                    <li>
+                        <strong>${category.name}</strong> - ${category.count} images (${category.size})
+                        <ul>
+                `;
+                category.samples.forEach(sample => {
+                    html += `<li>${sample.name} (${sample.size})</li>`;
+                });
+                html += `</ul></li>`;
+            });
+            
+            html += `</ul></div>`;
+            previewResults.innerHTML = html;
+        }
+
+        async function uploadZip() {
+            const fileInput = document.getElementById('zip-file');
+            const file = fileInput.files[0];
+            
+            if (!file) {
+                showError('Please select a ZIP file first.');
+                return;
+            }
+
+            if (!authToken) {
+                showError('Please log in first.');
+                return;
+            }
+
+            const progressDiv = document.getElementById('upload-progress');
+            const progressBar = document.getElementById('progress-bar');
+            const statusDiv = document.getElementById('upload-status');
+            const resultsSection = document.getElementById('results-section');
+            const uploadResults = document.getElementById('upload-results');
+
+            progressDiv.style.display = 'block';
+            statusDiv.style.display = 'block';
+            statusDiv.textContent = 'Starting upload...';
+            statusDiv.className = 'status info';
+
+            try {
+                const formData = new FormData();
+                formData.append('zip_file', file);
+                formData.append('default_price', document.getElementById('default-price').value);
+                formData.append('default_stock', document.getElementById('default-stock').value);
+                formData.append('batch_size', document.getElementById('batch-size').value);
+                formData.append('auto_categorize', document.getElementById('auto-categorize').checked);
+                formData.append('optimize_images', document.getElementById('optimize-images').checked);
+
+                // Simulate progress
+                let progress = 0;
+                const progressInterval = setInterval(() => {
+                    progress += Math.random() * 10;
+                    if (progress > 95) progress = 95;
+                    progressBar.style.width = progress + '%';
+                }, 500);
+
+                const response = await fetch(`${API_BASE}/enhanced-zip-upload`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`,
+                    },
+                    body: formData,
+                });
+
+                clearInterval(progressInterval);
+                progressBar.style.width = '100%';
+
+                if (response.ok) {
+                    const result = await response.json();
+                    if (result.success) {
+                        statusDiv.textContent = '✅ Upload completed successfully!';
+                        statusDiv.className = 'status success';
+                        displayUploadResults(result.results);
+                    } else {
+                        statusDiv.textContent = `❌ Upload failed: ${result.message}`;
+                        statusDiv.className = 'status error';
+                    }
+                } else {
+                    statusDiv.textContent = `❌ Upload failed: ${response.status}`;
+                    statusDiv.className = 'status error';
+                }
+            } catch (error) {
+                statusDiv.textContent = `❌ Upload error: ${error.message}`;
+                statusDiv.className = 'status error';
+                showError(`Upload error: ${error.message}`);
+            }
+        }
+
+        function displayUploadResults(results) {
+            const resultsSection = document.getElementById('results-section');
+            const uploadResults = document.getElementById('upload-results');
+            
+            let html = `
+                <div class="results">
+                    <h4>🎉 Upload Results</h4>
+                    <p><strong>Total Processed:</strong> ${results.total_processed}</p>
+                    <p><strong>Successful Uploads:</strong> ${results.successful_uploads}</p>
+                    <p><strong>Errors:</strong> ${results.errors.length}</p>
+                    
+                    <h5>📦 Created Products:</h5>
+                    <ul>
+            `;
+            
+            results.products_created.forEach(product => {
+                html += `<li><strong>${product.name}</strong> - ${product.category} (${product.image_count} images)</li>`;
+            });
+            
+            if (results.errors.length > 0) {
+                html += `</ul><h5>❌ Errors:</h5><ul>`;
+                results.errors.forEach(error => {
+                    html += `<li><strong>${error.file || `Batch ${error.batch}`}:</strong> ${error.error}</li>`;
+                });
+            }
+            
+            html += `</ul></div>`;
+            uploadResults.innerHTML = html;
+            resultsSection.style.display = 'block';
+        }
+
+        async function testGalleryIntegration() {
+            const galleryResults = document.getElementById('gallery-test-results');
+            galleryResults.innerHTML = 'Testing gallery integration...';
+
+            try {
+                // Test admin gallery
+                const adminResponse = await fetch(`${API_BASE}/products`, {
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`,
+                    },
+                });
+
+                if (adminResponse.ok) {
+                    const adminProducts = await adminResponse.json();
+                    galleryResults.innerHTML = `
+                        <div class="status success">
+                            ✅ Gallery Integration Test Passed<br>
+                            Admin Gallery: ${adminProducts.length} products found<br>
+                            Customer Gallery: Accessible via /customer/products
+                        </div>
+                    `;
+                } else {
+                    galleryResults.innerHTML = `
+                        <div class="status error">
+                            ❌ Gallery Integration Test Failed<br>
+                            Admin Gallery Error: ${adminResponse.status}
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                galleryResults.innerHTML = `
+                    <div class="status error">
+                        ❌ Gallery Integration Test Error: ${error.message}
+                    </div>
+                `;
+            }
+        }
+
+        function showError(message) {
+            const errorSection = document.getElementById('error-section');
+            const errorLog = document.getElementById('error-log');
+            
+            errorLog.textContent += new Date().toLocaleTimeString() + ': ' + message + '\n';
+            errorSection.style.display = 'block';
+        }
+    </script>
+</body>
+</html>

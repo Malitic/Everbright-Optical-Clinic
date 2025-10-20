@@ -82,6 +82,79 @@ class ReceiptController extends Controller
     /**
      * Get receipts for a specific customer
      */
+    public function getByCustomer($customerId)
+    {
+        $user = Auth::user();
+
+        // Only customers can access their own receipts, or staff/admin can access any
+        if ($user->role->value === 'customer' && $user->id != $customerId) {
+            return response()->json(['message' => 'Unauthorized'], 403);
+        }
+
+        if (!in_array($user->role->value, ['customer', 'staff', 'admin', 'optometrist'])) {
+            return response()->json(['message' => 'Unauthorized'], 403);
+        }
+
+        $receipts = Receipt::with(['appointment.patient', 'appointment.optometrist', 'items'])
+            ->whereHas('appointment', function($query) use ($customerId) {
+                $query->where('patient_id', $customerId);
+            })
+            ->orderBy('created_at', 'desc')
+            ->get();
+
+        return response()->json([
+            'data' => $receipts->map(function($receipt) {
+                return [
+                    'id' => $receipt->id,
+                    'receipt_number' => str_pad($receipt->appointment_id, 4, '0', STR_PAD_LEFT),
+                    'customer_id' => $receipt->appointment->patient_id,
+                    'appointment_id' => $receipt->appointment_id,
+                    'subtotal' => $receipt->vatable_sales,
+                    'tax_amount' => $receipt->vat_amount,
+                    'total_amount' => $receipt->total_due,
+                    'payment_method' => $receipt->sales_type,
+                    'payment_status' => 'paid',
+                    'notes' => null,
+                    'items' => $receipt->items->map(function($item) {
+                        return [
+                            'description' => $item->description,
+                            'quantity' => $item->qty,
+                            'price' => $item->unit_price,
+                            'total' => $item->amount,
+                        ];
+                    }),
+                    'created_at' => $receipt->created_at->toISOString(),
+                    'updated_at' => $receipt->updated_at->toISOString(),
+                    'customer' => [
+                        'id' => $receipt->appointment->patient_id,
+                        'name' => $receipt->customer_name,
+                        'email' => $receipt->appointment->patient->email ?? '',
+                    ],
+                    'appointment' => [
+                        'id' => $receipt->appointment->id,
+                        'appointment_date' => $receipt->appointment->appointment_date,
+                        'start_time' => $receipt->appointment->start_time,
+                        'end_time' => $receipt->appointment->end_time,
+                        'type' => $receipt->appointment->type,
+                        'optometrist' => $receipt->appointment->optometrist ? [
+                            'id' => $receipt->appointment->optometrist->id,
+                            'name' => $receipt->appointment->optometrist->name,
+                        ] : null,
+                    ],
+                ];
+            }),
+            'pagination' => [
+                'current_page' => 1,
+                'last_page' => 1,
+                'per_page' => $receipts->count(),
+                'total' => $receipts->count(),
+            ]
+        ]);
+    }
+
+    /**
+     * Get receipts for a specific customer
+     */
     public function getCustomerReceipts($customerId)
     {
         $user = Auth::user();

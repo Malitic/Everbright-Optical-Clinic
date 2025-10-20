@@ -85,16 +85,12 @@ export const TransactionDashboard: React.FC = () => {
             <TabsList>
               <TabsTrigger value="analytics">Analytics</TabsTrigger>
               <TabsTrigger value="management">Transaction Management</TabsTrigger>
-              <TabsTrigger value="patients">Patient Transactions</TabsTrigger>
             </TabsList>
             <TabsContent value="analytics">
               <AdminTransactionAnalytics />
             </TabsContent>
             <TabsContent value="management">
               <StaffTransactionManagement />
-            </TabsContent>
-            <TabsContent value="patients">
-              <PatientTransactionList />
             </TabsContent>
           </Tabs>
         );

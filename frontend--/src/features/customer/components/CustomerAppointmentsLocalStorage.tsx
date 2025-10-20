@@ -11,6 +11,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Skeleton } from '@/components/ui/skeleton';
 import AppointmentBookingForm from '@/components/appointments/AppointmentBookingForm';
 import WeeklySchedule from '@/components/appointments/WeeklySchedule';
+import ContactModal from '@/components/contact/ContactModal';
 
 interface Appointment {
   id: string;
@@ -53,6 +54,7 @@ export const CustomerAppointmentsLocalStorage: React.FC = () => {
   const [optometrists, setOptometrists] = useState<Optometrist[]>([]);
   const [selectedAppointment, setSelectedAppointment] = useState<string | null>(null);
   const [showBookingForm, setShowBookingForm] = useState(false);
+  const [showContactModal, setShowContactModal] = useState(false);
   const [loading, setLoading] = useState(false);
 
   // Form state for booking
@@ -307,7 +309,7 @@ export const CustomerAppointmentsLocalStorage: React.FC = () => {
                 <Calendar className="w-4 h-4 mr-2" />
                 Book New Appointment
               </Button>
-              <Button variant="outline" className="w-full" size="sm">
+              <Button variant="outline" className="w-full" size="sm" onClick={() => setShowContactModal(true)}>
                 <Phone className="w-4 h-4 mr-2" />
                 Contact Support
               </Button>
@@ -358,6 +360,12 @@ export const CustomerAppointmentsLocalStorage: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Contact Modal */}
+      <ContactModal 
+        isOpen={showContactModal} 
+        onClose={() => setShowContactModal(false)} 
+      />
     </div>
   );
 };

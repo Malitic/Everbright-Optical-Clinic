@@ -7,6 +7,8 @@ import { getActiveBranches, Branch } from '@/services/branchApi';
 import { getProductAvailability } from '@/services/branchAnalyticsApi';
 import ReservationModal from './ReservationModal';
 import { getStorageUrl } from '../../../utils/imageUtils';
+import { RefreshCw } from 'lucide-react';
+import { shouldSkipRefresh, clearDeletionProtection } from '../../../utils/deletionProtection';
 
 interface ProductWithAvailability extends Product {
   // Product interface remains the same
@@ -42,6 +44,8 @@ const ProductGallery: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [typeFilter, setTypeFilter] = useState<'all' | 'frames' | 'contact_lenses' | 'eye_care' | 'sunglasses'>('all');
+  const [frameShape, setFrameShape] = useState<'all' | 'round' | 'square' | 'rectangle' | 'cat-eye' | 'aviator'>('all');
   const [selectedProduct, setSelectedProduct] = useState<ProductWithAvailability | null>(null);
   const [isReservationModalOpen, setIsReservationModalOpen] = useState<boolean>(false);
   const [selectedImageIndices, setSelectedImageIndices] = useState<{[productId: number]: number}>({});
@@ -109,9 +113,25 @@ const ProductGallery: React.FC = () => {
   useEffect(() => {
     fetchProducts(false);
     const intervalId = setInterval(() => {
-      fetchProducts(true);
+      // Only auto-refresh if no products have been deleted recently (to prevent reappearing)
+      if (!shouldSkipRefresh()) {
+        fetchProducts(true);
+      }
     }, 30000); // Reduced from 5 seconds to 30 seconds
-    return () => clearInterval(intervalId);
+    
+    // Listen for product deletion events to refresh immediately
+    const handleProductDeletion = (event: CustomEvent) => {
+      console.log('Product deleted, refreshing gallery:', event.detail.productId);
+      // Immediately refresh products to reflect deletion
+      fetchProducts(true);
+    };
+    
+    window.addEventListener('productDeleted', handleProductDeletion as EventListener);
+    
+    return () => {
+      clearInterval(intervalId);
+      window.removeEventListener('productDeleted', handleProductDeletion as EventListener);
+    };
   }, []);
 
   const fetchCategories = async () => {
@@ -152,7 +172,10 @@ const ProductGallery: React.FC = () => {
   // Handle search with longer debounce to reduce API calls
   useEffect(() => {
     const timeoutId = setTimeout(() => {
-      fetchProducts(true);
+      // Only refresh if no products have been deleted recently (to prevent reappearing)
+      if (!shouldSkipRefresh()) {
+        fetchProducts(true);
+      }
     }, 500); // Increased from 300ms to 500ms
     return () => clearTimeout(timeoutId);
   }, [searchQuery]);
@@ -167,10 +190,36 @@ const ProductGallery: React.FC = () => {
       
       const matchesCategory = selectedCategory === 'all' || 
         product.category_id?.toString() === selectedCategory;
+
+      // Derive normalized category name text for heuristics
+      const categoryName = (product.category_details?.name || (product as any).category || '').toString().toLowerCase();
+      const productText = `${product.name} ${product.model || ''} ${product.description || ''}`.toLowerCase();
+
+      // High-level type filter
+      let matchesType = true;
+      if (typeFilter === 'frames') {
+        matchesType = categoryName.includes('frame') || productText.includes('frame');
+      } else if (typeFilter === 'contact_lenses') {
+        matchesType = categoryName.includes('contact') || productText.includes('contact lens') || productText.includes('contacts');
+      } else if (typeFilter === 'eye_care') {
+        matchesType = categoryName.includes('care') || categoryName.includes('solution') || productText.includes('solution') || productText.includes('drop') || productText.includes('cleaner');
+      } else if (typeFilter === 'sunglasses') {
+        matchesType = categoryName.includes('sunglass') || productText.includes('sunglass') || productText.includes('sun glasses');
+      }
+
+      // Frame shape refinement (only when frames selected)
+      let matchesShape = true;
+      if (typeFilter === 'frames' && frameShape !== 'all') {
+        if (frameShape === 'cat-eye') {
+          matchesShape = productText.includes('cat eye') || productText.includes('cateye');
+        } else {
+          matchesShape = productText.includes(frameShape);
+        }
+      }
       
-      return matchesSearch && matchesCategory;
+      return matchesSearch && matchesCategory && matchesType && matchesShape;
     });
-  }, [products, searchQuery, selectedCategory]);
+  }, [products, searchQuery, selectedCategory, typeFilter, frameShape]);
 
   // Use real branches from API
   const availableBranches: Branch[] = branches;
@@ -207,8 +256,16 @@ const ProductGallery: React.FC = () => {
   };
 
   const handleReservationSuccess = () => {
-    // Refresh products to update availability
-    fetchProducts();
+    // Only refresh if no products have been deleted recently (to prevent reappearing)
+    if (!shouldSkipRefresh()) {
+      fetchProducts();
+    }
+  };
+
+  const handleManualRefresh = async () => {
+    // Clear deletion timestamp to allow refresh
+    clearDeletionProtection();
+    await fetchProducts(false);
   };
 
   return (
@@ -260,16 +317,77 @@ const ProductGallery: React.FC = () => {
                   className="w-full pl-12 pr-4 py-3 bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent shadow-sm transition-all duration-200"
                 />
               </div>
-              {searchQuery && (
+              <div className="flex gap-2">
                 <button
-                  onClick={() => setSearchQuery('')}
-                  className="px-4 py-3 text-gray-500 hover:text-gray-700 transition-colors"
+                  onClick={handleManualRefresh}
+                  disabled={loading}
+                  className="px-4 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
                 >
-                  Clear
+                  <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+                  Refresh
                 </button>
-              )}
+                {searchQuery && (
+                  <button
+                    onClick={() => setSearchQuery('')}
+                    className="px-4 py-3 text-gray-500 hover:text-gray-700 transition-colors"
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
             </div>
           </div>
+      </div>
+
+      {/* Quick Type Filter (Frames, Contact Lenses, Eye Care) */}
+      <div className="max-w-7xl mx-auto mb-4">
+        <div className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-lg border border-white/20 p-4">
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={() => { setTypeFilter('all'); setFrameShape('all'); }}
+              className={`px-3 py-2 rounded-lg text-sm font-medium ${typeFilter === 'all' ? 'bg-blue-600 text-white' : 'bg-white border border-gray-200 text-gray-700 hover:bg-gray-50'}`}
+            >
+              All
+            </button>
+            <button
+              onClick={() => setTypeFilter('frames')}
+              className={`px-3 py-2 rounded-lg text-sm font-medium ${typeFilter === 'frames' ? 'bg-blue-600 text-white' : 'bg-white border border-gray-200 text-gray-700 hover:bg-gray-50'}`}
+            >
+              Frames
+            </button>
+            <button
+              onClick={() => { setTypeFilter('contact_lenses'); setFrameShape('all'); }}
+              className={`px-3 py-2 rounded-lg text-sm font-medium ${typeFilter === 'contact_lenses' ? 'bg-blue-600 text-white' : 'bg-white border border-gray-200 text-gray-700 hover:bg-gray-50'}`}
+            >
+              Contact Lenses
+            </button>
+            <button
+              onClick={() => { setTypeFilter('eye_care'); setFrameShape('all'); }}
+              className={`px-3 py-2 rounded-lg text-sm font-medium ${typeFilter === 'eye_care' ? 'bg-blue-600 text-white' : 'bg-white border border-gray-200 text-gray-700 hover:bg-gray-50'}`}
+            >
+              Eye Care Products
+            </button>
+            <button
+              onClick={() => { setTypeFilter('sunglasses'); setFrameShape('all'); }}
+              className={`px-3 py-2 rounded-lg text-sm font-medium ${typeFilter === 'sunglasses' ? 'bg-blue-600 text-white' : 'bg-white border border-gray-200 text-gray-700 hover:bg-gray-50'}`}
+            >
+              Sunglasses
+            </button>
+          </div>
+          {typeFilter === 'frames' && (
+            <div className="flex flex-wrap gap-2 mt-3">
+              {['all','round','square','rectangle','cat-eye','aviator'].map(shape => (
+                <button
+                  key={shape}
+                  onClick={() => setFrameShape(shape as any)}
+                  className={`px-3 py-1.5 rounded-full text-xs font-medium ${frameShape === shape ? 'bg-purple-600 text-white' : 'bg-white border border-gray-200 text-gray-700 hover:bg-gray-50'}`}
+                >
+                  {shape === 'all' ? 'All Shapes' : shape.replace('-', ' ').replace(/\b\w/g, c => c.toUpperCase())}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Category Filter */}

@@ -30,6 +30,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { inventoryApiService } from '@/services/inventoryApi';
+import { getApiUrl, getAuthHeaders } from '@/config/api';
 import StockTransferModal from './StockTransferModal';
 import StockUpdateModal from './StockUpdateModal';
 
@@ -186,11 +187,8 @@ const RoleBasedInventoryManagement: React.FC = () => {
   const loadBranches = async () => {
     try {
       // Load branches for transfer modal
-      const response = await fetch('/api/branches', {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-          'Content-Type': 'application/json',
-        },
+      const response = await fetch(getApiUrl('/branches'), {
+        headers: getAuthHeaders(),
       });
 
       if (response.ok) {
@@ -226,10 +224,10 @@ const RoleBasedInventoryManagement: React.FC = () => {
 
   const requestStockTransfer = async (productId: string, fromBranchId: string, toBranchId: string, quantity: number, reason: string) => {
     try {
-      const response = await fetch('/api/inventory/stock-transfer-request', {
+      const response = await fetch(getApiUrl('/inventory/stock-transfer-request'), {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          ...getAuthHeaders(),
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({

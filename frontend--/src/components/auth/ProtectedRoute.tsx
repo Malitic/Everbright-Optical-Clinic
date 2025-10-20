@@ -10,7 +10,11 @@ interface ProtectedRouteProps {
 const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, allowedRoles }) => {
   const { user, isLoading } = useAuth();
 
-  console.log('ProtectedRoute: Checking access', { user, isLoading, allowedRoles });
+  console.log('ProtectedRoute: Checking access', { 
+    user: user ? { id: user.id, role: user.role, name: user.name } : null, 
+    isLoading, 
+    allowedRoles 
+  });
 
   if (isLoading) {
     console.log('ProtectedRoute: Still loading, showing loading indicator');

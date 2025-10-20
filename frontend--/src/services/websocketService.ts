@@ -56,6 +56,20 @@ interface InventoryNotification {
   timestamp: string;
 }
 
+interface EyewearConditionNotification {
+  id: string;
+  type: string;
+  message: string;
+  eyewear_label: string;
+  condition: 'good' | 'needs_fix' | 'needs_replacement' | 'bad';
+  assessment_date: string;
+  next_check_date?: string;
+  notes?: string;
+  assessed_by: string;
+  priority: 'low' | 'medium' | 'high' | 'urgent';
+  timestamp: string;
+}
+
 class WebSocketService {
   private socket: Socket | null = null;
   private reconnectAttempts = 0;
@@ -162,6 +176,14 @@ class WebSocketService {
     this.socket.on('notification.urgent', (data: NotificationData) => {
       this.emit('urgent-notification', data);
       this.showNotification(data.message, 'error');
+    });
+
+    // Eyewear condition notifications
+    this.socket.on('eyewear.condition_assessment', (data: EyewearConditionNotification) => {
+      this.emit('eyewear-condition-notification', data);
+      const notificationType = data.priority === 'urgent' ? 'error' : 
+                              data.priority === 'high' ? 'warning' : 'info';
+      this.showNotification(data.message, notificationType);
     });
   }
 

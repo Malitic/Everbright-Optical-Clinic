@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Upload Timeout Fix</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .status {
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 8px;
+            font-weight: bold;
+        }
+        .status.warning { background-color: #fff3cd; color: #856404; }
+        .status.error { background-color: #f8d7da; color: #721c24; }
+        .status.success { background-color: #d4edda; color: #155724; }
+        .button {
+            background-color: #dc3545;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 10px 5px;
+        }
+        .button:hover { background-color: #c82333; }
+        .button.secondary {
+            background-color: #6c757d;
+        }
+        .button.secondary:hover { background-color: #5a6268; }
+        .progress {
+            width: 100%;
+            height: 20px;
+            background-color: #e0e0e0;
+            border-radius: 10px;
+            overflow: hidden;
+            margin: 15px 0;
+        }
+        .progress-bar {
+            height: 100%;
+            background-color: #007bff;
+            transition: width 0.3s ease;
+        }
+        .log {
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            font-family: monospace;
+            white-space: pre-wrap;
+            max-height: 200px;
+            overflow-y: auto;
+            margin: 15px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚨 Upload Timeout Fix</h1>
+        
+        <div class="status warning">
+            <strong>⚠️ Upload Stuck at 97%?</strong><br>
+            Your upload appears to be stuck. This can happen with large files or server timeouts.
+        </div>
+
+        <div id="current-status" class="status info" style="display: none;">
+            <strong>Current Status:</strong> <span id="status-text">Checking...</span>
+        </div>
+
+        <div class="progress">
+            <div class="progress-bar" id="progress-bar" style="width: 0%"></div>
+        </div>
+
+        <div>
+            <button class="button" onclick="checkUploadStatus()">🔍 Check Upload Status</button>
+            <button class="button secondary" onclick="cancelUpload()">❌ Cancel Upload</button>
+            <button class="button secondary" onclick="retryUpload()">🔄 Retry Upload</button>
+        </div>
+
+        <div id="log" class="log" style="display: none;"></div>
+
+        <div class="status success" style="margin-top: 20px;">
+            <strong>💡 Quick Fixes:</strong><br>
+            1. <strong>Check Status:</strong> Click "Check Upload Status" to see if it's still processing<br>
+            2. <strong>Cancel & Retry:</strong> Cancel the stuck upload and try with a smaller batch size<br>
+            3. <strong>Reduce Batch Size:</strong> Use batch size of 10-15 for large files<br>
+            4. <strong>Check Server:</strong> Make sure the backend server is running properly
+        </div>
+    </div>
+
+    <script>
+        let currentSessionId = null;
+        let checkInterval = null;
+
+        // Get session ID from URL or localStorage
+        function getSessionId() {
+            const urlParams = new URLSearchParams(window.location.search);
+            return urlParams.get('sessionId') || localStorage.getItem('currentUploadSession');
+        }
+
+        // Check upload status
+        async function checkUploadStatus() {
+            const sessionId = getSessionId();
+            if (!sessionId) {
+                showLog('No session ID found. Please start a new upload.');
+                return;
+            }
+
+            currentSessionId = sessionId;
+            showLog(`Checking status for session: ${sessionId}`);
+
+            try {
+                const apiBase = 'http://127.0.0.1:8000/api';
+                const token = sessionStorage.getItem('auth_token') || localStorage.getItem('token');
+
+                const response = await fetch(`${apiBase}/upload-progress/${sessionId}`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                    },
+                });
+
+                if (response.ok) {
+                    const result = await response.json();
+                    if (result.success) {
+                        updateStatus(result.session);
+                        showLog(`Status: ${result.session.status}, Progress: ${result.session.progress}%`);
+                    } else {
+                        showLog(`Error: ${result.message}`);
+                    }
+                } else {
+                    showLog(`HTTP Error: ${response.status}`);
+                }
+            } catch (error) {
+                showLog(`Network Error: ${error.message}`);
+            }
+        }
+
+        // Update status display
+        function updateStatus(session) {
+            const statusText = document.getElementById('status-text');
+            const progressBar = document.getElementById('progress-bar');
+            const currentStatus = document.getElementById('current-status');
+
+            statusText.textContent = `${session.status} - ${session.progress}% (${session.processed_images}/${session.total_images} images)`;
+            progressBar.style.width = `${session.progress}%`;
+            currentStatus.style.display = 'block';
+
+            if (session.status === 'completed') {
+                showLog(`✅ Upload completed! ${session.successful_uploads} products created.`);
+                clearInterval(checkInterval);
+            } else if (session.status === 'failed') {
+                showLog(`❌ Upload failed: ${session.error_message || 'Unknown error'}`);
+                clearInterval(checkInterval);
+            } else if (session.status === 'cancelled') {
+                showLog(`🚫 Upload cancelled.`);
+                clearInterval(checkInterval);
+            }
+        }
+
+        // Cancel upload
+        async function cancelUpload() {
+            const sessionId = getSessionId();
+            if (!sessionId) {
+                showLog('No session ID found.');
+                return;
+            }
+
+            showLog(`Cancelling upload session: ${sessionId}`);
+
+            try {
+                const apiBase = 'http://127.0.0.1:8000/api';
+                const token = sessionStorage.getItem('auth_token') || localStorage.getItem('token');
+
+                const response = await fetch(`${apiBase}/upload-cancel/${sessionId}`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                    },
+                });
+
+                if (response.ok) {
+                    const result = await response.json();
+                    showLog(`✅ ${result.message}`);
+                } else {
+                    showLog(`❌ Failed to cancel: ${response.status}`);
+                }
+            } catch (error) {
+                showLog(`❌ Error cancelling upload: ${error.message}`);
+            }
+        }
+
+        // Retry upload
+        function retryUpload() {
+            showLog('🔄 Redirecting to Enhanced ZIP Upload...');
+            setTimeout(() => {
+                window.location.href = '/admin/intelligent-upload';
+            }, 1000);
+        }
+
+        // Show log
+        function showLog(message) {
+            const log = document.getElementById('log');
+            const timestamp = new Date().toLocaleTimeString();
+            log.textContent += `[${timestamp}] ${message}\n`;
+            log.style.display = 'block';
+            log.scrollTop = log.scrollHeight;
+        }
+
+        // Auto-check status every 5 seconds if we have a session
+        document.addEventListener('DOMContentLoaded', function() {
+            const sessionId = getSessionId();
+            if (sessionId) {
+                showLog(`Auto-checking session: ${sessionId}`);
+                checkUploadStatus();
+                
+                checkInterval = setInterval(() => {
+                    checkUploadStatus();
+                }, 5000);
+            } else {
+                showLog('No active upload session found.');
+            }
+        });
+
+        // Cleanup on page unload
+        window.addEventListener('beforeunload', function() {
+            if (checkInterval) {
+                clearInterval(checkInterval);
+            }
+        });
+    </script>
+</body>
+</html>

@@ -110,6 +110,8 @@ class AppointmentController extends Controller
             'end_time' => 'required|date_format:H:i|after:start_time',
             'type' => 'required|in:eye_exam,contact_fitting,follow_up,consultation,emergency',
             'notes' => 'nullable|string|max:1000',
+            'phone' => 'nullable|string|max:20',
+            'social_media' => 'nullable|string|max:255',
         ]);
 
         if ($validator->fails()) {
@@ -178,6 +180,21 @@ class AppointmentController extends Controller
         $patient = User::find($request->patient_id);
         if ($patient && $patient->role->value === UserRole::CUSTOMER->value && !$patient->branch_id) {
             $patient->update(['branch_id' => $request->branch_id]);
+        }
+
+        // Update patient contact information if provided
+        if ($patient && $patient->role->value === UserRole::CUSTOMER->value) {
+            $updateData = [];
+            if ($request->has('phone') && $request->phone) {
+                $updateData['phone'] = $request->phone;
+            }
+            if ($request->has('social_media') && $request->social_media) {
+                $updateData['social_media'] = $request->social_media;
+            }
+            
+            if (!empty($updateData)) {
+                $patient->update($updateData);
+            }
         }
 
         $appointment = Appointment::create($request->all());
@@ -271,12 +288,29 @@ class AppointmentController extends Controller
     /**
      * Remove the specified appointment.
      */
-    public function destroy(Appointment $appointment): JsonResponse
+    public function destroy($id): JsonResponse
     {
         $user = Auth::user();
+        
+        // Find the appointment manually to debug route model binding issue
+        $appointment = Appointment::find($id);
+        
+        if (!$appointment) {
+            \Log::warning('Appointment not found for deletion', [
+                'appointment_id' => $id,
+                'user_id' => $user?->id,
+                'user_role' => $user?->role?->value
+            ]);
+            return response()->json(['error' => 'Appointment not found'], 404);
+        }
 
         // Check if user has permission to delete this appointment
         if (!$this->canDeleteAppointment($user, $appointment)) {
+            \Log::warning('Appointment deletion unauthorized', [
+                'appointment_id' => $appointment->id,
+                'user_id' => $user?->id,
+                'user_role' => $user?->role?->value
+            ]);
             return response()->json(['error' => 'Unauthorized'], 403);
         }
 
