@@ -35,6 +35,16 @@ use App\Http\Controllers\BranchContactController;
 */
 
 // Test route to verify inventory data
+// Health check endpoint for Railway
+Route::get('/health', function() {
+    return response()->json([
+        'status' => 'healthy',
+        'service' => 'Everbright Optical System',
+        'timestamp' => now()->toISOString(),
+        'version' => '1.0.0'
+    ]);
+});
+
 Route::get('/test-unitop-inventory', function() {
     $branchStocks = \App\Models\BranchStock::with(['product', 'branch'])
         ->get();
