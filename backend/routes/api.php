@@ -45,6 +45,29 @@ Route::get('/health', function() {
     ]);
 });
 
+// Database connection test endpoint
+Route::get('/db-test', function() {
+    try {
+        $pdo = DB::connection()->getPdo();
+        $databaseName = DB::connection()->getDatabaseName();
+        
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Database connected successfully',
+            'database' => $databaseName,
+            'driver' => DB::connection()->getDriverName(),
+            'timestamp' => now()->toISOString()
+        ]);
+    } catch (\Exception $e) {
+        return response()->json([
+            'status' => 'error',
+            'message' => 'Database connection failed',
+            'error' => $e->getMessage(),
+            'timestamp' => now()->toISOString()
+        ], 500);
+    }
+});
+
 Route::get('/test-unitop-inventory', function() {
     $branchStocks = \App\Models\BranchStock::with(['product', 'branch'])
         ->get();
