@@ -21,9 +21,25 @@ chmod -R 775 backend/bootstrap/cache
 # Build frontend
 echo "📦 Building frontend..."
 cd frontend--
+echo "📋 Installing frontend dependencies..."
 npm install
+echo "🔨 Building frontend..."
 npm run build
 echo "✅ Frontend built successfully"
+
+# Check if build was successful
+if [ ! -d "dist" ]; then
+    echo "❌ Frontend build failed - dist directory not found"
+    exit 1
+fi
+
+if [ ! -f "dist/index.html" ]; then
+    echo "❌ Frontend build failed - index.html not found"
+    exit 1
+fi
+
+echo "📁 Frontend build contents:"
+ls -la dist/
 
 # Go back to root
 cd ..

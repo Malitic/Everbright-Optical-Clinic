@@ -16,6 +16,17 @@ Route::get('/health', function () {
 Route::get('/{path?}', function ($path = '') {
     $frontendPath = base_path('../frontend--/dist');
     
+    // Debug: Check if frontend directory exists
+    if (!File::exists($frontendPath)) {
+        return response()->json([
+            'status' => 'error',
+            'message' => 'Frontend build directory not found',
+            'frontend_path' => $frontendPath,
+            'base_path' => base_path(),
+            'timestamp' => now()
+        ]);
+    }
+    
     // If requesting a specific file, serve it
     if ($path && File::exists($frontendPath . '/' . $path)) {
         $filePath = $frontendPath . '/' . $path;
@@ -29,11 +40,17 @@ Route::get('/{path?}', function ($path = '') {
         return response()->file($indexPath, ['Content-Type' => 'text/html']);
     }
     
-    // Fallback API response
+    // Debug: List files in frontend directory
+    $files = File::files($frontendPath);
+    $fileList = array_map(function($file) {
+        return $file->getFilename();
+    }, $files);
+    
     return response()->json([
-        'status' => 'success',
-        'message' => 'Everbright Optical System API is running',
-        'version' => '1.0.0',
+        'status' => 'error',
+        'message' => 'Frontend index.html not found',
+        'frontend_path' => $frontendPath,
+        'files_found' => $fileList,
         'timestamp' => now()
     ]);
 })->where('path', '.*');
