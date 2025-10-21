@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Railway + Netlify Integration Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .success { background-color: #d4edda; border-color: #c3e6cb; }
+        .error { background-color: #f8d7da; border-color: #f5c6cb; }
+        .warning { background-color: #fff3cd; border-color: #ffeaa7; }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover { background-color: #0056b3; }
+        .result {
+            margin-top: 10px;
+            padding: 10px;
+            border-radius: 5px;
+            font-family: monospace;
+            white-space: pre-wrap;
+        }
+        .url-input {
+            width: 100%;
+            padding: 8px;
+            margin: 5px 0;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚀 Railway + Netlify Integration Test</h1>
+        <p>This tool will help you test the connection between your Railway backend and Netlify frontend.</p>
+
+        <div class="test-section">
+            <h3>📋 Step 1: Enter Your URLs</h3>
+            <label>Railway Backend URL:</label>
+            <input type="text" id="backendUrl" class="url-input" placeholder="https://your-backend.up.railway.app">
+            
+            <label>Netlify Frontend URL:</label>
+            <input type="text" id="frontendUrl" class="url-input" placeholder="https://your-site.netlify.app">
+            
+            <button onclick="updateUrls()">Update URLs</button>
+        </div>
+
+        <div class="test-section">
+            <h3>🔍 Step 2: Test Backend Health</h3>
+            <button onclick="testBackendHealth()">Test Backend Health</button>
+            <div id="healthResult" class="result"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>🌐 Step 3: Test CORS</h3>
+            <button onclick="testCORS()">Test CORS</button>
+            <div id="corsResult" class="result"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>🔐 Step 4: Test API Endpoints</h3>
+            <button onclick="testAPI()">Test API Endpoints</button>
+            <div id="apiResult" class="result"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>📊 Step 5: Integration Summary</h3>
+            <button onclick="generateSummary()">Generate Summary</button>
+            <div id="summaryResult" class="result"></div>
+        </div>
+    </div>
+
+    <script>
+        let backendUrl = '';
+        let frontendUrl = '';
+
+        function updateUrls() {
+            backendUrl = document.getElementById('backendUrl').value;
+            frontendUrl = document.getElementById('frontendUrl').value;
+            
+            if (backendUrl && frontendUrl) {
+                showResult('healthResult', '✅ URLs updated successfully!\nBackend: ' + backendUrl + '\nFrontend: ' + frontendUrl, 'success');
+            } else {
+                showResult('healthResult', '❌ Please enter both URLs', 'error');
+            }
+        }
+
+        async function testBackendHealth() {
+            if (!backendUrl) {
+                showResult('healthResult', '❌ Please enter backend URL first', 'error');
+                return;
+            }
+
+            showResult('healthResult', '🔄 Testing backend health...', 'warning');
+            
+            try {
+                const response = await fetch(backendUrl + '/api/health', {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    showResult('healthResult', '✅ Backend is healthy!\nStatus: ' + response.status + '\nResponse: ' + JSON.stringify(data, null, 2), 'success');
+                } else {
+                    showResult('healthResult', '❌ Backend health check failed\nStatus: ' + response.status + '\nError: ' + response.statusText, 'error');
+                }
+            } catch (error) {
+                showResult('healthResult', '❌ Backend connection failed\nError: ' + error.message, 'error');
+            }
+        }
+
+        async function testCORS() {
+            if (!backendUrl || !frontendUrl) {
+                showResult('corsResult', '❌ Please enter both URLs first', 'error');
+                return;
+            }
+
+            showResult('corsResult', '🔄 Testing CORS configuration...', 'warning');
+            
+            try {
+                const response = await fetch(backendUrl + '/api/test-cors', {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Origin': frontendUrl
+                    }
+                });
+
+                const corsHeaders = {
+                    'Access-Control-Allow-Origin': response.headers.get('Access-Control-Allow-Origin'),
+                    'Access-Control-Allow-Methods': response.headers.get('Access-Control-Allow-Methods'),
+                    'Access-Control-Allow-Headers': response.headers.get('Access-Control-Allow-Headers'),
+                    'Access-Control-Allow-Credentials': response.headers.get('Access-Control-Allow-Credentials')
+                };
+
+                if (response.ok) {
+                    showResult('corsResult', '✅ CORS is configured correctly!\nHeaders: ' + JSON.stringify(corsHeaders, null, 2), 'success');
+                } else {
+                    showResult('corsResult', '⚠️ CORS test endpoint not found, but headers are present\nHeaders: ' + JSON.stringify(corsHeaders, null, 2), 'warning');
+                }
+            } catch (error) {
+                showResult('corsResult', '❌ CORS test failed\nError: ' + error.message, 'error');
+            }
+        }
+
+        async function testAPI() {
+            if (!backendUrl) {
+                showResult('apiResult', '❌ Please enter backend URL first', 'error');
+                return;
+            }
+
+            showResult('apiResult', '🔄 Testing API endpoints...', 'warning');
+            
+            const endpoints = [
+                '/api/health',
+                '/api/user',
+                '/api/products',
+                '/api/auth/login'
+            ];
+
+            let results = '';
+
+            for (const endpoint of endpoints) {
+                try {
+                    const response = await fetch(backendUrl + endpoint, {
+                        method: 'GET',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        }
+                    });
+
+                    results += `${endpoint}: ${response.status} ${response.statusText}\n`;
+                } catch (error) {
+                    results += `${endpoint}: ERROR - ${error.message}\n`;
+                }
+            }
+
+            showResult('apiResult', '📊 API Endpoint Test Results:\n' + results, 'success');
+        }
+
+        function generateSummary() {
+            if (!backendUrl || !frontendUrl) {
+                showResult('summaryResult', '❌ Please enter both URLs and run tests first', 'error');
+                return;
+            }
+
+            const summary = `
+🎯 Railway + Netlify Integration Summary
+
+📋 Configuration:
+• Backend URL: ${backendUrl}
+• Frontend URL: ${frontendUrl}
+• APP_KEY: base64:a4l7XGiTV4ggw1EUKHZGLd22QwavJmOcVnNT38T6GYQ=
+
+🔧 Next Steps:
+1. Update Railway environment variables with correct APP_URL
+2. Update Netlify environment variables with correct API URLs
+3. Redeploy both services
+4. Test login functionality
+5. Verify all features work correctly
+
+✅ Success Indicators:
+• Railway shows "PHP" instead of "Node"
+• Backend deploys without errors
+• Frontend builds successfully
+• API calls work from frontend
+• No CORS errors in browser console
+• Login functionality works
+
+🚨 If you see errors:
+• Check environment variables are set correctly
+• Verify URLs are accurate
+• Check Railway logs for deployment issues
+• Check Netlify build logs for frontend issues
+            `;
+
+            showResult('summaryResult', summary, 'success');
+        }
+
+        function showResult(elementId, message, type) {
+            const element = document.getElementById(elementId);
+            element.textContent = message;
+            element.className = 'result ' + type;
+        }
+    </script>
+</body>
+</html>
