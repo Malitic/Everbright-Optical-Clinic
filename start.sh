@@ -1,6 +1,6 @@
 #!/bin/bash
 
-echo "🚀 Starting Everbright Optical System..."
+echo "🚀 Starting Everbright Optical System (Backend Only Mode)..."
 
 # Set environment variables for sessions
 export SESSION_DRIVER=database
@@ -18,58 +18,11 @@ mkdir -p backend/bootstrap/cache
 chmod -R 775 backend/storage
 chmod -R 775 backend/bootstrap/cache
 
-# Build frontend with error handling
-echo "📦 Building frontend..."
+# Skip frontend build for now - focus on backend
+echo "⚠️ Skipping frontend build - running backend only"
 echo "📋 Current directory: $(pwd)"
 echo "📋 Contents:"
 ls -la
-
-# Check if frontend directory exists
-if [ ! -d "frontend--" ]; then
-    echo "❌ Frontend directory not found!"
-    echo "📋 Available directories:"
-    ls -la
-    echo "⚠️ Skipping frontend build - will serve API only"
-else
-    cd frontend--
-    echo "📋 Inside frontend directory: $(pwd)"
-    echo "📋 Frontend contents:"
-    ls -la
-
-    # Try to install dependencies
-    echo "📋 Installing frontend dependencies..."
-    if npm install; then
-        echo "✅ Dependencies installed successfully"
-        
-        # Try to build
-        echo "🔨 Building frontend..."
-        if npm run build; then
-            echo "✅ Frontend built successfully"
-            
-            # Check if build was successful
-            if [ -d "dist" ] && [ -f "dist/index.html" ]; then
-                echo "📁 Frontend build contents:"
-                ls -la dist/
-                echo "✅ Frontend build completed successfully"
-            else
-                echo "⚠️ Frontend build completed but dist/index.html not found"
-                echo "📋 Contents after build:"
-                ls -la
-            fi
-        else
-            echo "❌ Frontend build failed"
-            echo "📋 Contents after failed build:"
-            ls -la
-        fi
-    else
-        echo "❌ Frontend dependency installation failed"
-        echo "📋 Contents after failed install:"
-        ls -la
-    fi
-    
-    # Go back to root
-    cd ..
-fi
 
 # Generate application key if not set
 if [ -z "$APP_KEY" ]; then
