@@ -20,21 +20,43 @@ chmod -R 775 backend/bootstrap/cache
 
 # Build frontend
 echo "📦 Building frontend..."
+echo "📋 Current directory: $(pwd)"
+echo "📋 Contents:"
+ls -la
+
+# Check if frontend directory exists
+if [ ! -d "frontend--" ]; then
+    echo "❌ Frontend directory not found!"
+    echo "📋 Available directories:"
+    ls -la
+    exit 1
+fi
+
 cd frontend--
+echo "📋 Inside frontend directory: $(pwd)"
+echo "📋 Frontend contents:"
+ls -la
+
 echo "📋 Installing frontend dependencies..."
 npm install
+
 echo "🔨 Building frontend..."
 npm run build
+
 echo "✅ Frontend built successfully"
 
 # Check if build was successful
 if [ ! -d "dist" ]; then
     echo "❌ Frontend build failed - dist directory not found"
+    echo "📋 Contents after build:"
+    ls -la
     exit 1
 fi
 
 if [ ! -f "dist/index.html" ]; then
     echo "❌ Frontend build failed - index.html not found"
+    echo "📋 Dist directory contents:"
+    ls -la dist/
     exit 1
 fi
 
