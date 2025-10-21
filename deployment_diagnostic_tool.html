@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Deployment Diagnostic Tool</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .section {
+            margin: 20px 0;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+        }
+        .success { background-color: #d4edda; border-color: #c3e6cb; }
+        .error { background-color: #f8d7da; border-color: #f5c6cb; }
+        .warning { background-color: #fff3cd; border-color: #ffeaa7; }
+        .info { background-color: #d1ecf1; border-color: #bee5eb; }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover { background-color: #0056b3; }
+        .result {
+            margin-top: 10px;
+            padding: 15px;
+            border-radius: 5px;
+            font-family: monospace;
+            white-space: pre-wrap;
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+        }
+        .url-input {
+            width: 100%;
+            padding: 8px;
+            margin: 5px 0;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .checklist {
+            text-align: left;
+            margin: 10px 0;
+        }
+        .checklist li {
+            margin: 5px 0;
+        }
+        .status-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        .status-success { background-color: #28a745; }
+        .status-error { background-color: #dc3545; }
+        .status-warning { background-color: #ffc107; }
+        .status-info { background-color: #17a2b8; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚀 Railway + Netlify Deployment Diagnostic Tool</h1>
+        <p>This tool will help you diagnose deployment issues and get your services running.</p>
+
+        <div class="section info">
+            <h3>📋 Step 1: Enter Your URLs</h3>
+            <label>Railway Backend URL:</label>
+            <input type="text" id="railwayUrl" class="url-input" placeholder="https://your-backend.up.railway.app">
+            
+            <label>Netlify Frontend URL:</label>
+            <input type="text" id="netlifyUrl" class="url-input" placeholder="https://your-site.netlify.app">
+            
+            <button onclick="updateUrls()">Update URLs</button>
+        </div>
+
+        <div class="section">
+            <h3>🔍 Step 2: Railway Backend Diagnostic</h3>
+            <button onclick="diagnoseRailway()">Run Railway Diagnostic</button>
+            <div id="railwayResult" class="result"></div>
+        </div>
+
+        <div class="section">
+            <h3>🌐 Step 3: Netlify Frontend Diagnostic</h3>
+            <button onclick="diagnoseNetlify()">Run Netlify Diagnostic</button>
+            <div id="netlifyResult" class="result"></div>
+        </div>
+
+        <div class="section">
+            <h3>🔗 Step 4: Integration Test</h3>
+            <button onclick="testIntegration()">Test Integration</button>
+            <div id="integrationResult" class="result"></div>
+        </div>
+
+        <div class="section">
+            <h3>📊 Step 5: Deployment Checklist</h3>
+            <button onclick="showChecklist()">Show Deployment Checklist</button>
+            <div id="checklistResult" class="result"></div>
+        </div>
+
+        <div class="section">
+            <h3>🛠️ Step 6: Common Issues & Solutions</h3>
+            <button onclick="showSolutions()">Show Solutions</button>
+            <div id="solutionsResult" class="result"></div>
+        </div>
+    </div>
+
+    <script>
+        let railwayUrl = '';
+        let netlifyUrl = '';
+
+        function updateUrls() {
+            railwayUrl = document.getElementById('railwayUrl').value;
+            netlifyUrl = document.getElementById('netlifyUrl').value;
+            
+            if (railwayUrl && netlifyUrl) {
+                showResult('railwayResult', '✅ URLs updated successfully!\nRailway: ' + railwayUrl + '\nNetlify: ' + netlifyUrl, 'success');
+            } else {
+                showResult('railwayResult', '❌ Please enter both URLs', 'error');
+            }
+        }
+
+        async function diagnoseRailway() {
+            if (!railwayUrl) {
+                showResult('railwayResult', '❌ Please enter Railway URL first', 'error');
+                return;
+            }
+
+            showResult('railwayResult', '🔄 Diagnosing Railway backend...', 'warning');
+            
+            let results = '🚀 Railway Backend Diagnostic:\n\n';
+            
+            // Test health endpoint
+            try {
+                const healthResponse = await fetch(railwayUrl + '/api/health', {
+                    method: 'GET',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                
+                if (healthResponse.ok) {
+                    const healthData = await healthResponse.json();
+                    results += '✅ Health Check: PASSED\n';
+                    results += '   Status: ' + healthData.status + '\n';
+                    results += '   Service: ' + healthData.service + '\n';
+                } else {
+                    results += '❌ Health Check: FAILED\n';
+                    results += '   Status: ' + healthResponse.status + '\n';
+                }
+            } catch (error) {
+                results += '❌ Health Check: ERROR\n';
+                results += '   Error: ' + error.message + '\n';
+            }
+
+            // Test login endpoint
+            try {
+                const loginResponse = await fetch(railwayUrl + '/api/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: 'test@test.com', password: 'test', role: 'admin' })
+                });
+                
+                if (loginResponse.status === 422 || loginResponse.status === 401) {
+                    results += '✅ Login Endpoint: AVAILABLE\n';
+                    results += '   Status: ' + loginResponse.status + ' (Expected for invalid credentials)\n';
+                } else if (loginResponse.status === 404) {
+                    results += '❌ Login Endpoint: NOT FOUND\n';
+                    results += '   Status: 404 - Route not found\n';
+                } else {
+                    results += '⚠️ Login Endpoint: UNEXPECTED RESPONSE\n';
+                    results += '   Status: ' + loginResponse.status + '\n';
+                }
+            } catch (error) {
+                results += '❌ Login Endpoint: ERROR\n';
+                results += '   Error: ' + error.message + '\n';
+            }
+
+            // Test CORS
+            try {
+                const corsResponse = await fetch(railwayUrl + '/api/health', {
+                    method: 'GET',
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'Origin': netlifyUrl || 'https://test.netlify.app'
+                    }
+                });
+                
+                const corsHeaders = {
+                    'Access-Control-Allow-Origin': corsResponse.headers.get('Access-Control-Allow-Origin'),
+                    'Access-Control-Allow-Methods': corsResponse.headers.get('Access-Control-Allow-Methods'),
+                    'Access-Control-Allow-Headers': corsResponse.headers.get('Access-Control-Allow-Headers')
+                };
+                
+                results += '\n🌐 CORS Configuration:\n';
+                results += '   Allow-Origin: ' + (corsHeaders['Access-Control-Allow-Origin'] || 'Not set') + '\n';
+                results += '   Allow-Methods: ' + (corsHeaders['Access-Control-Allow-Methods'] || 'Not set') + '\n';
+                results += '   Allow-Headers: ' + (corsHeaders['Access-Control-Allow-Headers'] || 'Not set') + '\n';
+            } catch (error) {
+                results += '\n❌ CORS Test: ERROR\n';
+                results += '   Error: ' + error.message + '\n';
+            }
+
+            showResult('railwayResult', results, 'info');
+        }
+
+        async function diagnoseNetlify() {
+            if (!netlifyUrl) {
+                showResult('netlifyResult', '❌ Please enter Netlify URL first', 'error');
+                return;
+            }
+
+            showResult('netlifyResult', '🔄 Diagnosing Netlify frontend...', 'warning');
+            
+            let results = '🌐 Netlify Frontend Diagnostic:\n\n';
+            
+            try {
+                const response = await fetch(netlifyUrl, {
+                    method: 'GET',
+                    headers: { 'Accept': 'text/html' }
+                });
+                
+                if (response.ok) {
+                    results += '✅ Frontend Site: ACCESSIBLE\n';
+                    results += '   Status: ' + response.status + '\n';
+                    results += '   URL: ' + netlifyUrl + '\n';
+                    
+                    // Check if it's a React app
+                    const html = await response.text();
+                    if (html.includes('react') || html.includes('vite') || html.includes('index')) {
+                        results += '✅ Frontend Type: React/Vite App Detected\n';
+                    } else {
+                        results += '⚠️ Frontend Type: Unknown/Static Site\n';
+                    }
+                } else {
+                    results += '❌ Frontend Site: NOT ACCESSIBLE\n';
+                    results += '   Status: ' + response.status + '\n';
+                }
+            } catch (error) {
+                results += '❌ Frontend Site: ERROR\n';
+                results += '   Error: ' + error.message + '\n';
+            }
+
+            // Test if frontend can reach backend
+            if (railwayUrl) {
+                results += '\n🔗 Frontend-Backend Connection Test:\n';
+                try {
+                    // This will likely fail due to CORS, but we can check the error
+                    const testResponse = await fetch(railwayUrl + '/api/health', {
+                        method: 'GET',
+                        headers: { 'Content-Type': 'application/json' }
+                    });
+                    
+                    if (testResponse.ok) {
+                        results += '✅ Backend Reachable: YES\n';
+                    } else {
+                        results += '⚠️ Backend Reachable: PARTIAL\n';
+                        results += '   Status: ' + testResponse.status + '\n';
+                    }
+                } catch (error) {
+                    if (error.message.includes('CORS')) {
+                        results += '⚠️ Backend Reachable: CORS ISSUE\n';
+                        results += '   This is expected - CORS needs to be configured\n';
+                    } else {
+                        results += '❌ Backend Reachable: NO\n';
+                        results += '   Error: ' + error.message + '\n';
+                    }
+                }
+            }
+
+            showResult('netlifyResult', results, 'info');
+        }
+
+        async function testIntegration() {
+            if (!railwayUrl || !netlifyUrl) {
+                showResult('integrationResult', '❌ Please enter both URLs first', 'error');
+                return;
+            }
+
+            showResult('integrationResult', '🔄 Testing integration...', 'warning');
+            
+            let results = '🔗 Integration Test Results:\n\n';
+            
+            // Test 1: Backend health
+            try {
+                const healthResponse = await fetch(railwayUrl + '/api/health');
+                if (healthResponse.ok) {
+                    results += '✅ Backend Health: PASSED\n';
+                } else {
+                    results += '❌ Backend Health: FAILED\n';
+                }
+            } catch (error) {
+                results += '❌ Backend Health: ERROR - ' + error.message + '\n';
+            }
+
+            // Test 2: Frontend accessibility
+            try {
+                const frontendResponse = await fetch(netlifyUrl);
+                if (frontendResponse.ok) {
+                    results += '✅ Frontend Access: PASSED\n';
+                } else {
+                    results += '❌ Frontend Access: FAILED\n';
+                }
+            } catch (error) {
+                results += '❌ Frontend Access: ERROR - ' + error.message + '\n';
+            }
+
+            // Test 3: API endpoint availability
+            try {
+                const apiResponse = await fetch(railwayUrl + '/api/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: 'test', password: 'test', role: 'admin' })
+                });
+                
+                if (apiResponse.status === 404) {
+                    results += '❌ API Endpoints: NOT FOUND (404)\n';
+                    results += '   This indicates routing issues\n';
+                } else if (apiResponse.status === 422 || apiResponse.status === 401) {
+                    results += '✅ API Endpoints: AVAILABLE\n';
+                    results += '   Status: ' + apiResponse.status + ' (Expected for invalid data)\n';
+                } else {
+                    results += '⚠️ API Endpoints: UNEXPECTED STATUS\n';
+                    results += '   Status: ' + apiResponse.status + '\n';
+                }
+            } catch (error) {
+                results += '❌ API Endpoints: ERROR - ' + error.message + '\n';
+            }
+
+            results += '\n📊 Integration Summary:\n';
+            results += '• Railway Backend: ' + railwayUrl + '\n';
+            results += '• Netlify Frontend: ' + netlifyUrl + '\n';
+            results += '• Next Step: Configure environment variables\n';
+
+            showResult('integrationResult', results, 'info');
+        }
+
+        function showChecklist() {
+            const checklist = `
+📋 Railway + Netlify Deployment Checklist
+
+🚀 Railway Backend Setup:
+□ Project created on Railway.app
+□ Root directory set to 'backend'
+□ PostgreSQL database added
+□ Environment variables configured:
+  □ APP_NAME=Everbright Optical System
+  □ APP_ENV=production
+  □ APP_DEBUG=false
+  □ APP_KEY=base64:a4l7XGiTV4ggw1EUKHZGLd22QwavJmOcVnNT38T6GYQ=
+  □ APP_URL=https://your-railway-backend-url.up.railway.app
+  □ DB_CONNECTION=pgsql
+  □ DB_HOST=postgres.railway.internal
+  □ DB_PORT=5432
+  □ DB_DATABASE=railway
+  □ DB_USERNAME=postgres
+  □ DB_PASSWORD=YOUR_RAILWAY_POSTGRES_PASSWORD
+  □ SANCTUM_STATEFUL_DOMAINS=your-netlify-site.netlify.app
+□ Service shows "PHP" not "Node"
+□ Deployment successful
+□ Health check passes
+
+🌐 Netlify Frontend Setup:
+□ Site created on Netlify.com
+□ Base directory set to 'frontend--'
+□ Build command: npm ci && npm run build
+□ Publish directory: frontend--/dist
+□ Environment variables configured:
+  □ VITE_API_URL=https://your-railway-backend-url.up.railway.app
+  □ VITE_API_BASE_URL=https://your-railway-backend-url.up.railway.app/api
+  □ VITE_APP_NAME=Everbright Optical System
+  □ VITE_APP_ENV=production
+□ Build successful
+□ Site accessible
+
+🔗 Integration:
+□ CORS configured for Netlify domain
+□ Frontend can reach backend
+□ Login functionality works
+□ No 404 errors in console
+
+✅ Success Indicators:
+□ Railway shows "PHP" instead of "Node"
+□ Backend deploys without errors
+□ Frontend builds successfully
+□ API calls work from frontend
+□ No CORS errors in browser console
+□ Login functionality works
+            `;
+
+            showResult('checklistResult', checklist, 'info');
+        }
+
+        function showSolutions() {
+            const solutions = `
+🛠️ Common Issues & Solutions
+
+❌ Railway Issues:
+
+1. "Node" instead of "PHP":
+   • Check root directory is set to 'backend'
+   • Ensure no package.json in root directory
+   • Verify Procfile exists in backend/ directory
+
+2. "composer: command not found":
+   • Railway is detecting Node.js instead of PHP
+   • Check root directory configuration
+   • Verify backend/Procfile exists
+
+3. Database connection errors:
+   • Check PostgreSQL service is running
+   • Verify environment variables are set
+   • Ensure DB_HOST=postgres.railway.internal
+
+4. APP_KEY errors:
+   • Use: base64:a4l7XGiTV4ggw1EUKHZGLd22QwavJmOcVnNT38T6GYQ=
+   • Ensure APP_KEY is set in environment variables
+
+❌ Netlify Issues:
+
+1. Build failures:
+   • Check base directory is 'frontend--'
+   • Verify build command: npm ci && npm run build
+   • Check Node.js version compatibility
+
+2. 404 errors on API calls:
+   • Set VITE_API_URL environment variable
+   • Use your Railway backend URL
+   • Redeploy after setting variables
+
+3. CORS errors:
+   • Check Railway CORS configuration
+   • Verify Netlify domain in SANCTUM_STATEFUL_DOMAINS
+   • Ensure APP_URL matches Railway URL
+
+🔧 Quick Fixes:
+
+1. Railway not detecting PHP:
+   • Delete any package.json in root
+   • Set root directory to 'backend'
+   • Redeploy
+
+2. Frontend 404 errors:
+   • Set VITE_API_URL in Netlify
+   • Redeploy Netlify
+   • Check browser console
+
+3. Database issues:
+   • Add PostgreSQL service in Railway
+   • Copy connection details to environment variables
+   • Redeploy backend
+
+📞 Need Help?
+• Check Railway logs in dashboard
+• Check Netlify build logs
+• Use browser developer tools
+• Test with the integration test tool above
+            `;
+
+            showResult('solutionsResult', solutions, 'info');
+        }
+
+        function showResult(elementId, message, type) {
+            const element = document.getElementById(elementId);
+            element.textContent = message;
+            element.className = 'result ' + type;
+        }
+    </script>
+</body>
+</html>

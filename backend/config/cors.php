@@ -62,6 +62,16 @@ return [
         'https://everbright-optical-system.netlify.app/',
         // Allow any Netlify subdomain
         'https://*.netlify.app',
+        // Vercel URLs
+        'https://everbright-optical-system.vercel.app',
+        'https://everbright-optical-system.vercel.app/',
+        // Allow any Vercel subdomain
+        'https://*.vercel.app',
+        // GitHub Pages URLs
+        'https://protacium05.github.io',
+        'https://protacium05.github.io/',
+        // Allow any GitHub Pages subdomain
+        'https://*.github.io',
     ],
 
     'allowed_origins_patterns' => [
@@ -74,6 +84,10 @@ return [
         '^file:\/\/',
         // Allow Netlify domains
         '^https:\/\/.*\.netlify\.app$',
+        // Allow Vercel domains
+        '^https:\/\/.*\.vercel\.app$',
+        // Allow GitHub Pages domains
+        '^https:\/\/.*\.github\.io$',
     ],
 
     'allowed_headers' => ['*'],
