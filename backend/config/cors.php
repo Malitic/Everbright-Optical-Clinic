@@ -72,6 +72,11 @@ return [
         'https://protacium05.github.io/',
         // Allow any GitHub Pages subdomain
         'https://*.github.io',
+        // Railway frontend domains
+        'https://everbright-optical-clinic-system-production-2f77.up.railway.app',
+        'https://everbright-optical-clinic-system-production.up.railway.app',
+        // Allow any Railway subdomain
+        'https://*.up.railway.app',
     ],
 
     'allowed_origins_patterns' => [
@@ -88,6 +93,8 @@ return [
         '^https:\/\/.*\.vercel\.app$',
         // Allow GitHub Pages domains
         '^https:\/\/.*\.github\.io$',
+        // Allow Railway domains
+        '^https:\/\/.*\.up\.railway\.app$',
     ],
 
     'allowed_headers' => ['*'],

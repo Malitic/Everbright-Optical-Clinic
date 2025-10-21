@@ -67,11 +67,22 @@ class HandleCors
             'http://10.173.7.92:8080',
             'http://10.173.7.92:8081',
             'http://10.173.7.92:8082',
+            // Railway frontend domains
+            'https://everbright-optical-clinic-system-production-2f77.up.railway.app',
+            'https://everbright-optical-clinic-system-production.up.railway.app',
+            // Allow any Railway subdomain
+            'https://*.up.railway.app',
         ];
 
         $origin = $request->headers->get('Origin');
         
+        // Check exact match first
         if (in_array($origin, $allowedOrigins)) {
+            return $origin;
+        }
+        
+        // Check Railway subdomain pattern
+        if ($origin && preg_match('/^https:\/\/.*\.up\.railway\.app$/', $origin)) {
             return $origin;
         }
 
