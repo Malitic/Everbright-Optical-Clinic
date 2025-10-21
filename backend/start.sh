@@ -1,11 +1,8 @@
 #!/bin/bash
 
-# Wait for MySQL to be ready (if using external database)
-echo "Waiting for MySQL connection..."
-while ! php artisan migrate:status > /dev/null 2>&1; do
-    echo "MySQL not ready, waiting..."
-    sleep 2
-done
+# Wait for database to be ready
+echo "Waiting for database connection..."
+sleep 5
 
 # Generate application key if not set
 if [ -z "$APP_KEY" ]; then
@@ -21,8 +18,7 @@ php artisan migrate --force
 echo "Optimizing Laravel..."
 php artisan config:cache
 php artisan route:cache
-php artisan view:cache
 
-# Start Apache
-echo "Starting Apache server..."
-apache2-foreground
+# Start Laravel server
+echo "Starting Laravel server..."
+php artisan serve --host=0.0.0.0 --port=$PORT
