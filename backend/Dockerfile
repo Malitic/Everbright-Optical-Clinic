@@ -10,12 +10,10 @@ RUN apt-get update && apt-get install -y \
     libxml2-dev \
     zip \
     unzip \
-    sqlite3 \
-    libsqlite3-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Install PHP extensions
-RUN docker-php-ext-install pdo_mysql pdo_sqlite mbstring exif pcntl bcmath gd
+RUN docker-php-ext-install pdo_mysql mbstring exif pcntl bcmath gd
 
 # Enable Apache mod_rewrite
 RUN a2enmod rewrite
@@ -37,11 +35,10 @@ COPY . .
 
 # Create necessary directories
 RUN mkdir -p storage/logs storage/framework/cache storage/framework/sessions storage/framework/views
-RUN mkdir -p database
 
 # Set permissions
-RUN chown -R www-data:www-data storage database
-RUN chmod -R 775 storage database
+RUN chown -R www-data:www-data storage
+RUN chmod -R 775 storage
 
 # Copy Apache configuration
 COPY docker/apache.conf /etc/apache2/sites-available/000-default.conf

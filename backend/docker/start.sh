@@ -1,7 +1,11 @@
 #!/bin/bash
 
-# Wait for database to be ready (if using external database)
-# sleep 10
+# Wait for MySQL to be ready (if using external database)
+echo "Waiting for MySQL connection..."
+while ! php artisan migrate:status > /dev/null 2>&1; do
+    echo "MySQL not ready, waiting..."
+    sleep 2
+done
 
 # Generate application key if not set
 if [ -z "$APP_KEY" ]; then
