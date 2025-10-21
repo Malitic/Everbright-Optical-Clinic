@@ -15,16 +15,32 @@ Route::get('/health', function () {
 
 // Serve frontend for all non-API routes
 Route::get('/{path?}', function ($path = '') {
-    $frontendPath = base_path('frontend--/dist');
+    // Try multiple possible paths for frontend
+    $possiblePaths = [
+        base_path('frontend--/dist'),
+        base_path('../frontend--/dist'),
+        '/app/frontend--/dist',
+        public_path('../frontend--/dist')
+    ];
     
-    // Debug: Check if frontend directory exists
-    if (!File::exists($frontendPath)) {
+    $frontendPath = null;
+    foreach ($possiblePaths as $testPath) {
+        if (File::exists($testPath) && File::exists($testPath . '/index.html')) {
+            $frontendPath = $testPath;
+            break;
+        }
+    }
+    
+    // If no frontend found, return detailed debug info
+    if (!$frontendPath) {
         return response()->json([
             'status' => 'error',
-            'message' => 'Frontend build directory not found',
-            'frontend_path' => $frontendPath,
+            'message' => 'Frontend not found',
             'base_path' => base_path(),
-            'solution' => 'Pre-built frontend not found. Check if dist/ folder was committed.',
+            'public_path' => public_path(),
+            'checked_paths' => $possiblePaths,
+            'directory_contents' => File::directories(base_path()),
+            'solution' => 'Check if frontend--/dist/ directory exists and contains index.html',
             'timestamp' => now()
         ]);
     }
@@ -42,18 +58,11 @@ Route::get('/{path?}', function ($path = '') {
         return response()->file($indexPath, ['Content-Type' => 'text/html']);
     }
     
-    // Debug: List files in frontend directory
-    $files = File::files($frontendPath);
-    $fileList = array_map(function($file) {
-        return $file->getFilename();
-    }, $files);
-    
+    // Fallback error
     return response()->json([
         'status' => 'error',
         'message' => 'Frontend index.html not found',
         'frontend_path' => $frontendPath,
-        'files_found' => $fileList,
-        'solution' => 'Pre-built frontend exists but index.html is missing. Check build process.',
         'timestamp' => now()
     ]);
 })->where('path', '.*');
