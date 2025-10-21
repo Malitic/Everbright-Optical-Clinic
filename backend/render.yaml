@@ -1,14 +1,20 @@
 # Render Configuration for Laravel Backend
 # This file tells Render this is a PHP project
 
+# Environment
+env: production
+
 # PHP Version
-php_version=8.2
+php_version: 8.2
 
 # Build Command
-build_command=composer install --no-dev --optimize-autoloader
+build_command: composer install --no-dev --optimize-autoloader
 
 # Start Command  
-start_command=php artisan serve --host=0.0.0.0 --port=$PORT
+start_command: php artisan serve --host=0.0.0.0 --port=$PORT
 
 # Health Check
-health_check_path=/api/health
+health_check_path: /api/health
+
+# Auto Deploy
+auto_deploy: true
