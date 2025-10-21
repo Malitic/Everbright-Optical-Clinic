@@ -1,6 +1,6 @@
 #!/bin/bash
 
-echo "🚀 Starting Everbright Optical System (Backend Only Mode)..."
+echo "🚀 Starting Everbright Optical System (Full Stack)..."
 
 # Set environment variables for sessions
 export SESSION_DRIVER=database
@@ -18,11 +18,76 @@ mkdir -p backend/bootstrap/cache
 chmod -R 775 backend/storage
 chmod -R 775 backend/bootstrap/cache
 
-# Skip frontend build for now - focus on backend
-echo "⚠️ Skipping frontend build - running backend only"
+# Build frontend with better error handling
+echo "📦 Building frontend..."
 echo "📋 Current directory: $(pwd)"
 echo "📋 Contents:"
 ls -la
+
+# Check if frontend directory exists
+if [ ! -d "frontend--" ]; then
+    echo "❌ Frontend directory not found!"
+    echo "📋 Available directories:"
+    ls -la
+    echo "⚠️ Will serve backend API only"
+else
+    cd frontend--
+    echo "📋 Inside frontend directory: $(pwd)"
+    echo "📋 Frontend contents:"
+    ls -la
+
+    # Set production environment variables for frontend
+    export VITE_API_URL=https://everbright-optical-clinic-system-production.up.railway.app
+    export VITE_API_BASE_URL=https://everbright-optical-clinic-system-production.up.railway.app/api
+    export VITE_APP_NAME="Everbright Optical System"
+    export VITE_APP_ENV=production
+
+    # Try to install dependencies with timeout
+    echo "📋 Installing frontend dependencies..."
+    timeout 300 npm install || {
+        echo "❌ npm install timed out or failed"
+        echo "📋 Trying with npm ci..."
+        timeout 300 npm ci || {
+            echo "❌ npm ci also failed"
+            echo "📋 Contents after failed install:"
+            ls -la
+            cd ..
+            echo "⚠️ Frontend build failed - will serve backend API only"
+        }
+    }
+
+    if [ $? -eq 0 ]; then
+        echo "✅ Dependencies installed successfully"
+        
+        # Try to build with timeout
+        echo "🔨 Building frontend..."
+        timeout 300 npm run build || {
+            echo "❌ Frontend build timed out or failed"
+            echo "📋 Contents after failed build:"
+            ls -la
+            cd ..
+            echo "⚠️ Frontend build failed - will serve backend API only"
+        }
+    fi
+
+    if [ $? -eq 0 ]; then
+        echo "✅ Frontend built successfully"
+        
+        # Check if build was successful
+        if [ -d "dist" ] && [ -f "dist/index.html" ]; then
+            echo "📁 Frontend build contents:"
+            ls -la dist/
+            echo "✅ Frontend build completed successfully"
+        else
+            echo "⚠️ Frontend build completed but dist/index.html not found"
+            echo "📋 Contents after build:"
+            ls -la
+        fi
+    fi
+    
+    # Go back to root
+    cd ..
+fi
 
 # Generate application key if not set
 if [ -z "$APP_KEY" ]; then
