@@ -57,6 +57,11 @@ return [
         // Production URLs - will be updated after deployment
         'https://everbright-optical-frontend.vercel.app',
         'https://everbright-optical-frontend.vercel.app/',
+        // Netlify URLs
+        'https://everbright-optical-system.netlify.app',
+        'https://everbright-optical-system.netlify.app/',
+        // Allow any Netlify subdomain
+        'https://*.netlify.app',
     ],
 
     'allowed_origins_patterns' => [
@@ -67,6 +72,8 @@ return [
         '^http:\/\/10\.[0-9]+\.[0-9]+\.[0-9]+(?:\:[0-9]+)?$',
         // Allow file:// protocol for local testing
         '^file:\/\/',
+        // Allow Netlify domains
+        '^https:\/\/.*\.netlify\.app$',
     ],
 
     'allowed_headers' => ['*'],
