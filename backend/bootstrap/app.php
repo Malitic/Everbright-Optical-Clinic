@@ -12,6 +12,11 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        // Disable sessions for web routes to avoid file permission issues
+        $middleware->web(prepend: [
+            \App\Http\Middleware\DisableSessions::class,
+        ]);
+
         $middleware->api(prepend: [
             \App\Http\Middleware\HandleCors::class,
             \Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful::class,

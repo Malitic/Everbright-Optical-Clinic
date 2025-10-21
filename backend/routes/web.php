@@ -3,7 +3,16 @@
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\File;
 
-// Serve frontend for all non-API routes
+// Health check route (no sessions needed)
+Route::get('/health', function () {
+    return response()->json([
+        'status' => 'healthy',
+        'service' => 'Everbright Optical System',
+        'timestamp' => now()
+    ]);
+});
+
+// Serve frontend for all non-API routes (no sessions needed)
 Route::get('/{path?}', function ($path = '') {
     $frontendPath = base_path('../frontend--/dist');
     
@@ -28,11 +37,3 @@ Route::get('/{path?}', function ($path = '') {
         'timestamp' => now()
     ]);
 })->where('path', '.*');
-
-Route::get('/health', function () {
-    return response()->json([
-        'status' => 'healthy',
-        'service' => 'Everbright Optical System',
-        'timestamp' => now()
-    ]);
-});

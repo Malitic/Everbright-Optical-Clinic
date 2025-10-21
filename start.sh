@@ -2,6 +2,10 @@
 
 echo "🚀 Starting Everbright Optical System..."
 
+# Set environment variables for sessions
+export SESSION_DRIVER=database
+export CACHE_DRIVER=database
+
 # Create necessary directories and set permissions
 echo "📁 Creating directories and setting permissions..."
 mkdir -p backend/storage/framework/cache
