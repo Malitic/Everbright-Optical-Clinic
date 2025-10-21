@@ -2,6 +2,18 @@
 
 echo "🚀 Starting Everbright Optical System..."
 
+# Create necessary directories and set permissions
+echo "📁 Creating directories and setting permissions..."
+mkdir -p backend/storage/framework/cache
+mkdir -p backend/storage/framework/sessions
+mkdir -p backend/storage/framework/views
+mkdir -p backend/storage/logs
+mkdir -p backend/bootstrap/cache
+
+# Set proper permissions
+chmod -R 775 backend/storage
+chmod -R 775 backend/bootstrap/cache
+
 # Build frontend
 echo "📦 Building frontend..."
 cd frontend--
