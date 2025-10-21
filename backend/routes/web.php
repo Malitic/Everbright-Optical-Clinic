@@ -15,7 +15,7 @@ Route::get('/health', function () {
 
 // Serve frontend for all non-API routes
 Route::get('/{path?}', function ($path = '') {
-    $frontendPath = base_path('../frontend--/dist');
+    $frontendPath = base_path('frontend--/dist');
     
     // Debug: Check if frontend directory exists
     if (!File::exists($frontendPath)) {
