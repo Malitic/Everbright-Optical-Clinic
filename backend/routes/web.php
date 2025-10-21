@@ -23,6 +23,7 @@ Route::get('/{path?}', function ($path = '') {
             'message' => 'Frontend build directory not found',
             'frontend_path' => $frontendPath,
             'base_path' => base_path(),
+            'solution' => 'Frontend build failed during deployment. Check Railway logs for build errors.',
             'timestamp' => now()
         ]);
     }
@@ -51,6 +52,7 @@ Route::get('/{path?}', function ($path = '') {
         'message' => 'Frontend index.html not found',
         'frontend_path' => $frontendPath,
         'files_found' => $fileList,
+        'solution' => 'Frontend build completed but index.html is missing. Check build process.',
         'timestamp' => now()
     ]);
 })->where('path', '.*');

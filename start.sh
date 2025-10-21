@@ -18,7 +18,7 @@ mkdir -p backend/bootstrap/cache
 chmod -R 775 backend/storage
 chmod -R 775 backend/bootstrap/cache
 
-# Build frontend
+# Build frontend with error handling
 echo "📦 Building frontend..."
 echo "📋 Current directory: $(pwd)"
 echo "📋 Contents:"
@@ -29,42 +29,47 @@ if [ ! -d "frontend--" ]; then
     echo "❌ Frontend directory not found!"
     echo "📋 Available directories:"
     ls -la
-    exit 1
-fi
-
-cd frontend--
-echo "📋 Inside frontend directory: $(pwd)"
-echo "📋 Frontend contents:"
-ls -la
-
-echo "📋 Installing frontend dependencies..."
-npm install
-
-echo "🔨 Building frontend..."
-npm run build
-
-echo "✅ Frontend built successfully"
-
-# Check if build was successful
-if [ ! -d "dist" ]; then
-    echo "❌ Frontend build failed - dist directory not found"
-    echo "📋 Contents after build:"
+    echo "⚠️ Skipping frontend build - will serve API only"
+else
+    cd frontend--
+    echo "📋 Inside frontend directory: $(pwd)"
+    echo "📋 Frontend contents:"
     ls -la
-    exit 1
+
+    # Try to install dependencies
+    echo "📋 Installing frontend dependencies..."
+    if npm install; then
+        echo "✅ Dependencies installed successfully"
+        
+        # Try to build
+        echo "🔨 Building frontend..."
+        if npm run build; then
+            echo "✅ Frontend built successfully"
+            
+            # Check if build was successful
+            if [ -d "dist" ] && [ -f "dist/index.html" ]; then
+                echo "📁 Frontend build contents:"
+                ls -la dist/
+                echo "✅ Frontend build completed successfully"
+            else
+                echo "⚠️ Frontend build completed but dist/index.html not found"
+                echo "📋 Contents after build:"
+                ls -la
+            fi
+        else
+            echo "❌ Frontend build failed"
+            echo "📋 Contents after failed build:"
+            ls -la
+        fi
+    else
+        echo "❌ Frontend dependency installation failed"
+        echo "📋 Contents after failed install:"
+        ls -la
+    fi
+    
+    # Go back to root
+    cd ..
 fi
-
-if [ ! -f "dist/index.html" ]; then
-    echo "❌ Frontend build failed - index.html not found"
-    echo "📋 Dist directory contents:"
-    ls -la dist/
-    exit 1
-fi
-
-echo "📁 Frontend build contents:"
-ls -la dist/
-
-# Go back to root
-cd ..
 
 # Generate application key if not set
 if [ -z "$APP_KEY" ]; then
