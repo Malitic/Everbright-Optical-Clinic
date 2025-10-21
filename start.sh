@@ -1,6 +1,6 @@
 #!/bin/bash
 
-echo "🚀 Starting Everbright Optical System (Full Stack with Pre-built Frontend)..."
+echo "🚀 Starting Everbright Optical System..."
 
 # Set environment variables for sessions
 export SESSION_DRIVER=database
@@ -17,24 +17,6 @@ mkdir -p backend/bootstrap/cache
 # Set proper permissions
 chmod -R 775 backend/storage
 chmod -R 775 backend/bootstrap/cache
-
-# Check if pre-built frontend exists
-echo "📦 Checking for pre-built frontend..."
-echo "📋 Current directory: $(pwd)"
-echo "📋 Contents:"
-ls -la
-
-if [ -d "frontend--/dist" ] && [ -f "frontend--/dist/index.html" ]; then
-    echo "✅ Pre-built frontend found!"
-    echo "📁 Frontend build contents:"
-    ls -la frontend--/dist/
-    echo "✅ Using pre-built frontend - no build needed"
-else
-    echo "⚠️ Pre-built frontend not found"
-    echo "📋 Available directories:"
-    ls -la
-    echo "⚠️ Will serve backend API only"
-fi
 
 # Generate application key if not set
 if [ -z "$APP_KEY" ]; then
