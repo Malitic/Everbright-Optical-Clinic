@@ -17,14 +17,14 @@ Route::get('/health', function () {
 Route::get('/{path?}', function ($path = '') {
     $frontendPath = base_path('../frontend--/dist');
     
-    // Check if frontend directory exists
+    // Debug: Check if frontend directory exists
     if (!File::exists($frontendPath)) {
         return response()->json([
             'status' => 'error',
             'message' => 'Frontend build directory not found',
             'frontend_path' => $frontendPath,
             'base_path' => base_path(),
-            'solution' => 'Frontend build failed during deployment. Check Railway logs for build errors.',
+            'solution' => 'Pre-built frontend not found. Check if dist/ folder was committed.',
             'timestamp' => now()
         ]);
     }
@@ -53,7 +53,7 @@ Route::get('/{path?}', function ($path = '') {
         'message' => 'Frontend index.html not found',
         'frontend_path' => $frontendPath,
         'files_found' => $fileList,
-        'solution' => 'Frontend build completed but index.html is missing. Check build process.',
+        'solution' => 'Pre-built frontend exists but index.html is missing. Check build process.',
         'timestamp' => now()
     ]);
 })->where('path', '.*');

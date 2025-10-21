@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Railway Frontend Diagnostic</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; }
+        .container { max-width: 800px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .status { padding: 10px; margin: 10px 0; border-radius: 4px; }
+        .success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .warning { background: #fff3cd; color: #856404; border: 1px solid #ffeaa7; }
+        .info { background: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
+        button { background: #007bff; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; margin: 5px; }
+        button:hover { background: #0056b3; }
+        .log { background: #f8f9fa; padding: 10px; border-radius: 4px; font-family: monospace; white-space: pre-wrap; max-height: 300px; overflow-y: auto; }
+        .step { margin: 20px 0; padding: 15px; border-left: 4px solid #007bff; background: #f8f9fa; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 Railway Frontend Diagnostic Tool</h1>
+        
+        <div id="status" class="status info">
+            <strong>Status:</strong> Ready to diagnose frontend issues...
+        </div>
+
+        <div class="step">
+            <h3>Step 1: Check Railway Response</h3>
+            <button onclick="checkRailwayResponse()">Check Main URL</button>
+            <button onclick="checkHealthEndpoint()">Check Health</button>
+            <button onclick="checkApiEndpoint()">Check API</button>
+        </div>
+
+        <div class="step">
+            <h3>Step 2: Check Frontend Files</h3>
+            <button onclick="checkFrontendFiles()">Check Frontend Assets</button>
+            <button onclick="checkIndexHtml()">Check index.html</button>
+        </div>
+
+        <div class="step">
+            <h3>Step 3: Check Content Type</h3>
+            <button onclick="checkContentType()">Check Response Headers</button>
+        </div>
+
+        <div id="results"></div>
+
+        <h3>🔧 Common Frontend Issues:</h3>
+        <ul>
+            <li><strong>JSON Response Instead of HTML:</strong> Backend serving API response instead of frontend</li>
+            <li><strong>404 on Assets:</strong> CSS/JS files not found</li>
+            <li><strong>Wrong Content-Type:</strong> Server not serving HTML properly</li>
+            <li><strong>Path Issues:</strong> Frontend files in wrong location</li>
+            <li><strong>Build Issues:</strong> Frontend not built properly</li>
+        </ul>
+
+        <h3>📋 Railway Logs to Check:</h3>
+        <ol>
+            <li>Go to <a href="https://railway.app/dashboard" target="_blank">Railway Dashboard</a></li>
+            <li>Click on your project</li>
+            <li>Check <strong>Deploy Logs</strong> tab</li>
+            <li>Look for:
+                <ul>
+                    <li>"Pre-built frontend found!" message</li>
+                    <li>Any file serving errors</li>
+                    <li>Directory listing output</li>
+                </ul>
+            </li>
+        </ol>
+    </div>
+
+    <script>
+        const RAILWAY_URL = 'https://everbright-optical-clinic-system-production.up.railway.app';
+        
+        async function checkRailwayResponse() {
+            updateStatus('Checking Railway main URL...', 'info');
+            
+            try {
+                const response = await fetch(RAILWAY_URL, {
+                    method: 'GET',
+                    headers: {
+                        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+                    }
+                });
+                
+                const contentType = response.headers.get('content-type');
+                const text = await response.text();
+                
+                if (contentType && contentType.includes('text/html')) {
+                    updateStatus('✅ HTML Response Detected!', 'success');
+                    addResult('Main URL Response', `Content-Type: ${contentType}\n\nResponse Preview:\n${text.substring(0, 500)}...`);
+                } else if (contentType && contentType.includes('application/json')) {
+                    updateStatus('⚠️ JSON Response Instead of HTML', 'warning');
+                    addResult('Main URL Response', `Content-Type: ${contentType}\n\nJSON Response:\n${text}`);
+                } else {
+                    updateStatus(`❌ Unexpected Content-Type: ${contentType}`, 'error');
+                    addResult('Main URL Response', `Content-Type: ${contentType}\n\nResponse:\n${text}`);
+                }
+            } catch (error) {
+                updateStatus(`❌ Cannot reach Railway: ${error.message}`, 'error');
+                addResult('Connection Error', error.message);
+            }
+        }
+
+        async function checkHealthEndpoint() {
+            updateStatus('Checking health endpoint...', 'info');
+            
+            try {
+                const response = await fetch(`${RAILWAY_URL}/health`);
+                const data = await response.json();
+                
+                updateStatus('✅ Health endpoint working!', 'success');
+                addResult('Health Check', JSON.stringify(data, null, 2));
+            } catch (error) {
+                updateStatus(`❌ Health endpoint failed: ${error.message}`, 'error');
+                addResult('Health Error', error.message);
+            }
+        }
+
+        async function checkApiEndpoint() {
+            updateStatus('Checking API endpoint...', 'info');
+            
+            try {
+                const response = await fetch(`${RAILWAY_URL}/api/health`);
+                const data = await response.json();
+                
+                updateStatus('✅ API endpoint working!', 'success');
+                addResult('API Health Check', JSON.stringify(data, null, 2));
+            } catch (error) {
+                updateStatus(`❌ API endpoint failed: ${error.message}`, 'error');
+                addResult('API Error', error.message);
+            }
+        }
+
+        async function checkFrontendFiles() {
+            updateStatus('Checking frontend assets...', 'info');
+            
+            const assets = [
+                '/assets/index.css',
+                '/assets/index.js',
+                '/assets/vendor.js',
+                '/assets/router.js',
+                '/assets/ui.js'
+            ];
+            
+            let results = [];
+            
+            for (const asset of assets) {
+                try {
+                    const response = await fetch(`${RAILWAY_URL}${asset}`);
+                    if (response.ok) {
+                        results.push(`✅ ${asset} - Found (${response.status})`);
+                    } else {
+                        results.push(`❌ ${asset} - Not Found (${response.status})`);
+                    }
+                } catch (error) {
+                    results.push(`❌ ${asset} - Error: ${error.message}`);
+                }
+            }
+            
+            updateStatus('Frontend assets check completed', 'info');
+            addResult('Frontend Assets', results.join('\n'));
+        }
+
+        async function checkIndexHtml() {
+            updateStatus('Checking index.html...', 'info');
+            
+            try {
+                const response = await fetch(`${RAILWAY_URL}/index.html`);
+                const text = await response.text();
+                
+                if (response.ok && text.includes('<html')) {
+                    updateStatus('✅ index.html found and valid!', 'success');
+                    addResult('index.html Check', `Status: ${response.status}\nContent-Type: ${response.headers.get('content-type')}\n\nPreview:\n${text.substring(0, 300)}...`);
+                } else {
+                    updateStatus(`❌ index.html issue: ${response.status}`, 'error');
+                    addResult('index.html Check', `Status: ${response.status}\nResponse: ${text}`);
+                }
+            } catch (error) {
+                updateStatus(`❌ index.html check failed: ${error.message}`, 'error');
+                addResult('index.html Error', error.message);
+            }
+        }
+
+        async function checkContentType() {
+            updateStatus('Checking response headers...', 'info');
+            
+            try {
+                const response = await fetch(RAILWAY_URL);
+                const headers = {};
+                
+                for (let [key, value] of response.headers.entries()) {
+                    headers[key] = value;
+                }
+                
+                updateStatus('Response headers retrieved', 'info');
+                addResult('Response Headers', JSON.stringify(headers, null, 2));
+            } catch (error) {
+                updateStatus(`❌ Header check failed: ${error.message}`, 'error');
+                addResult('Header Error', error.message);
+            }
+        }
+
+        function updateStatus(message, type) {
+            const statusDiv = document.getElementById('status');
+            statusDiv.className = `status ${type}`;
+            statusDiv.innerHTML = `<strong>Status:</strong> ${message}`;
+        }
+
+        function addResult(title, content) {
+            const resultsDiv = document.getElementById('results');
+            const resultDiv = document.createElement('div');
+            resultDiv.innerHTML = `
+                <h4>${title}</h4>
+                <div class="log">${content}</div>
+            `;
+            resultsDiv.appendChild(resultDiv);
+        }
+
+        // Auto-check on page load
+        window.onload = function() {
+            checkRailwayResponse();
+        };
+    </script>
+</body>
+</html>
