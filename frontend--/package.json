@@ -8,10 +8,7 @@
     "build": "vite build",
     "build-with-tsc": "tsc && vite build",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
-    "preview": "vite preview",
-    "start": "serve -s dist -l $PORT",
-    "vercel-build": "npm ci && npm run build",
-    "netlify-build": "npm ci && npm run build"
+    "preview": "vite preview"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.3.2",

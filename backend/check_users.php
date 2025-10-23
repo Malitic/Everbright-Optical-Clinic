@@ -1,40 +1,38 @@
 <?php
 
-require __DIR__.'/vendor/autoload.php';
-
-$app = require_once __DIR__.'/bootstrap/app.php';
-$app->make('Illuminate\Contracts\Console\Kernel')->bootstrap();
-
-use App\Models\User;
-
-echo "=== USERS IN DATABASE ===\n\n";
-
-$users = User::all();
-
-if ($users->count() === 0) {
-    echo "No users found in database!\n";
-} else {
-    echo "Total users: " . $users->count() . "\n\n";
+try {
+    $pdo = new PDO('sqlite:database/database.sqlite');
     
-    foreach ($users as $user) {
-        echo "ID: " . $user->id . "\n";
-        echo "Name: " . $user->name . "\n";
-        echo "Email: " . $user->email . "\n";
-        echo "Role: " . $user->role->value . "\n";
-        echo "Approved: " . ($user->is_approved ? 'Yes' : 'No') . "\n";
-        echo "---\n";
+    // Check what tables exist
+    $stmt = $pdo->query("SELECT name FROM sqlite_master WHERE type='table'");
+    echo "Tables in SQLite database:\n";
+    while ($row = $stmt->fetch()) {
+        echo "- " . $row['name'] . "\n";
     }
+    
+    // Check migrations table
+    $stmt = $pdo->query("SELECT name FROM sqlite_master WHERE type='table' AND name='migrations'");
+    if ($stmt->fetch()) {
+        echo "\nMigrations table exists. Checking migrations:\n";
+        $stmt = $pdo->query('SELECT migration FROM migrations LIMIT 10');
+        while ($row = $stmt->fetch()) {
+            echo "- " . $row['migration'] . "\n";
+        }
+    } else {
+        echo "\nMigrations table does not exist.\n";
+    }
+    
+    // Check if users table exists
+    $stmt = $pdo->query("SELECT name FROM sqlite_master WHERE type='table' AND name='users'");
+    if ($stmt->fetch()) {
+        echo "\nUsers table exists. Checking users:\n";
+        $stmt = $pdo->query('SELECT id, name, email, role FROM users LIMIT 5');
+        while ($row = $stmt->fetch()) {
+            echo $row['id'] . ' - ' . $row['name'] . ' - ' . $row['email'] . ' - ' . $row['role'] . "\n";
+        }
+    } else {
+        echo "\nUsers table does not exist.\n";
+    }
+} catch (Exception $e) {
+    echo 'Error: ' . $e->getMessage() . "\n";
 }
-
-// Test password verification
-echo "\n=== TESTING PASSWORD VERIFICATION ===\n";
-$admin = User::where('email', 'admin@test.com')->first();
-if ($admin) {
-    $testPassword = 'password123';
-    $isValid = \Illuminate\Support\Facades\Hash::check($testPassword, $admin->password);
-    echo "Admin user found\n";
-    echo "Password 'password123' is " . ($isValid ? "VALID ✓" : "INVALID ✗") . "\n";
-} else {
-    echo "Admin user NOT found!\n";
-}
-

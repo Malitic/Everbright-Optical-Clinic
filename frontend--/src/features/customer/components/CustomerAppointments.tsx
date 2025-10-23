@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Calendar, Clock, MapPin, User, Phone, Mail, Eye, AlertCircle } from 'lucide-react';
+import { Calendar, Clock, MapPin, User, Phone, Mail, Eye, AlertCircle, Plus } from 'lucide-react';
 import { format } from 'date-fns';
 import { useAppointments, useUpdateAppointment, useDeleteAppointment } from '@/features/appointments/hooks/useAppointments';
 import { useAuth } from '@/contexts/AuthContext';
@@ -60,9 +60,18 @@ const CustomerAppointments: React.FC = () => {
 
   return (
     <div className="p-6 space-y-6">
+      <div className="flex justify-between items-start">
       <div>
         <h1 className="text-3xl font-bold text-gray-900">My Appointments</h1>
         <p className="text-gray-600 mt-2">View and manage your upcoming and past appointments</p>
+        </div>
+        <Button 
+          onClick={() => navigate('/customer/book-appointment')}
+          className="bg-customer hover:bg-customer/90"
+        >
+          <Plus className="h-4 w-4 mr-2" />
+          Book Appointment
+        </Button>
       </div>
 
 
@@ -97,10 +106,6 @@ const CustomerAppointments: React.FC = () => {
                 <Calendar className="w-12 h-12 text-gray-400 mx-auto mb-4" />
                 <h3 className="text-lg font-medium text-gray-900 mb-2">No Appointments Found</h3>
                 <p className="text-gray-600 mb-4">You don't have any appointments scheduled yet.</p>
-                <Button onClick={() => setShowBookingForm(true)}>
-                  <Calendar className="w-4 h-4 mr-2" />
-                  Book Your First Appointment
-                </Button>
               </CardContent>
             </Card>
           ) : (
@@ -137,18 +142,99 @@ const CustomerAppointments: React.FC = () => {
 
                     <div className="flex items-center gap-2">
                       <User className="w-4 h-4 text-gray-500" />
-                      <span className="text-sm text-gray-600">{appointment.optometrist?.name}</span>
+                      <span className="text-sm text-gray-600">
+                        Dr. {appointment.optometrist?.name || 'TBD'}
+                      </span>
                     </div>
 
                     <div className="flex items-center gap-2">
-                      <Clock className="w-4 h-4 text-gray-500" />
-                      <span className="text-sm text-gray-600">Patient: {appointment.patient?.name}</span>
+                      <MapPin className="w-4 h-4 text-gray-500" />
+                      <span className="text-sm text-gray-600">
+                        {appointment.branch?.name || 'Branch TBD'}
+                      </span>
                     </div>
 
-                    {selectedAppointment === appointment.id && appointment.notes && (
+                    <div className="flex items-center gap-2">
+                      <Eye className="w-4 h-4 text-gray-500" />
+                      <span className="text-sm text-gray-600">
+                        {appointment.type.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                      </span>
+                    </div>
+
+                    {selectedAppointment === appointment.id && (
                       <div className="mt-4 space-y-3 pt-3 border-t">
-                        <h4 className="font-medium text-sm mb-2">Notes:</h4>
-                        <p className="text-sm text-gray-600">{appointment.notes}</p>
+                        <h4 className="font-medium text-sm mb-3 text-gray-900">Appointment Details:</h4>
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                          <div className="space-y-2">
+                            <div className="flex items-center gap-2">
+                              <Calendar className="w-4 h-4 text-gray-500" />
+                              <span className="text-gray-600">
+                                <strong>Date:</strong> {format(new Date(appointment.appointment_date), 'EEEE, MMMM d, yyyy')}
+                              </span>
+                            </div>
+                            
+                            <div className="flex items-center gap-2">
+                              <Clock className="w-4 h-4 text-gray-500" />
+                              <span className="text-gray-600">
+                                <strong>Time:</strong> {appointment.start_time} - {appointment.end_time}
+                              </span>
+                            </div>
+                            
+                            <div className="flex items-center gap-2">
+                              <User className="w-4 h-4 text-gray-500" />
+                              <span className="text-gray-600">
+                                <strong>Doctor:</strong> Dr. {appointment.optometrist?.name || 'TBD'}
+                              </span>
+                            </div>
+                          </div>
+                          
+                          <div className="space-y-2">
+                            <div className="flex items-start gap-2">
+                              <MapPin className="w-4 h-4 text-gray-500 mt-0.5" />
+                              <div className="text-gray-600">
+                                <div><strong>Branch:</strong> {appointment.branch?.name || 'Branch TBD'}</div>
+                                {appointment.branch?.address && (
+                                  <div className="text-xs text-gray-500 mt-1">
+                                    📍 {appointment.branch.address}
+                                  </div>
+                                )}
+                                {appointment.branch?.phone && (
+                                  <div className="text-xs text-gray-500 mt-1">
+                                    📞 {appointment.branch.phone}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                            
+                            <div className="flex items-center gap-2">
+                              <Eye className="w-4 h-4 text-gray-500" />
+                              <span className="text-gray-600">
+                                <strong>Type:</strong> {appointment.type.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                              </span>
+                            </div>
+                            
+                            <div className="flex items-center gap-2">
+                              <AlertCircle className="w-4 h-4 text-gray-500" />
+                              <span className="text-gray-600">
+                                <strong>Status:</strong> 
+                                <Badge className={`ml-2 ${getStatusColor(appointment.status)}`}>
+                                  {appointment.status.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                                </Badge>
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {appointment.notes && (
+                          <div className="mt-4 pt-3 border-t">
+                            <h5 className="font-medium text-sm mb-2 text-gray-900">Special Notes:</h5>
+                            <p className="text-sm text-gray-600 bg-gray-50 p-3 rounded-md">
+                              {appointment.notes}
+                            </p>
+                          </div>
+                        )}
+
                       </div>
                     )}
                   </div>
@@ -192,10 +278,6 @@ const CustomerAppointments: React.FC = () => {
               <CardDescription>Manage your appointments</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
-              <Button className="w-full" size="sm" onClick={() => navigate('/customer/book-appointment')}>
-                <Calendar className="w-4 h-4 mr-2" />
-                Book New Appointment
-              </Button>
               <Button variant="outline" className="w-full" size="sm" onClick={() => setShowContactModal(true)}>
                 <Phone className="w-4 h-4 mr-2" />
                 Contact Support

@@ -192,60 +192,6 @@ const StaffDashboard = () => {
         />
       </div>
 
-      {/* Additional Quick Access Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        <DashboardCard
-          title="Patient Management"
-          value="Manage"
-          description="View and update patient records"
-          icon={Users}
-          action={{
-            label: 'View Patients',
-            onClick: () => navigate('/staff/patients'),
-            variant: 'staff'
-          }}
-          gradient
-        />
-
-        <DashboardCard
-          title="Notifications"
-          value="Send"
-          description="Communicate with patients"
-          icon={Clock}
-          action={{
-            label: 'Send Notifications',
-            onClick: () => navigate('/staff/notifications'),
-            variant: 'staff'
-          }}
-          gradient
-        />
-
-        <DashboardCard
-          title="Restock Requests"
-          value="Manage"
-          description="Handle inventory requests"
-          icon={Package}
-          action={{
-            label: 'View Requests',
-            onClick: () => navigate('/staff/restock-requests'),
-            variant: 'staff'
-          }}
-          gradient
-        />
-
-        <DashboardCard
-          title="Profile & Settings"
-          value="Manage"
-          description="Update your profile and branch info"
-          icon={Users}
-          action={{
-            label: 'View Profile',
-            onClick: () => navigate('/staff/profile'),
-            variant: 'staff'
-          }}
-          gradient
-        />
-      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Inventory Status */}

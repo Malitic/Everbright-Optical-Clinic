@@ -45,12 +45,9 @@ const Login = () => {
       console.log('Destination role:', destRole);
       console.log('Navigating to:', `/${destRole}/dashboard`);
       
-      // Wait for the user state to be updated, then navigate
-      console.log('Waiting for user state update...');
-      setTimeout(() => {
-        console.log('Executing delayed navigation to:', `/${destRole}/dashboard`);
-        navigate(`/${destRole}/dashboard`, { replace: true });
-      }, 500);
+      // Navigate immediately after successful login
+      console.log('Navigating immediately to:', `/${destRole}/dashboard`);
+      navigate(`/${destRole}/dashboard`, { replace: true });
     } catch (error: any) {
       console.error('Login error:', error);
       const apiMsg = error?.response?.data?.message;

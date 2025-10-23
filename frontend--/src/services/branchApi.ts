@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api';
 const api = axios.create({ baseURL: API_BASE_URL });
 
 // Add request interceptor to include auth token
@@ -40,11 +40,25 @@ export interface Branch {
 // Get all branches (admin only)
 export const getBranches = async (): Promise<Branch[]> => {
   const response = await api.get('/branches');
-  return response.data.branches || response.data;
+  // Handle both formats: direct array or {data: [...]} format
+  if (Array.isArray(response.data)) {
+    return response.data;
+  } else if (response.data && Array.isArray(response.data.data)) {
+    return response.data.data;
+  } else {
+    return [];
+  }
 };
 
 // Get active branches (public)
 export const getActiveBranches = async (): Promise<Branch[]> => {
   const response = await api.get('/branches/active');
-  return response.data;
+  // Handle both formats: direct array or {data: [...]} format
+  if (Array.isArray(response.data)) {
+    return response.data;
+  } else if (response.data && Array.isArray(response.data.data)) {
+    return response.data.data;
+  } else {
+    return [];
+  }
 };

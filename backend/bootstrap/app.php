@@ -23,6 +23,9 @@ return Application::configure(basePath: dirname(__DIR__))
             \App\Http\Middleware\BlockTestRoutes::class,
         ]);
 
+        // Remove Laravel's default CORS middleware to avoid conflicts
+        $middleware->remove(\Illuminate\Http\Middleware\HandleCors::class);
+
         $middleware->alias([
             'auth' => \App\Http\Middleware\Authenticate::class,
             'verified' => \Illuminate\Auth\Middleware\EnsureEmailIsVerified::class,

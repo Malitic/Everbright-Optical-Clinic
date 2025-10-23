@@ -52,7 +52,7 @@ const BranchManagement: React.FC = () => {
     try {
       setLoading(true);
       const token = sessionStorage.getItem('auth_token');
-      const apiBaseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
+      const apiBaseUrl = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api-mysql.php';
       const response = await fetch(`${apiBaseUrl}/branches`, {
         method: 'POST',
         headers: {
@@ -94,7 +94,7 @@ const BranchManagement: React.FC = () => {
     try {
       setLoading(true);
       const token = sessionStorage.getItem('auth_token');
-      const apiBaseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
+      const apiBaseUrl = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api-mysql.php';
       
       
       const response = await fetch(`${apiBaseUrl}/branches/${selectedBranch.id}`, {
@@ -138,7 +138,7 @@ const BranchManagement: React.FC = () => {
     try {
       setLoading(true);
       const token = sessionStorage.getItem('auth_token');
-      const apiBaseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
+      const apiBaseUrl = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api-mysql.php';
       
       
       const response = await fetch(`${apiBaseUrl}/branches/${branchId}`, {
@@ -185,12 +185,12 @@ const BranchManagement: React.FC = () => {
   const openEditDialog = (branch: Branch) => {
     setSelectedBranch(branch);
     setFormData({
-      name: branch.name,
-      code: branch.code,
-      address: branch.address,
+      name: branch.name || '',
+      code: branch.code || '',
+      address: branch.address || '',
       phone: branch.phone || '',
       email: branch.email || '',
-      is_active: branch.is_active
+      is_active: branch.is_active ?? true
     });
     setIsEditDialogOpen(true);
   };

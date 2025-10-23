@@ -76,8 +76,8 @@ const BranchContactManagement: React.FC = () => {
       const contactsResponse = await getAllBranchContacts();
       setContacts(contactsResponse.contacts);
 
-      // Load branches (assuming you have a branches API)
-      const branchesResponse = await fetch('/api/branches', {
+      // Load branches (using MySQL API)
+      const branchesResponse = await fetch('http://127.0.0.1:8000/api-mysql.php/branches', {
         headers: {
           'Authorization': `Bearer ${sessionStorage.getItem('auth_token')}`,
           'Content-Type': 'application/json'
@@ -86,7 +86,7 @@ const BranchContactManagement: React.FC = () => {
       
       if (branchesResponse.ok) {
         const branchesData = await branchesResponse.json();
-        setBranches(branchesData.branches || []);
+        setBranches(branchesData.data || []);
       }
     } catch (error) {
       console.error('Error loading data:', error);

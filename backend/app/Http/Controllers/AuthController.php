@@ -176,7 +176,7 @@ class AuthController extends Controller
                 'id' => $user->id,
                 'name' => $user->name,
                 'email' => $user->email,
-                'role' => $user->role->value,
+                'role' => $user->role->value ?? (string)$user->role,
                 'branch' => $user->branch ? [
                     'id' => $user->branch->id,
                     'name' => $user->branch->name,
@@ -250,7 +250,14 @@ class AuthController extends Controller
         try {
             $user = $request->user();
 
-            if (($user->role->value ?? (string)$user->role) !== 'admin') {
+            $userRole = null;
+            if (is_object($user->role)) {
+                $userRole = $user->role->value ?? (string)$user->role;
+            } else {
+                $userRole = (string)$user->role;
+            }
+            
+            if ($userRole !== 'admin') {
                 return response()->json(['message' => 'Unauthorized'], 403);
             }
 
@@ -260,11 +267,19 @@ class AuthController extends Controller
                         ->orderBy('created_at', 'desc')
                         ->get()
                         ->map(function ($user) {
+                            // Handle role format
+                            $role = null;
+                            if (is_object($user->role)) {
+                                $role = $user->role->value ?? (string)$user->role;
+                            } else {
+                                $role = (string)$user->role;
+                            }
+                            
                             return [
                                 'id' => $user->id,
                                 'name' => $user->name,
                                 'email' => $user->email,
-                                'role' => $user->role,
+                                'role' => $role,
                                 'branch' => $user->branch ? [
                                     'id' => $user->branch->id,
                                     'name' => $user->branch->name,

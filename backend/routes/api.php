@@ -27,6 +27,7 @@ use App\Http\Controllers\EnhancedInventoryController;
 use App\Http\Controllers\RealTimeInventoryController;
 use App\Http\Controllers\CrossBranchInventoryController;
 use App\Http\Controllers\BranchContactController;
+use App\Http\Controllers\GlassOrderController;
 
 /*
 |--------------------------------------------------------------------------
@@ -66,6 +67,15 @@ Route::get('/db-test', function() {
             'timestamp' => now()->toISOString()
         ], 500);
     }
+});
+
+// Test route for contact API (public access)
+Route::get('/test-contact', function() {
+    return response()->json([
+        'message' => 'Contact API is working',
+        'timestamp' => now(),
+        'user' => auth()->user() ? auth()->user()->name : 'Not authenticated'
+    ]);
 });
 
 Route::get('/test-unitop-inventory', function() {
@@ -113,6 +123,10 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Branch routes (Admin only)
     Route::get('/branches', [BranchController::class, 'index']); // Moved inside auth
+    Route::post('/branches', [BranchController::class, 'store']);
+    Route::get('/branches/{branch}', [BranchController::class, 'show']);
+    Route::put('/branches/{branch}', [BranchController::class, 'update']);
+    Route::delete('/branches/{branch}', [BranchController::class, 'destroy']);
 
     // Enhanced Inventory Routes
     Route::get('/inventory/enhanced', [EnhancedInventoryController::class, 'index']);
@@ -223,6 +237,17 @@ Route::middleware('auth:sanctum')->group(function () {
     // Branch contact routes
     Route::get('/branch-contacts', [BranchContactController::class, 'index']);
     Route::get('/branch-contacts/{branchId}', [BranchContactController::class, 'show']);
+
+    // Glass order routes
+    Route::get('/glass-orders', [GlassOrderController::class, 'index']);
+    Route::post('/glass-orders', [GlassOrderController::class, 'store']);
+    Route::get('/glass-orders/{id}', [GlassOrderController::class, 'show']);
+    Route::put('/glass-orders/{id}', [GlassOrderController::class, 'update']);
+    Route::get('/glass-orders/patient/{patientId}', [GlassOrderController::class, 'getByPatient']);
+    Route::post('/glass-orders/{id}/send-to-manufacturer', [GlassOrderController::class, 'markAsSentToManufacturer']);
+
+    // Report routes
+    Route::get('/reports/analytics/pdf', [App\Http\Controllers\ReportController::class, 'generateAnalyticsReport']);
     Route::get('/branch-contacts/my-branch', [BranchContactController::class, 'getMyBranchContact']);
     Route::post('/branch-contacts', [BranchContactController::class, 'store']);
     Route::put('/branch-contacts/{id}', [BranchContactController::class, 'update']);
@@ -241,19 +266,22 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::get('/transactions', [TransactionController::class, 'index']);
     Route::post('/transactions', [TransactionController::class, 'store']);
+    Route::get('/transactions/patients', [TransactionController::class, 'getPatientTransactions']);
 
     Route::get('/receipts', [ReceiptController::class, 'index']);
     Route::post('/receipts', [ReceiptController::class, 'store']);
     Route::get('/receipts/{receipt}', [ReceiptController::class, 'show']);
+    Route::get('/receipts/{receipt}/download', [ReceiptController::class, 'downloadReceipt']);
     Route::get('/customers/{customerId}/receipts', [ReceiptController::class, 'getByCustomer']);
 
     // Feedback routes
     Route::get('/feedback', [FeedbackController::class, 'index']);
     Route::post('/feedback', [FeedbackController::class, 'store']);
+    Route::get('/feedback/available-appointments', [FeedbackController::class, 'getAvailableAppointments']);
+    Route::get('/admin/feedback/analytics', [FeedbackController::class, 'getAnalytics']);
     Route::get('/feedback/{feedback}', [FeedbackController::class, 'show']);
     Route::put('/feedback/{feedback}', [FeedbackController::class, 'update']);
     Route::delete('/feedback/{feedback}', [FeedbackController::class, 'destroy']);
-    Route::get('/feedback/available-appointments', [FeedbackController::class, 'getAvailableAppointments']);
     Route::get('/customers/{customerId}/feedback', [FeedbackController::class, 'getByCustomer']);
 
     // Staff schedule routes
@@ -276,13 +304,15 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/reservations/{reservation}', [ReservationController::class, 'show']);
     Route::put('/reservations/{reservation}', [ReservationController::class, 'update']);
     Route::delete('/reservations/{reservation}', [ReservationController::class, 'destroy']);
+    Route::put('/reservations/{reservation}/approve', [ReservationController::class, 'approve']);
+    Route::put('/reservations/{reservation}/reject', [ReservationController::class, 'reject']);
 
-    // Test route for contact API
-    Route::get('/test-contact', function() {
-        return response()->json([
-            'message' => 'Contact API is working',
-            'timestamp' => now(),
-            'user' => auth()->user() ? auth()->user()->name : 'Not authenticated'
-        ]);
-    });
+    // Admin user management routes
+    Route::get('/admin/users', [AuthController::class, 'getAllUsers']);
+    Route::post('/admin/users', [AuthController::class, 'createUser']);
+    Route::put('/admin/users/{user}', [AuthController::class, 'updateUser']);
+    Route::delete('/admin/users/{id}', [AuthController::class, 'deleteUser']);
+    Route::post('/admin/users/{id}/approve', [AuthController::class, 'approveUser']);
+    Route::post('/admin/users/{id}/reject', [AuthController::class, 'rejectUser']);
+
 });

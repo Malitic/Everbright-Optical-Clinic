@@ -13,8 +13,8 @@ Route::get('/health', function () {
     ]);
 });
 
-// Serve frontend for all non-API routes
-Route::get('/{path?}', function ($path = '') {
+// Serve frontend for root route only
+Route::get('/', function () {
     // Try multiple possible paths for frontend
     $possiblePaths = [
         base_path('frontend--/dist'),
@@ -45,14 +45,7 @@ Route::get('/{path?}', function ($path = '') {
         ]);
     }
     
-    // If requesting a specific file, serve it
-    if ($path && File::exists($frontendPath . '/' . $path)) {
-        $filePath = $frontendPath . '/' . $path;
-        $mimeType = File::mimeType($filePath);
-        return response()->file($filePath, ['Content-Type' => $mimeType]);
-    }
-    
-    // Serve index.html for all other routes (SPA routing)
+    // Serve index.html for root route
     $indexPath = $frontendPath . '/index.html';
     if (File::exists($indexPath)) {
         return response()->file($indexPath, ['Content-Type' => 'text/html']);
@@ -65,4 +58,4 @@ Route::get('/{path?}', function ($path = '') {
         'frontend_path' => $frontendPath,
         'timestamp' => now()
     ]);
-})->where('path', '.*');
+});

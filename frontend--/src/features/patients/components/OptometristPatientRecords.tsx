@@ -49,9 +49,10 @@ const OptometristPatientRecords: React.FC = () => {
       setLoading(true);
       setError(null);
       const response = await getOptometristPatients();
-      setPatients(response.data);
+      setPatients(response.data || []);
     } catch (err: any) {
       console.error('Error loading patients:', err);
+      setPatients([]); // Ensure patients is always an array
       if (err.response?.status === 401) {
         setError('Please log in to view patient records');
       } else if (err.response?.status === 403) {
@@ -76,7 +77,7 @@ const OptometristPatientRecords: React.FC = () => {
     }
   };
 
-  const filteredPatients = patients.filter(patient =>
+  const filteredPatients = (patients || []).filter(patient =>
     patient.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     patient.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
     (patient.phone && patient.phone.includes(searchTerm))
@@ -211,26 +212,26 @@ const OptometristPatientRecords: React.FC = () => {
                                 <div className="grid grid-cols-2 gap-4">
                                   <div>
                                     <p className="text-sm font-medium">Name</p>
-                                    <p>{patientDetails.patient.name}</p>
+                                    <p>{patientDetails.patient?.name || 'N/A'}</p>
                                   </div>
                                   <div>
                                     <p className="text-sm font-medium">Email</p>
-                                    <p>{patientDetails.patient.email}</p>
+                                    <p>{patientDetails.patient?.email || 'N/A'}</p>
                                   </div>
                                   <div>
                                     <p className="text-sm font-medium">Phone</p>
-                                    <p>{patientDetails.patient.phone || 'N/A'}</p>
+                                    <p>{patientDetails.patient?.phone || 'N/A'}</p>
                                   </div>
                                   <div>
                                     <p className="text-sm font-medium">Date of Birth</p>
-                                    <p>{patientDetails.patient.date_of_birth || 'N/A'}</p>
+                                    <p>{patientDetails.patient?.date_of_birth || 'N/A'}</p>
                                   </div>
                                 </div>
                               </div>
 
                               <div>
                                 <h3 className="font-semibold mb-4">Appointment History</h3>
-                                {patientDetails.appointments.length === 0 ? (
+                                {!patientDetails.appointments || patientDetails.appointments.length === 0 ? (
                                   <p className="text-gray-500">No appointments found for this patient.</p>
                                 ) : (
                                   <div className="space-y-2">
@@ -268,7 +269,7 @@ const OptometristPatientRecords: React.FC = () => {
                                     <Loader2 className="h-6 w-6 animate-spin" />
                                     <span className="ml-2">Loading prescriptions...</span>
                                   </div>
-                                ) : patientDetails.prescriptions.length === 0 ? (
+                                ) : !patientDetails.prescriptions || patientDetails.prescriptions.length === 0 ? (
                                   <p className="text-gray-500">No prescriptions found for this patient.</p>
                                 ) : (
                                   <div className="space-y-3">

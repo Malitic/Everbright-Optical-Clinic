@@ -9,6 +9,8 @@ use App\Models\Branch;
 use App\Models\Reservation;
 use App\Models\BranchStock;
 use App\Models\Product;
+use App\Models\Receipt;
+use App\Models\Transaction;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Auth;
@@ -405,6 +407,21 @@ class AnalyticsController extends Controller
             ->groupBy(function ($reservation) {
                 return $reservation->created_at->format('Y-m-d');
             });
+            
+        $receipts = Receipt::whereHas('appointment', function($q) use ($branchId) {
+            $q->where('branch_id', $branchId);
+        })->where('created_at', '>=', $startDate)
+            ->get()
+            ->groupBy(function ($receipt) {
+                return $receipt->created_at->format('Y-m-d');
+            });
+
+        $transactions = Transaction::where('branch_id', $branchId)
+            ->where('created_at', '>=', $startDate)
+            ->get()
+            ->groupBy(function ($transaction) {
+                return $transaction->created_at->format('Y-m-d');
+            });
 
         $dailyData = [];
         $currentDate = $startDate->copy();
@@ -413,13 +430,25 @@ class AnalyticsController extends Controller
             $dateStr = $currentDate->format('Y-m-d');
             $dayAppointments = $appointments->get($dateStr, collect());
             $dayReservations = $reservations->get($dateStr, collect());
+            $dayReceipts = $receipts->get($dateStr, collect());
+            $dayTransactions = $transactions->get($dateStr, collect());
+
+            $reservationRevenue = $dayReservations->where('status', 'completed')->sum('total_price');
+            $receiptRevenue = $dayReceipts->sum('total_due');
+            $transactionRevenue = $dayTransactions->where('status', 'Completed')->sum('total_amount');
+            $totalRevenue = $reservationRevenue + $receiptRevenue + $transactionRevenue;
 
             $dailyData[] = [
                 'date' => $dateStr,
                 'appointments' => $dayAppointments->count(),
                 'completed_appointments' => $dayAppointments->where('status', 'completed')->count(),
                 'reservations' => $dayReservations->count(),
-                'revenue' => $dayReservations->where('status', 'completed')->sum('total_price'),
+                'receipts' => $dayReceipts->count(),
+                'transactions' => $dayTransactions->count(),
+                'revenue' => $totalRevenue,
+                'reservation_revenue' => $reservationRevenue,
+                'receipt_revenue' => $receiptRevenue,
+                'transaction_revenue' => $transactionRevenue,
             ];
 
             $currentDate->addDay();
@@ -444,13 +473,24 @@ class AnalyticsController extends Controller
             $reservations = Reservation::where('branch_id', $branch->id)
                 ->where('created_at', '>=', $startDate)
                 ->get();
+                
+            // Get receipts for this branch through appointments
+            $receipts = Receipt::whereHas('appointment', function($q) use ($branch) {
+                $q->where('branch_id', $branch->id);
+            })->where('created_at', '>=', $startDate)->get();
+
+            $reservationRevenue = $reservations->where('status', 'completed')->sum('total_price');
+            $receiptRevenue = $receipts->sum('total_due');
+            $totalRevenue = $reservationRevenue + $receiptRevenue;
 
             $branchPerformance[] = [
                 'branch_id' => $branch->id,
                 'branch_name' => $branch->name,
                 'appointments' => $appointments->count(),
                 'completed_appointments' => $appointments->where('status', 'completed')->count(),
-                'revenue' => $reservations->where('status', 'completed')->sum('total_price'),
+                'revenue' => $totalRevenue,
+                'reservation_revenue' => $reservationRevenue,
+                'receipt_revenue' => $receiptRevenue,
                 'unique_patients' => $appointments->pluck('patient_id')->unique()->count(),
             ];
         }
@@ -506,6 +546,15 @@ class AnalyticsController extends Controller
             $reservations = Reservation::where('branch_id', $staffMember->branch_id)
                 ->where('created_at', '>=', $startDate)
                 ->get();
+                
+            // Get receipts for this branch through appointments
+            $receipts = Receipt::whereHas('appointment', function($q) use ($staffMember) {
+                $q->where('branch_id', $staffMember->branch_id);
+            })->where('created_at', '>=', $startDate)->get();
+
+            $reservationRevenue = $reservations->where('status', 'completed')->sum('total_price');
+            $receiptRevenue = $receipts->sum('total_due');
+            $totalRevenue = $reservationRevenue + $receiptRevenue;
 
             $activityReport[] = [
                 'staff_id' => $staffMember->id,
@@ -513,7 +562,10 @@ class AnalyticsController extends Controller
                 'branch' => $staffMember->branch->name,
                 'appointments_managed' => $appointments->count(),
                 'reservations_processed' => $reservations->count(),
-                'revenue_generated' => $reservations->where('status', 'completed')->sum('total_price'),
+                'receipts_created' => $receipts->count(),
+                'revenue_generated' => $totalRevenue,
+                'reservation_revenue' => $reservationRevenue,
+                'receipt_revenue' => $receiptRevenue,
             ];
         }
 
@@ -527,9 +579,20 @@ class AnalyticsController extends Controller
     {
         $totalAppointments = Appointment::where('appointment_date', '>=', $startDate)->count();
         $totalReservations = Reservation::where('created_at', '>=', $startDate)->count();
-        $totalRevenue = Reservation::where('created_at', '>=', $startDate)
+        
+        // Calculate total revenue from reservations, receipts, and transactions
+        $reservationRevenue = Reservation::where('created_at', '>=', $startDate)
             ->where('status', 'completed')
             ->sum('total_price');
+            
+        $receiptRevenue = Receipt::where('created_at', '>=', $startDate)
+            ->sum('total_due');
+            
+        $transactionRevenue = Transaction::where('created_at', '>=', $startDate)
+            ->where('status', 'Completed')
+            ->sum('total_amount');
+            
+        $totalRevenue = $reservationRevenue + $receiptRevenue + $transactionRevenue;
 
         $totalProducts = Product::count();
         $totalBranches = Branch::where('is_active', true)->count();
@@ -539,6 +602,9 @@ class AnalyticsController extends Controller
             'appointments' => $totalAppointments,
             'reservations' => $totalReservations,
             'revenue' => $totalRevenue,
+            'reservation_revenue' => $reservationRevenue,
+            'receipt_revenue' => $receiptRevenue,
+            'transaction_revenue' => $transactionRevenue,
             'products' => $totalProducts,
             'branches' => $totalBranches,
             'users' => $totalUsers,
@@ -580,10 +646,15 @@ class AnalyticsController extends Controller
         // Get today's appointments
         $totalAppointmentsToday = Appointment::whereDate('appointment_date', $today)->count();
         
-        // Get today's revenue from completed reservations
-        $totalRevenueToday = Reservation::whereDate('created_at', $today)
+        // Get today's revenue from completed reservations AND receipts
+        $reservationRevenueToday = Reservation::whereDate('created_at', $today)
             ->where('status', 'completed')
             ->sum('total_price');
+            
+        $receiptRevenueToday = Receipt::whereDate('created_at', $today)
+            ->sum('total_due');
+            
+        $totalRevenueToday = $reservationRevenueToday + $receiptRevenueToday;
         
         // Get active users (logged in within last 24 hours)
         $activeUsers = User::where('last_login_at', '>=', Carbon::now()->subDay())->count();
@@ -627,18 +698,45 @@ class AnalyticsController extends Controller
         $startDate = Carbon::now()->subDays($period);
         $branchId = $request->get('branch_id');
 
-        // Revenue trend
+        // Revenue trend (including reservations, receipts, and transactions)
         $revenueTrend = [];
         for ($i = $period; $i >= 0; $i--) {
             $date = Carbon::now()->subDays($i);
-            $query = Reservation::whereDate('created_at', $date)
+            
+            // Get reservation revenue
+            $reservationQuery = Reservation::whereDate('created_at', $date)
                 ->where('status', 'completed');
             
             if ($branchId) {
-                $query->where('branch_id', $branchId);
+                $reservationQuery->where('branch_id', $branchId);
             }
             
-            $revenue = $query->sum('total_price');
+            $reservationRevenue = $reservationQuery->sum('total_price');
+            
+            // Get receipt revenue
+            $receiptQuery = Receipt::whereDate('created_at', $date);
+            
+            if ($branchId) {
+                // Filter receipts by branch through appointments
+                $receiptQuery->whereHas('appointment', function($q) use ($branchId) {
+                    $q->where('branch_id', $branchId);
+                });
+            }
+            
+            $receiptRevenue = $receiptQuery->sum('total_due');
+            
+            // Get transaction revenue
+            $transactionQuery = Transaction::whereDate('created_at', $date)
+                ->where('status', 'Completed');
+            
+            if ($branchId) {
+                $transactionQuery->where('branch_id', $branchId);
+            }
+            
+            $transactionRevenue = $transactionQuery->sum('total_amount');
+            
+            $totalRevenue = $reservationRevenue + $receiptRevenue + $transactionRevenue;
+            
             $appointments = Appointment::whereDate('appointment_date', $date)->count();
             $patients = Appointment::whereDate('appointment_date', $date)
                 ->distinct('patient_id')
@@ -646,7 +744,10 @@ class AnalyticsController extends Controller
 
             $revenueTrend[] = [
                 'date' => $date->format('Y-m-d'),
-                'revenue' => $revenue,
+                'revenue' => $totalRevenue,
+                'reservation_revenue' => $reservationRevenue,
+                'receipt_revenue' => $receiptRevenue,
+                'transaction_revenue' => $transactionRevenue,
                 'appointments' => $appointments,
                 'patients' => $patients,
             ];

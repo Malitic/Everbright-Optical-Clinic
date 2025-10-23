@@ -46,8 +46,8 @@ const AdminProductManagement: React.FC = () => {
     name: '',
     description: '',
     price: '',
-    stock_quantity: '',
     category_id: '',
+    branch_stocks: {} as Record<number, number>, // branch_id -> stock_quantity
     is_active: true
   });
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
@@ -64,13 +64,14 @@ const AdminProductManagement: React.FC = () => {
   const [deletedProductIds, setDeletedProductIds] = useState<Set<number>>(new Set());
   const [categoryFilter, setCategoryFilter] = useState<'all' | 'frames' | 'sunglasses' | 'contact_lenses' | 'eye_care' | 'others'>('all');
   const [categories, setCategories] = useState<Array<{ id: number; name: string }>>([]);
+  const [availableBranches, setAvailableBranches] = useState<Array<{ id: number; name: string; code: string }>>([]);
 
   useEffect(() => {
     fetchProductsList();
     // Load categories for category selector
     (async () => {
       try {
-        const apiBaseUrl = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api';
+        const apiBaseUrl = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api-mysql.php';
         const token = sessionStorage.getItem('auth_token');
         const res = await fetch(`${apiBaseUrl}/product-categories`, {
           headers: {
@@ -80,8 +81,27 @@ const AdminProductManagement: React.FC = () => {
         });
         if (res.ok) {
           const data = await res.json();
-          const list = Array.isArray(data) ? data : (data.categories || []);
+          const list = Array.isArray(data) ? data : (data.data || []);
           setCategories(list.map((c: any) => ({ id: c.id, name: c.name })));
+        }
+      } catch {}
+    })();
+    
+    // Load branches for branch selector
+    (async () => {
+      try {
+        const apiBaseUrl = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api-mysql.php';
+        const token = sessionStorage.getItem('auth_token');
+        const res = await fetch(`${apiBaseUrl}/branches`, {
+          headers: {
+            'Authorization': token ? `Bearer ${token}` : '',
+            'Accept': 'application/json'
+          }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          const list = Array.isArray(data) ? data : (data.data || []);
+          setAvailableBranches(list.map((b: any) => ({ id: b.id, name: b.name, code: b.code || '' })));
         }
       } catch {}
     })();
@@ -148,9 +168,24 @@ const AdminProductManagement: React.FC = () => {
       fd.append('name', formData.name.trim());
       fd.append('description', (formData.description || '').trim()); // Safe null handling
       fd.append('price', parseFloat(formData.price).toString());
-      fd.append('stock_quantity', parseInt(formData.stock_quantity).toString());
       fd.append('is_active', formData.is_active ? '1' : '0');
-      if (formData.category_id) fd.append('category_id', formData.category_id);
+      
+      // Convert category_id to category name for MySQL compatibility
+      if (formData.category_id) {
+        const selectedCategory = categories.find(cat => cat.id.toString() === formData.category_id);
+        if (selectedCategory) {
+          fd.append('category', selectedCategory.name);
+        }
+      }
+      
+      // Add branch stock assignments
+      const branchStocks = Object.entries(formData.branch_stocks || {})
+        .filter(([branchId, stock]) => stock > 0)
+        .map(([branchId, stock]) => ({ branch_id: parseInt(branchId), stock_quantity: stock }));
+      
+      if (branchStocks.length > 0) {
+        fd.append('branch_stocks', JSON.stringify(branchStocks));
+      }
       
       // Add images if any
       selectedFiles.forEach((file, index) => {
@@ -160,20 +195,13 @@ const AdminProductManagement: React.FC = () => {
       if (editingProduct) {
         await updateProduct(String(editingProduct.id), fd);
         toast.success('Product updated successfully');
+        // Always refresh after update
+        await fetchProductsList();
       } else {
         await createProduct(fd);
         toast.success('Product created successfully');
-      }
-      // Only refresh if no products have been deleted recently
-      if (!shouldSkipRefresh()) {
+        // Always refresh after creation to show new product
         await fetchProductsList();
-      } else {
-        // Just add the new product to local state without full refresh
-        if (!editingProduct) {
-          // For new products, we'd need to get the created product data
-          // For now, just show success message
-          toast.success('Product created successfully');
-        }
       }
       resetForm();
     } catch (error: any) {
@@ -298,7 +326,7 @@ const AdminProductManagement: React.FC = () => {
     setSelectedProduct(product);
     setIsLoadingStock(true);
     try {
-      const apiBaseUrl = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api';
+      const apiBaseUrl = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api-mysql.php';
       const token = sessionStorage.getItem('auth_token');
       
       if (!token) {
@@ -341,7 +369,7 @@ const AdminProductManagement: React.FC = () => {
       console.log('Branches response:', branchesJson);
       console.log('Stock response:', stockJson);
 
-      const allBranches: Array<{ id: number; name: string; code: string }> = (branchesJson.branches || branchesJson || []).map((b: any) => ({ id: b.id, name: b.name, code: b.code }));
+      const allBranches: Array<{ id: number; name: string; code: string }> = (branchesJson.data || branchesJson || []).map((b: any) => ({ id: b.id, name: b.name, code: b.code }));
       const allStock: BranchStock[] = (stockJson.stock || stockJson || []).filter((s: any) => s.product_id === product.id);
       setBranches(allBranches);
       
@@ -418,8 +446,8 @@ const AdminProductManagement: React.FC = () => {
       name: '',
       description: '',
       price: '',
-      stock_quantity: '',
       category_id: '',
+      branch_stocks: {},
       is_active: true
     });
     setSelectedFiles([]);
@@ -635,18 +663,31 @@ const AdminProductManagement: React.FC = () => {
           <Card key={product.id} className={`overflow-hidden hover:shadow-lg transition-shadow ${viewMode === 'list' ? 'flex flex-row' : ''}`}>
             {/* Product Image */}
             <div className={`relative bg-gray-100 ${viewMode === 'list' ? 'w-32 h-32' : 'h-48'}`}>
-              {product.image_paths && product.image_paths.length > 0 ? (
-                <img
-                  className="w-full h-full object-cover"
-                  src={getStorageUrl(product.image_paths[0])}
-                  alt={product.name}
-                />
-              ) : (
-                <div className="w-full h-full flex flex-col items-center justify-center text-gray-400">
-                  <Package className={`${viewMode === 'list' ? 'h-8 w-8' : 'h-16 w-16'} mb-2`} />
-                  <span className="text-xs">No Image</span>
-                </div>
-              )}
+              {(() => {
+                // Parse image_paths if it's a JSON string
+                let imagePaths = product.image_paths;
+                if (typeof imagePaths === 'string') {
+                  try {
+                    imagePaths = JSON.parse(imagePaths);
+                  } catch (e) {
+                    console.error('Failed to parse image_paths:', e);
+                    imagePaths = [];
+                  }
+                }
+                
+                return imagePaths && imagePaths.length > 0 ? (
+                  <img
+                    className="w-full h-full object-cover"
+                    src={getStorageUrl(imagePaths[0])}
+                    alt={product.name}
+                  />
+                ) : (
+                  <div className="w-full h-full flex flex-col items-center justify-center text-gray-400">
+                    <Package className={`${viewMode === 'list' ? 'h-8 w-8' : 'h-16 w-16'} mb-2`} />
+                    <span className="text-xs">No Image</span>
+                  </div>
+                );
+              })()}
               
               {/* Status Badge Overlay */}
               {viewMode === 'grid' && (
@@ -868,7 +909,7 @@ const AdminProductManagement: React.FC = () => {
       {/* Add/Edit Product Modal */}
       {showModal && (
         <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-          <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+          <div className="relative top-20 mx-auto p-5 border w-[600px] shadow-lg rounded-md bg-white">
             <div className="mt-3">
               <div className="flex justify-between items-center mb-4">
                 <h3 className="text-lg font-medium text-gray-900">
@@ -944,6 +985,85 @@ const AdminProductManagement: React.FC = () => {
                     </SelectContent>
                   </Select>
                 </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Total Stock Distribution</label>
+                  <div className="mb-3">
+                    <label className="block text-sm font-medium text-gray-600 mb-1">Quick Assign to All Branches</label>
+                    <input
+                      type="number"
+                      min="0"
+                      placeholder="Enter total stock quantity"
+                      onChange={(e) => {
+                        const totalStock = parseInt(e.target.value) || 0;
+                        const stockPerBranch = Math.floor(totalStock / (availableBranches.length || 1));
+                        const newBranchStocks: Record<number, number> = {};
+                        
+                        availableBranches.forEach((branch) => {
+                          newBranchStocks[branch.id] = stockPerBranch;
+                        });
+                        
+                        setFormData({
+                          ...formData,
+                          branch_stocks: newBranchStocks
+                        });
+                      }}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">
+                      Enter a number to automatically distribute stock equally across all branches
+                    </p>
+                  </div>
+                  
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Individual Branch Stock</label>
+                  <div className="space-y-3 max-h-48 overflow-y-auto border border-gray-200 rounded-md p-3">
+                    {(availableBranches || []).map((branch) => (
+                      <div key={branch.id} className="flex items-center justify-between space-x-3">
+                        <div className="flex-1">
+                          <label className="text-sm font-medium text-gray-700">
+                            {branch.name} {branch.code && `(${branch.code})`}
+                          </label>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <input
+                            type="number"
+                            min="0"
+                            placeholder="0"
+                            value={formData.branch_stocks?.[branch.id] || ''}
+                            onChange={(e) => {
+                              const value = e.target.value === '' ? 0 : parseInt(e.target.value);
+                              const currentBranchStocks = formData.branch_stocks || {};
+                              setFormData({
+                                ...formData,
+                                branch_stocks: {
+                                  ...currentBranchStocks,
+                                  [branch.id]: value
+                                }
+                              });
+                            }}
+                            className="w-20 px-2 py-1 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                          />
+                          <span className="text-xs text-gray-500">units</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  
+                  {/* Total Stock Display */}
+                  <div className="mt-3 p-2 bg-blue-50 rounded-md">
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm font-medium text-blue-800">Total Stock:</span>
+                      <span className="text-sm font-bold text-blue-900">
+                        {Object.values(formData.branch_stocks || {}).reduce((sum, stock) => sum + (stock || 0), 0)} units
+                      </span>
+                    </div>
+                  </div>
+                  
+                  <p className="text-xs text-gray-500 mt-1">
+                    Enter stock quantity for each branch. Leave as 0 if no stock should be assigned to that branch.
+                  </p>
+                </div>
+                
                 
                 <div>
                   <label className="block text-sm font-medium text-gray-700">Product Images</label>
@@ -1135,16 +1255,20 @@ const AdminProductManagement: React.FC = () => {
                               className="text-blue-600 hover:text-blue-900"
                               onClick={async () => {
                                 try {
-                                  const apiBaseUrl = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api';
+                                  const apiBaseUrl = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api-mysql.php';
                                   const token = sessionStorage.getItem('auth_token');
                                   const quantity = editQuantities[stock.branch_id] ?? stock.stock_quantity;
-                                  const res = await fetch(`${apiBaseUrl}/products/${selectedProduct.id}/branches/${stock.branch_id}/stock`, {
+                                  const res = await fetch(`${apiBaseUrl}/branch-stock`, {
                                     method: 'PUT',
                                     headers: {
                                       'Content-Type': 'application/json',
                                       Authorization: token ? `Bearer ${token}` : ''
                                     },
-                                    body: JSON.stringify({ stock_quantity: quantity })
+                                    body: JSON.stringify({ 
+                                      product_id: selectedProduct.id,
+                                      branch_id: stock.branch_id,
+                                      stock_quantity: quantity 
+                                    })
                                   });
                                   if (!res.ok) throw new Error('Update failed');
                                   toast.success('Stock updated');

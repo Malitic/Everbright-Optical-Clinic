@@ -66,7 +66,7 @@ const AdminUserManagement: React.FC = () => {
       const token = sessionStorage.getItem('auth_token');
       console.log('Fetching users with token:', token ? 'Present' : 'Missing');
       
-      const response = await fetch('http://192.168.100.6:8000/api/admin/users', {
+      const response = await fetch('http://127.0.0.1:8000/api/admin/users', {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Accept': 'application/json',
@@ -122,7 +122,7 @@ const AdminUserManagement: React.FC = () => {
       
       console.log('Creating user with data:', requestData);
       
-      const response = await fetch('http://192.168.100.6:8000/api/admin/users', {
+      const response = await fetch('http://127.0.0.1:8000/api/admin/users', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -194,7 +194,7 @@ const AdminUserManagement: React.FC = () => {
       
       console.log('Updating user with data:', requestData);
       
-      const response = await fetch(`http://192.168.100.6:8000/api/admin/users/${selectedUser.id}`, {
+      const response = await fetch(`http://127.0.0.1:8000/api/admin/users/${selectedUser.id}`, {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -242,7 +242,7 @@ const AdminUserManagement: React.FC = () => {
       console.log('Deleting user ID:', userId);
       console.log('Auth token present:', token ? 'Yes' : 'No');
       
-      const response = await fetch(`http://192.168.100.6:8000/api/admin/users/${userId}`, {
+      const response = await fetch(`http://127.0.0.1:8000/api/admin/users/${userId}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -379,7 +379,7 @@ const AdminUserManagement: React.FC = () => {
     try {
       const token = sessionStorage.getItem('auth_token');
       const deletePromises = Array.from(selectedUsers).map(userId =>
-        fetch(`http://192.168.100.6:8000/api/admin/users/${userId}`, {
+        fetch(`http://127.0.0.1:8000/api/admin/users/${userId}`, {
           method: 'DELETE',
           headers: {
             'Authorization': `Bearer ${token}`,
@@ -435,7 +435,7 @@ const AdminUserManagement: React.FC = () => {
     try {
       const token = sessionStorage.getItem('auth_token');
       const approvePromises = Array.from(selectedUsers).map(userId =>
-        fetch(`http://192.168.100.6:8000/api/admin/users/${userId}/approve`, {
+        fetch(`http://127.0.0.1:8000/api/admin/users/${userId}/approve`, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${token}`,

@@ -1,8 +1,8 @@
 import axios from 'axios';
 import { Product, ProductFormData, ProductCategory } from '@/features/products/types/product.types';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
-const API_BASE = `${API_BASE_URL}/products`;
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api-mysql.php';
+const API_BASE = `${API_BASE_URL}`;
 
 // Include auth token if present
 axios.interceptors.request.use((config) => {
@@ -17,14 +17,14 @@ axios.interceptors.request.use((config) => {
  * Get all products with optional filters
  */
 export const getProducts = async (search = '', categoryId?: number, isActive?: boolean): Promise<Product[]> => {
-  const response = await axios.get(API_BASE, {
+  const response = await axios.get(`${API_BASE}/products`, {
     params: { 
       search,
-      category_id: categoryId,
+      category: categoryId, // Changed from category_id to category to match our API
       active: isActive,
     },
   });
-  return response.data;
+  return response.data.data || response.data; // Handle both response formats
 };
 
 /**
@@ -79,7 +79,7 @@ export const createProduct = async (productData: ProductFormData | FormData): Pr
     return fd;
   })();
   
-  const response = await axios.post(API_BASE, formData, {
+  const response = await axios.post(`${API_BASE}/products`, formData, {
     headers: { 'Content-Type': 'multipart/form-data' },
   });
   return response.data;
@@ -129,10 +129,7 @@ export const updateProduct = async (id: string | number, productData: ProductFor
     return fd;
   })();
   
-  // Laravel uses POST with _method for file uploads
-  formData.append('_method', 'PUT');
-  
-  const response = await axios.post(`${API_BASE}/${id}`, formData, {
+  const response = await axios.put(`${API_BASE}/products?id=${id}`, formData, {
     headers: { 'Content-Type': 'multipart/form-data' },
   });
   return response.data;
@@ -142,7 +139,7 @@ export const updateProduct = async (id: string | number, productData: ProductFor
  * Delete a product (soft delete)
  */
 export const deleteProduct = async (id: string | number): Promise<void> => {
-  const response = await axios.delete(`${API_BASE}/${id}`);
+  const response = await axios.delete(`${API_BASE}/products?id=${id}`);
   return response.data;
 };
 
@@ -150,6 +147,6 @@ export const deleteProduct = async (id: string | number): Promise<void> => {
  * Get all product categories
  */
 export const getProductCategories = async (): Promise<ProductCategory[]> => {
-  const response = await axios.get(`${API_BASE_URL}/product-categories`);
-  return response.data.categories || response.data;
+  const response = await axios.get(`${API_BASE}/product-categories`);
+  return response.data.data || response.data; // Handle both response formats
 };

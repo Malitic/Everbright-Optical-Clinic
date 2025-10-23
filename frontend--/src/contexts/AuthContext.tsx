@@ -72,6 +72,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setUser(userData);
     }
     setIsLoading(false);
+
+    // Listen for token expiration events
+    const handleTokenExpired = () => {
+      console.log('AuthContext: Token expired event received, clearing user state');
+      setUser(null);
+    };
+
+    window.addEventListener('auth:token-expired', handleTokenExpired);
+
+    return () => {
+      window.removeEventListener('auth:token-expired', handleTokenExpired);
+    };
   }, []);
 
   // Monitor user state changes
@@ -104,12 +116,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.log('AuthContext: Setting user state to:', normalizedUser);
       setUser(normalizedUser);
       console.log('AuthContext: User state updated');
-      
-      // Force a synchronous state update by calling setUser again
-      setTimeout(() => {
-        setUser(normalizedUser);
-        console.log('AuthContext: User state force updated');
-      }, 0);
       
       // Return normalized user so callers can rely on a simple role string
       return normalizedUser;

@@ -59,6 +59,8 @@ class HandleCors
             'http://192.168.56.1:8082',
             'http://192.168.100.6:3000',
             'http://192.168.100.6:5173',
+            'http://192.168.100.6:5174',
+            'http://192.168.100.6:5175',
             'http://192.168.100.6:8080',
             'http://192.168.100.6:8081',
             'http://192.168.100.6:8082',
@@ -76,13 +78,38 @@ class HandleCors
 
         $origin = $request->headers->get('Origin');
         
+        // If no origin header, allow localhost as default
+        if (!$origin) {
+            return 'http://localhost:5173';
+        }
+        
         // Check exact match first
         if (in_array($origin, $allowedOrigins)) {
             return $origin;
         }
         
+        // Check for local development patterns (localhost, 127.0.0.1, LAN IPs with any port)
+        if ($origin && (
+            preg_match('/^http:\/\/localhost(?:\:[0-9]+)?$/', $origin) ||
+            preg_match('/^http:\/\/127\.0\.0\.1(?:\:[0-9]+)?$/', $origin) ||
+            preg_match('/^http:\/\/192\.168\.[0-9]+\.[0-9]+(?:\:[0-9]+)?$/', $origin) ||
+            preg_match('/^http:\/\/10\.[0-9]+\.[0-9]+\.[0-9]+(?:\:[0-9]+)?$/', $origin)
+        )) {
+            return $origin;
+        }
+        
         // Check Railway subdomain pattern
         if ($origin && preg_match('/^https:\/\/.*\.up\.railway\.app$/', $origin)) {
+            return $origin;
+        }
+
+        // For development, allow any localhost or 192.168.x.x origin
+        if ($origin && (
+            preg_match('/^http:\/\/localhost:\d+$/', $origin) ||
+            preg_match('/^http:\/\/127\.0\.0\.1:\d+$/', $origin) ||
+            preg_match('/^http:\/\/192\.168\.\d+\.\d+:\d+$/', $origin) ||
+            preg_match('/^http:\/\/10\.\d+\.\d+\.\d+:\d+$/', $origin)
+        )) {
             return $origin;
         }
 

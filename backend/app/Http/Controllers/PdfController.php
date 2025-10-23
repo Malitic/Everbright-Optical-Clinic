@@ -23,12 +23,20 @@ class PdfController extends Controller
             $user = Auth::user();
             $appointment = Appointment::with(['patient', 'optometrist', 'branch'])->findOrFail($appointmentId);
             
+            // Handle role format
+            $userRole = null;
+            if (is_object($user->role)) {
+                $userRole = $user->role->value ?? (string)$user->role;
+            } else {
+                $userRole = (string)$user->role;
+            }
+
             // Check if user can access this appointment
-            if ($user->role->value === 'customer' && $appointment->patient_id !== $user->id) {
+            if ($userRole === 'customer' && $appointment->patient_id !== $user->id) {
                 return response()->json(['message' => 'Unauthorized'], 403);
             }
             
-            if (in_array($user->role->value, ['staff', 'optometrist']) && $appointment->branch_id !== $user->branch_id) {
+            if (in_array($userRole, ['staff', 'optometrist']) && $appointment->branch_id !== $user->branch_id) {
                 return response()->json(['message' => 'Unauthorized'], 403);
             }
 
@@ -95,18 +103,26 @@ class PdfController extends Controller
                 ];
             }
 
-            $pdf = Pdf::loadView('pdf.receipt', $data);
+            // Generate PDF with proper configuration
+            $pdf = Pdf::loadView('pdf.receipt', $data)
+                ->setPaper('a4', 'portrait')
+                ->setOption('isHtml5ParserEnabled', true)
+                ->setOption('isRemoteEnabled', true);
             
             // Generate filename
             $filename = 'receipt_' . $invoiceNumber . '_' . time() . '.pdf';
             
+            // Generate PDF output
+            $output = $pdf->output();
+            
             // Set proper headers for PDF download
-            return response($pdf->output(), 200, [
+            return response($output, 200, [
                 'Content-Type' => 'application/pdf',
-                'Content-Disposition' => 'attachment; filename="' . $filename . '"',
-                'Cache-Control' => 'no-cache, no-store, must-revalidate',
-                'Pragma' => 'no-cache',
-                'Expires' => '0',
+                'Content-Disposition' => 'inline; filename="' . $filename . '"',
+                'Content-Length' => strlen($output),
+                'Accept-Ranges' => 'bytes',
+                'Cache-Control' => 'public, must-revalidate, max-age=0',
+                'Pragma' => 'public',
             ]);
             
         } catch (\Exception $e) {

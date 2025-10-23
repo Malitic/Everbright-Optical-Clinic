@@ -19,6 +19,7 @@ export default defineConfig(async ({ mode }) => {
     server: {
       host: "::",
       port: 5173,
+      strictPort: false, // Allow Vite to use the next available port if 5173 is busy
     },
     plugins: [
       react(),

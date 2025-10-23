@@ -42,18 +42,30 @@ const CustomerFeedback = () => {
 
     try {
       setLoading(true);
+      console.log('Fetching feedback data for user:', user);
+      
       const [appointmentsResponse, feedbackResponse] = await Promise.all([
         getAvailableAppointments(),
         getCustomerFeedback(user.id) // Use current user's ID
       ]);
       
+      console.log('Appointments response:', appointmentsResponse);
+      console.log('Feedback response:', feedbackResponse);
+      
       setAvailableAppointments(appointmentsResponse.appointments);
       setFeedbackHistory(feedbackResponse.data);
     } catch (error: any) {
       console.error('Error fetching data:', error);
+      console.error('Error details:', {
+        message: error.message,
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        data: error.response?.data
+      });
+      
       toast({
         title: "Error",
-        description: error.message || "Failed to fetch data",
+        description: error.response?.data?.message || error.message || "Failed to fetch data",
         variant: "destructive",
       });
     } finally {

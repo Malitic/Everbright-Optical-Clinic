@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
+const API_BASE_URL = import.meta.env.VITE_API_URL || import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000/api';
 
 // Create axios instance with default config
 const api = axios.create({
@@ -117,7 +117,13 @@ export const submitFeedback = async (data: FeedbackSubmission): Promise<{ feedba
     throw new Error('No authentication token found');
   }
 
-  const response = await api.post('/feedback', data);
+  const response = await api.post('/feedback', data, {
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+    }
+  });
   return response.data;
 };
 
@@ -127,7 +133,13 @@ export const getAvailableAppointments = async (): Promise<{ appointments: Availa
     throw new Error('No authentication token found');
   }
 
-  const response = await api.get('/feedback/available-appointments');
+  const response = await api.get('/feedback/available-appointments', {
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+    }
+  });
   return response.data;
 };
 
@@ -137,7 +149,13 @@ export const getCustomerFeedback = async (customerId: number): Promise<{ data: F
     throw new Error('No authentication token found');
   }
 
-  const response = await api.get(`/customers/${customerId}/feedback`);
+  const response = await api.get(`/customers/${customerId}/feedback`, {
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+    }
+  });
   return response.data;
 };
 
@@ -151,7 +169,27 @@ export const getFeedbackAnalytics = async (params?: {
     throw new Error('No authentication token found');
   }
 
-  const response = await api.get('/admin/feedback/analytics', { params });
-  return response.data;
+  console.log('Feedback Analytics API Call:', {
+    url: '/admin/feedback/analytics',
+    params,
+    token: token.substring(0, 20) + '...'
+  });
+
+  try {
+    const response = await api.get('/admin/feedback/analytics', { 
+      params,
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      }
+    });
+    
+    console.log('Feedback Analytics Response:', response.data);
+    return response.data;
+  } catch (error) {
+    console.error('Feedback Analytics Error:', error);
+    throw error;
+  }
 };
 

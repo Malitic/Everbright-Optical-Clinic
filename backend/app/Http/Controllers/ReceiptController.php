@@ -14,7 +14,16 @@ class ReceiptController extends Controller
     public function store(Request $request)
     {
         $user = Auth::user();
-        if (!in_array($user->role->value, ['staff', 'admin', 'optometrist'])) {
+        
+        // Handle role format
+        $userRole = null;
+        if (is_object($user->role)) {
+            $userRole = $user->role->value ?? (string)$user->role;
+        } else {
+            $userRole = (string)$user->role;
+        }
+
+        if (!in_array($userRole, ['staff', 'admin', 'optometrist'])) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 
@@ -43,7 +52,7 @@ class ReceiptController extends Controller
         ]);
 
         $appointment = Appointment::findOrFail($validated['appointment_id']);
-        if (in_array($user->role->value, ['staff', 'optometrist']) && $appointment->branch_id !== $user->branch_id) {
+        if (in_array($userRole, ['staff', 'optometrist']) && $appointment->branch_id !== $user->branch_id) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 
@@ -233,12 +242,20 @@ class ReceiptController extends Controller
         $user = Auth::user();
         $receipt = Receipt::with(['appointment.patient', 'appointment.optometrist', 'items'])->findOrFail($receiptId);
         
+        // Handle role format
+        $userRole = null;
+        if (is_object($user->role)) {
+            $userRole = $user->role->value ?? (string)$user->role;
+        } else {
+            $userRole = (string)$user->role;
+        }
+
         // Check if user can access this receipt
-        if ($user->role->value === 'customer' && $receipt->appointment->patient_id !== $user->id) {
+        if ($userRole === 'customer' && $receipt->appointment->patient_id !== $user->id) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 
-        if (in_array($user->role->value, ['staff', 'optometrist']) && $receipt->appointment->branch_id !== $user->branch_id) {
+        if (in_array($userRole, ['staff', 'optometrist']) && $receipt->appointment->branch_id !== $user->branch_id) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 
@@ -290,12 +307,20 @@ class ReceiptController extends Controller
         $user = Auth::user();
         $receipt = Receipt::with(['appointment.patient', 'appointment.optometrist', 'items'])->findOrFail($receiptId);
         
+        // Handle role format
+        $userRole = null;
+        if (is_object($user->role)) {
+            $userRole = $user->role->value ?? (string)$user->role;
+        } else {
+            $userRole = (string)$user->role;
+        }
+
         // Check if user can access this receipt
-        if ($user->role->value === 'customer' && $receipt->appointment->patient_id !== $user->id) {
+        if ($userRole === 'customer' && $receipt->appointment->patient_id !== $user->id) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 
-        if (in_array($user->role->value, ['staff', 'optometrist']) && $receipt->appointment->branch_id !== $user->branch_id) {
+        if (in_array($userRole, ['staff', 'optometrist']) && $receipt->appointment->branch_id !== $user->branch_id) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 

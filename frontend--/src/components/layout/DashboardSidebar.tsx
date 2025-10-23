@@ -47,10 +47,10 @@ const getNavItems = (role: UserRole): NavItem[] => {
         description: 'Overview and quick actions'
       },
       {
-        title: 'Book Appointment',
+        title: 'Appointments',
         href: '/customer/appointments',
         icon: Calendar,
-        description: 'Schedule new appointments'
+        description: 'View and manage appointments'
       },
       {
         title: 'Vision History',

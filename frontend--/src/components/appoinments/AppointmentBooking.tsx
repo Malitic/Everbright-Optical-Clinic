@@ -451,10 +451,10 @@ const AppointmentBooking: React.FC<AppointmentBookingProps> = ({ onSuccess }) =>
                   variant="outline" 
                   size="sm" 
                   className="w-full justify-start"
-                  onClick={() => navigate('/customer/book-appointment')}
+                  onClick={() => navigate('/customer/appointments')}
                 >
                   <Calendar className="h-4 w-4 mr-2" />
-                  Book New Appointment
+                  View My Appointments
                 </Button>
                 <Button 
                   variant="outline" 

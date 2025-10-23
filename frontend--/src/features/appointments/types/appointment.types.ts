@@ -24,6 +24,9 @@ export interface Appointment {
   branch?: {
     id: number;
     name: string;
+    address?: string;
+    phone?: string;
+    email?: string;
   };
 }
 

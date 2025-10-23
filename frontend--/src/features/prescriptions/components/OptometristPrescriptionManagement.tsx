@@ -58,9 +58,10 @@ const OptometristPrescriptionManagement: React.FC = () => {
   const loadPrescriptions = async () => {
     try {
       const response = await getOptometristPrescriptions();
-      setPrescriptions(response.data);
+      setPrescriptions(response.data || []);
     } catch (err: any) {
       console.error('Error loading prescriptions:', err);
+      setPrescriptions([]); // Ensure prescriptions is always an array
       if (err.response?.status === 401) {
         setError('Please log in to view prescriptions');
       } else if (err.response?.status === 403) {
@@ -76,10 +77,11 @@ const OptometristPrescriptionManagement: React.FC = () => {
     try {
       const response = await getOptometristAllAppointments();
       // Filter for appointments that are in progress (can create prescription for these)
-      const inProgressAppointments = response.data.filter(apt => apt.status === 'in_progress');
+      const inProgressAppointments = (response.data || []).filter(apt => apt.status === 'in_progress');
       setAppointments(inProgressAppointments);
     } catch (err: any) {
       console.error('Error loading appointments:', err);
+      setAppointments([]); // Ensure appointments is always an array
       throw err;
     }
   };
@@ -155,7 +157,7 @@ const OptometristPrescriptionManagement: React.FC = () => {
       </div>
 
       {/* In-Progress Appointments Section */}
-      {appointments.length > 0 && (
+      {appointments && appointments.length > 0 && (
         <Card className="mb-6">
           <CardHeader>
             <CardTitle>In-Progress Appointments</CardTitle>
@@ -212,7 +214,7 @@ const OptometristPrescriptionManagement: React.FC = () => {
           <CardDescription>Manage and track all patient prescriptions</CardDescription>
         </CardHeader>
         <CardContent>
-          {prescriptions.length === 0 ? (
+          {!prescriptions || prescriptions.length === 0 ? (
             <div className="text-center py-8">
               <FileText className="h-12 w-12 text-gray-400 mx-auto mb-4" />
               <h3 className="text-lg font-medium text-gray-900 mb-2">No Prescriptions Found</h3>

@@ -223,10 +223,6 @@ export const CustomerAppointmentsLocalStorage: React.FC = () => {
                 <Calendar className="w-12 h-12 text-gray-400 mx-auto mb-4" />
                 <h3 className="text-lg font-medium text-gray-900 mb-2">No Appointments Found</h3>
                 <p className="text-gray-600 mb-4">You don't have any appointments scheduled yet.</p>
-                <Button onClick={() => setShowBookingForm(true)}>
-                  <Calendar className="w-4 h-4 mr-2" />
-                  Book Your First Appointment
-                </Button>
               </CardContent>
             </Card>
           ) : (
@@ -305,10 +301,6 @@ export const CustomerAppointmentsLocalStorage: React.FC = () => {
               <CardDescription>Manage your appointments</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
-              <Button className="w-full" size="sm" onClick={() => navigate('/customer/book-appointment')}>
-                <Calendar className="w-4 h-4 mr-2" />
-                Book New Appointment
-              </Button>
               <Button variant="outline" className="w-full" size="sm" onClick={() => setShowContactModal(true)}>
                 <Phone className="w-4 h-4 mr-2" />
                 Contact Support

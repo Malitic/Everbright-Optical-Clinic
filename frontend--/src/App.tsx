@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { NotificationProvider } from "@/contexts/NotificationContext";
+import { setupAxiosInterceptors } from "@/utils/axiosInterceptor";
 import ProtectedRoute from "@/components/auth/ProtectedRoute";
 import Login from "@/components/auth/Login";
 import Register from "@/components/auth/Register";
@@ -23,12 +24,13 @@ import AdminCentralInventory from "@/features/inventory/components/AdminCentralI
 import AdminConsolidatedInventory from "@/features/inventory/components/AdminConsolidatedInventory";
 import NotificationCenter from "@/components/notifications/NotificationCenter";
 import PatientManagement from "@/components/patients/PatientManagement";
+import ComprehensivePatientManagement from "@/features/patients/components/ComprehensivePatientManagement";
 import AnalyticsDashboard from "@/components/analytics/AnalyticsDashboard";
 import OptometristAnalytics from "@/features/analytics/components/OptometristAnalytics";
 import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
-import BookAppointmentPage from "./pages/BookAppointmentPage";
 import FAQ from "./pages/FAQ";
+import BookAppointmentPage from "./pages/BookAppointmentPage";
 
 // Customer Components
 import CustomerAppointments from "@/features/customer/components/CustomerAppointments";
@@ -56,6 +58,7 @@ import StaffReservationDashboard from "@/features/staff/components/StaffReservat
 import UnifiedReservationsDashboard from "@/features/staff/components/UnifiedReservationsDashboard";
 import StaffRestockRequests from "@/features/staff/components/StaffRestockRequests";
 import StaffCreateReceipt from "@/features/receipts/components/StaffCreateReceipt";
+import EnhancedStaffCreateReceipt from "@/features/receipts/components/EnhancedStaffCreateReceipt";
 
 // Admin Components
 import AdminStockManagement from "@/features/admin/components/AdminStockManagement";
@@ -82,6 +85,9 @@ import { TransactionDashboard } from "@/components/transactions/TransactionDashb
 
 const queryClient = new QueryClient();
 
+// Initialize axios interceptors
+setupAxiosInterceptors();
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <AuthProvider>
@@ -107,6 +113,7 @@ const App = () => (
             }>
               <Route path="dashboard" element={<CustomerDashboard />} />
               <Route path="appointments" element={<CustomerAppointments />} />
+              <Route path="book-appointment" element={<BookAppointmentPage />} />
               <Route path="history" element={<CustomerVisionHistory />} />
               <Route path="prescriptions" element={<CustomerPrescriptionsLocalStorage />} />
               <Route path="receipts" element={<CustomerReceipts />} />
@@ -117,14 +124,6 @@ const App = () => (
               <Route path="profile" element={<UserProfile />} />
               <Route path="reservations" element={<ReservationList />} />
             </Route>
-
-            {/* Dedicated Customer Booking Page (outside dashboard layout) */}
-            <Route path="/customer/book-appointment" element={
-              <ProtectedRoute allowedRoles={['customer']}>
-                <BookAppointmentPage />
-              </ProtectedRoute>
-            } />
-
 
             {/* Optometrist Routes */}
             <Route path="/optometrist" element={
@@ -157,7 +156,7 @@ const App = () => (
               <Route path="restock-requests" element={<StaffRestockRequests />} />
               <Route path="inventory" element={<UnifiedStaffInventory />} />
               <Route path="inventory/legacy" element={<StaffInventoryManagement />} />
-              <Route path="patients" element={<PatientManagement />} />
+              <Route path="patients" element={<ComprehensivePatientManagement />} />
               <Route path="profile" element={<UserProfile />} />
               <Route path="notifications" element={<NotificationCenter />} />
             </Route>
@@ -181,7 +180,7 @@ const App = () => (
                 </ErrorBoundary>
               } />
               <Route path="notifications" element={<NotificationCenter />} />
-              <Route path="patients" element={<PatientManagement />} />
+              <Route path="patients" element={<ComprehensivePatientManagement />} />
               <Route path="sales" element={<AnalyticsDashboard />} />
               <Route path="employee-schedules" element={<EmployeeScheduleManagement />} />
               <Route path="transactions" element={<TransactionDashboard />} />
@@ -223,5 +222,5 @@ function CreateReceiptRouteWrapper() {
   const defaultName = data?.patient?.name || '';
   const defaultAddress = data?.patient?.address || '';
   const customerId = data?.patient?.id || data?.customer_id;
-  return <StaffCreateReceipt appointmentId={id} defaultCustomerName={defaultName} defaultAddress={defaultAddress} customerId={customerId} />;
+  return <EnhancedStaffCreateReceipt appointmentId={id} defaultCustomerName={defaultName} defaultAddress={defaultAddress} customerId={customerId} />;
 }

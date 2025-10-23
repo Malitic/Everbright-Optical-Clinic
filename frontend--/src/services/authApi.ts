@@ -1,16 +1,19 @@
 import axios from 'axios';
 
-const defaultOrigin = (typeof window !== 'undefined' && window.location?.origin) ? window.location.origin : 'http://127.0.0.1:8000';
-const API_BASE_URL = import.meta.env.VITE_API_URL || import.meta.env.VITE_API_BASE_URL || `${defaultOrigin}/api`;
+const API_BASE_URL = import.meta.env.VITE_API_URL || import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000/api';
 
 const getApiBaseCandidates = (): string[] => {
   const candidates: string[] = [];
+  
+  // Prioritize environment variables
   if (import.meta.env.VITE_API_URL) candidates.push(import.meta.env.VITE_API_URL);
   if (import.meta.env.VITE_API_BASE_URL) candidates.push(import.meta.env.VITE_API_BASE_URL);
-  // Prioritize localhost since backend is running there
+  
+  // Add fallback candidates
   candidates.push('http://127.0.0.1:8000/api');
   candidates.push('http://localhost:8000/api');
-  if (defaultOrigin) candidates.push(`${defaultOrigin}/api`);
+  candidates.push('http://192.168.100.6:8000/api');
+  
   // If running over LAN, try same host at port 8000
   if (typeof window !== 'undefined') {
     const host = window.location.hostname;
@@ -18,6 +21,7 @@ const getApiBaseCandidates = (): string[] => {
       candidates.push(`http://${host}:8000/api`);
     }
   }
+  
   // De-duplicate while preserving order
   return Array.from(new Set(candidates));
 };

@@ -377,4 +377,127 @@ class ReservationController extends Controller
             'reservation' => $reservation->load(['product', 'user', 'branch'])
         ]);
     }
+
+    /**
+     * Approve a reservation (Staff/Admin only)
+     */
+    public function approve(Request $request, $id): JsonResponse
+    {
+        $user = Auth::user();
+        
+        // Handle role format
+        $userRole = null;
+        if (is_object($user->role)) {
+            $userRole = $user->role->value ?? (string)$user->role;
+        } else {
+            $userRole = (string)$user->role;
+        }
+
+        // Only staff and admin can approve reservations
+        if (!in_array($userRole, ['staff', 'admin'])) {
+            return response()->json(['message' => 'Unauthorized'], 403);
+        }
+
+        $reservation = Reservation::find($id);
+        if (!$reservation) {
+            return response()->json(['message' => 'Reservation not found'], 404);
+        }
+
+        // Staff can only approve reservations for their branch
+        if ($userRole === 'staff' && $reservation->branch_id !== $user->branch_id) {
+            return response()->json(['message' => 'Unauthorized to approve reservations from other branches'], 403);
+        }
+
+        if ($reservation->status !== 'pending') {
+            return response()->json(['message' => 'Reservation is not pending approval'], 422);
+        }
+
+        // Check if there's enough stock
+        $branchStock = \App\Models\BranchStock::where('branch_id', $reservation->branch_id)
+            ->where('product_id', $reservation->product_id)
+            ->first();
+
+        if (!$branchStock || $branchStock->stock_quantity < $reservation->quantity) {
+            return response()->json([
+                'message' => 'Insufficient stock to approve this reservation',
+                'available_stock' => $branchStock ? $branchStock->stock_quantity : 0,
+                'requested_quantity' => $reservation->quantity
+            ], 422);
+        }
+
+        // Update reservation status
+        $reservation->update([
+            'status' => 'approved',
+            'approved_by' => $user->id,
+            'approved_at' => now(),
+        ]);
+
+        // Reserve the stock
+        $branchStock->decrement('stock_quantity', $reservation->quantity);
+        $branchStock->increment('reserved_quantity', $reservation->quantity);
+
+        return response()->json([
+            'message' => 'Reservation approved successfully',
+            'reservation' => $reservation->load(['product', 'user', 'branch'])
+        ]);
+    }
+
+    /**
+     * Reject a reservation (Staff/Admin only)
+     */
+    public function reject(Request $request, $id): JsonResponse
+    {
+        $user = Auth::user();
+        
+        // Handle role format
+        $userRole = null;
+        if (is_object($user->role)) {
+            $userRole = $user->role->value ?? (string)$user->role;
+        } else {
+            $userRole = (string)$user->role;
+        }
+
+        // Only staff and admin can reject reservations
+        if (!in_array($userRole, ['staff', 'admin'])) {
+            return response()->json(['message' => 'Unauthorized'], 403);
+        }
+
+        $reservation = Reservation::find($id);
+        if (!$reservation) {
+            return response()->json(['message' => 'Reservation not found'], 404);
+        }
+
+        // Staff can only reject reservations for their branch
+        if ($userRole === 'staff' && $reservation->branch_id !== $user->branch_id) {
+            return response()->json(['message' => 'Unauthorized to reject reservations from other branches'], 403);
+        }
+
+        if ($reservation->status !== 'pending') {
+            return response()->json(['message' => 'Reservation is not pending approval'], 422);
+        }
+
+        $validator = Validator::make($request->all(), [
+            'reason' => 'nullable|string|max:500',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'message' => 'Validation failed',
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        // Update reservation status
+        $reservation->update([
+            'status' => 'rejected',
+            'rejected_by' => $user->id,
+            'rejected_at' => now(),
+            'rejection_reason' => $request->get('reason'),
+        ]);
+
+        return response()->json([
+            'message' => 'Reservation rejected successfully',
+            'reservation' => $reservation->load(['product', 'user', 'branch'])
+        ]);
+    }
 }

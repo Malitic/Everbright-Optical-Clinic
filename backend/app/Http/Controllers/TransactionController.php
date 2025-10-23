@@ -24,8 +24,16 @@ class TransactionController extends Controller
     {
         $user = Auth::user();
         
+        // Handle role format
+        $userRole = null;
+        if (is_object($user->role)) {
+            $userRole = $user->role->value ?? (string)$user->role;
+        } else {
+            $userRole = (string)$user->role;
+        }
+
         // Only staff, optometrist, and admin can complete transactions
-        if (!in_array($user->role->value, ['staff', 'optometrist', 'admin'])) {
+        if (!in_array($userRole, ['staff', 'optometrist', 'admin'])) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 
@@ -686,5 +694,6 @@ class TransactionController extends Controller
             ],
         ]);
     }
+
 
 }

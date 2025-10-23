@@ -36,7 +36,7 @@ const AdminStockManagement: React.FC = () => {
 
   const fetchBranchStock = async () => {
     try {
-      const response = await fetch('/api/branch-stock', {
+      const response = await fetch('http://127.0.0.1:8000/api-mysql.php/branch-stock', {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`
         }
@@ -44,7 +44,7 @@ const AdminStockManagement: React.FC = () => {
       
       if (response.ok) {
         const data = await response.json();
-        setBranchStock(data);
+        setBranchStock(data.stock || []);
       } else {
         toast.error('Failed to fetch branch stock data');
       }
@@ -71,13 +71,15 @@ const AdminStockManagement: React.FC = () => {
 
     setSaving(true);
     try {
-      const response = await fetch(`/api/branch-stock/${stock.id}`, {
+      const response = await fetch('http://127.0.0.1:8000/api-mysql.php/branch-stock', {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${localStorage.getItem('token')}`
         },
         body: JSON.stringify({
+          product_id: stock.product_id,
+          branch_id: stock.branch_id,
           stock_quantity: newQuantity
         })
       });

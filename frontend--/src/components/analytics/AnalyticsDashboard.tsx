@@ -11,49 +11,89 @@ import { analyticsApi, AdminAnalytics, AnalyticsTrends } from '@/services/analyt
 import { getFeedbackAnalytics, FeedbackAnalytics } from '@/services/feedbackApi';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, AreaChart, Area } from 'recharts';
 import { useBranch } from '@/contexts/BranchContext';
+import { useAuth } from '@/contexts/AuthContext';
 import BranchFilter from '../common/BranchFilter';
+import { toast } from 'sonner';
 
 const AnalyticsDashboard = () => {
   const [timeRange, setTimeRange] = useState('30');
   const { selectedBranchId, setSelectedBranchId } = useBranch();
+  const { user } = useAuth();
+
+  // Debug user authentication
+  console.log('AnalyticsDashboard: User authentication debug:', {
+    user,
+    userRole: user?.role,
+    isAdmin: user?.role === 'admin',
+    hasToken: !!sessionStorage.getItem('auth_token')
+  });
 
 
   // Fetch admin analytics data
-  const { data: adminAnalytics, isLoading: adminLoading, refetch: refetchAdminData } = useQuery({
+  const { data: adminAnalytics, isLoading: adminLoading, error: adminError, refetch: refetchAdminData } = useQuery({
     queryKey: ['admin-analytics', timeRange, selectedBranchId],
-    queryFn: () => analyticsApi.getAdminAnalytics({
-      period: parseInt(timeRange),
-      branch_id: selectedBranchId !== 'all' ? parseInt(selectedBranchId) : undefined
-    }),
+    queryFn: () => {
+      console.log('Fetching admin analytics...');
+      return analyticsApi.getAdminAnalytics({
+        period: parseInt(timeRange),
+        branch_id: selectedBranchId !== 'all' ? parseInt(selectedBranchId) : undefined
+      });
+    },
     refetchInterval: 60000, // Refetch every minute
+    retry: 3,
+    onError: (error) => {
+      console.error('Admin analytics error:', error);
+    }
   });
 
   // Fetch real-time analytics
-  const { data: realTimeData, isLoading: realTimeLoading, refetch: refetchRealTime } = useQuery({
+  const { data: realTimeData, isLoading: realTimeLoading, error: realTimeError, refetch: refetchRealTime } = useQuery({
     queryKey: ['realtime-analytics'],
-    queryFn: analyticsApi.getRealTimeAnalytics,
+    queryFn: () => {
+      console.log('Fetching real-time analytics...');
+      return analyticsApi.getRealTimeAnalytics();
+    },
     refetchInterval: 10000, // Refetch every 10 seconds
+    retry: 3,
+    onError: (error) => {
+      console.error('Real-time analytics error:', error);
+    }
   });
 
   // Fetch trends data
-  const { data: trendsData, isLoading: trendsLoading } = useQuery<AnalyticsTrends>({
+  const { data: trendsData, isLoading: trendsLoading, error: trendsError } = useQuery<AnalyticsTrends>({
     queryKey: ['analytics-trends', timeRange, selectedBranchId],
-    queryFn: () => analyticsApi.getAnalyticsTrends({
-      period: parseInt(timeRange),
-      branch_id: selectedBranchId !== 'all' ? parseInt(selectedBranchId) : undefined
-    }),
+    queryFn: () => {
+      console.log('Fetching analytics trends...');
+      return analyticsApi.getAnalyticsTrends({
+        period: parseInt(timeRange),
+        branch_id: selectedBranchId !== 'all' ? parseInt(selectedBranchId) : undefined
+      });
+    },
     refetchInterval: 300000, // Refetch every 5 minutes
+    retry: 3,
+    onError: (error) => {
+      console.error('Analytics trends error:', error);
+    }
   });
 
   // Fetch feedback analytics data
   const { data: feedbackData, isLoading: feedbackLoading, error: feedbackError, refetch: refetchFeedbackData } = useQuery<FeedbackAnalytics>({
-    queryKey: ['feedback-analytics', selectedBranchId],
-    queryFn: () => getFeedbackAnalytics({
-      branch_id: selectedBranchId !== 'all' ? parseInt(selectedBranchId) : undefined,
-      start_date: new Date(Date.now() - parseInt(timeRange) * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-      end_date: new Date().toISOString().split('T')[0]
-    }),
+    queryKey: ['feedback-analytics', selectedBranchId, timeRange],
+    queryFn: () => {
+      console.log('Executing feedback analytics query...');
+      return getFeedbackAnalytics({
+        branch_id: selectedBranchId !== 'all' ? parseInt(selectedBranchId) : undefined,
+        start_date: new Date(Date.now() - parseInt(timeRange) * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+        end_date: new Date().toISOString().split('T')[0]
+      });
+    },
     refetchInterval: 300000, // Refetch every 5 minutes
+    enabled: true, // Always execute - let the backend handle authorization
+    retry: 3, // Retry on failure
+    onError: (error) => {
+      console.error('Feedback analytics error:', error);
+    }
   });
 
   // Debug logging
@@ -175,20 +215,27 @@ const AnalyticsDashboard = () => {
         <Button
           onClick={async () => {
             try {
-              const blob = await analyticsApi.exportAnalytics('admin', 'csv', {
+              toast.loading('Generating PDF report...', { id: 'pdf-export' });
+              
+              const blob = await analyticsApi.exportAnalyticsPDF({
                 period: parseInt(timeRange),
                 branch_id: selectedBranchId !== 'all' ? parseInt(selectedBranchId) : undefined
               });
+              
+              // Create download link
               const url = window.URL.createObjectURL(blob);
-              const a = document.createElement('a');
-              a.href = url;
-              a.download = `analytics-${new Date().toISOString().split('T')[0]}.csv`;
-              document.body.appendChild(a);
-              a.click();
+              const link = document.createElement('a');
+              link.href = url;
+              link.download = `analytics_report_${new Date().toISOString().split('T')[0]}.pdf`;
+              document.body.appendChild(link);
+              link.click();
+              document.body.removeChild(link);
               window.URL.revokeObjectURL(url);
-              document.body.removeChild(a);
-            } catch (error) {
-              console.error('Export failed:', error);
+              
+              toast.success('PDF report downloaded successfully!', { id: 'pdf-export' });
+            } catch (error: any) {
+              console.error('PDF export error:', error);
+              toast.error(error.response?.data?.message || 'Failed to export PDF report', { id: 'pdf-export' });
             }
           }}
           variant="outline"
@@ -196,7 +243,7 @@ const AnalyticsDashboard = () => {
           className="min-w-[100px]"
         >
           <Download className="h-4 w-4 mr-2" />
-          Export
+          Export PDF
         </Button>
         </div>
       </div>
@@ -244,44 +291,71 @@ const AnalyticsDashboard = () => {
                   <span>Loading trends data...</span>
                 </div>
               ) : (
-                <ResponsiveContainer width="100%" height={400}>
-                  <LineChart data={trendsData?.revenue_trend || []}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="date" />
-                    <YAxis yAxisId="revenue" orientation="left" />
-                    <YAxis yAxisId="count" orientation="right" />
+                <ResponsiveContainer width="100%" height={450}>
+                  <BarChart data={trendsData?.revenue_trend || []}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                    <XAxis 
+                      dataKey="date" 
+                      tick={{ fontSize: 12, fill: '#666' }}
+                      tickFormatter={(value) => new Date(value).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                      axisLine={{ stroke: '#ddd' }}
+                    />
+                    <YAxis 
+                      yAxisId="revenue" 
+                      orientation="left"
+                      tick={{ fontSize: 12, fill: '#666' }}
+                      tickFormatter={(value) => `₱${(value / 1000).toFixed(0)}k`}
+                      axisLine={{ stroke: '#ddd' }}
+                    />
+                    <YAxis 
+                      yAxisId="count" 
+                      orientation="right"
+                      tick={{ fontSize: 12, fill: '#666' }}
+                      axisLine={{ stroke: '#ddd' }}
+                    />
                     <Tooltip 
                       formatter={(value, name) => [
                         name === 'Revenue (₱)' ? `₱${Number(value || 0).toLocaleString()}` : value,
                         name
                       ]}
+                      labelFormatter={(value) => new Date(value).toLocaleDateString('en-US', { 
+                        weekday: 'short', 
+                        month: 'short', 
+                        day: 'numeric' 
+                      })}
+                      contentStyle={{
+                        backgroundColor: '#fff',
+                        border: '1px solid #e5e5e5',
+                        borderRadius: '8px',
+                        boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
+                        fontSize: '14px'
+                      }}
                     />
-                    <Legend />
-                    <Line 
+                    <Legend 
+                      wrapperStyle={{ paddingTop: '20px', fontSize: '14px' }}
+                    />
+                    <Bar 
                       yAxisId="revenue" 
-                      type="monotone" 
                       dataKey="revenue" 
-                      stroke="#3b82f6" 
-                      strokeWidth={3}
+                      fill="#1e40af" 
                       name="Revenue (₱)"
+                      radius={[2, 2, 0, 0]}
                     />
-                    <Line 
+                    <Bar 
                       yAxisId="count" 
-                      type="monotone" 
                       dataKey="patients" 
-                      stroke="#10b981" 
-                      strokeWidth={2}
+                      fill="#059669" 
                       name="Patients"
+                      radius={[2, 2, 0, 0]}
                     />
-                    <Line 
+                    <Bar 
                       yAxisId="count" 
-                      type="monotone" 
                       dataKey="appointments" 
-                      stroke="#f59e0b" 
-                      strokeWidth={2}
+                      fill="#d97706" 
                       name="Appointments"
+                      radius={[2, 2, 0, 0]}
                     />
-                  </LineChart>
+                  </BarChart>
                 </ResponsiveContainer>
               )}
             </CardContent>
