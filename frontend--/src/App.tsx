@@ -115,7 +115,7 @@ const App = () => (
               <Route path="appointments" element={<CustomerAppointments />} />
               <Route path="book-appointment" element={<BookAppointmentPage />} />
               <Route path="history" element={<CustomerVisionHistory />} />
-              <Route path="prescriptions" element={<CustomerPrescriptionsLocalStorage />} />
+              <Route path="prescriptions" element={<CustomerPrescriptions />} />
               <Route path="receipts" element={<CustomerReceipts />} />
               <Route path="feedback" element={<CustomerFeedback />} />
               <Route path="notifications" element={<NotificationCenter />} />

@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { Appointment, CreateAppointmentRequest, UpdateAppointmentRequest } from '../types/appointment.types';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
 // Create axios instance with default config
 const apiClient = axios.create({
@@ -22,36 +22,36 @@ apiClient.interceptors.request.use((config) => {
 });
 
 export const getAppointments = (params?: any) => {
-  return apiClient.get<{ data: Appointment[] }>('/appointments', { params });
+  return apiClient.get<{ data: Appointment[] }>('/api-mysql.php/appointments', { params });
 };
 
 export const getAppointment = (id: string) => {
-  return apiClient.get<Appointment>(`/appointments/${id}`);
+  return apiClient.get<Appointment>(`/api-mysql.php/appointments/${id}`);
 };
 
 export const createAppointment = (data: CreateAppointmentRequest) => {
-  return apiClient.post<Appointment>('/appointments', data);
+  return apiClient.post<Appointment>('/api-mysql.php/appointments', data);
 };
 
 export const updateAppointment = (id: string, data: UpdateAppointmentRequest) => {
-  return apiClient.put<Appointment>(`/appointments/${id}`, data);
+  return apiClient.put<Appointment>(`/api-mysql.php/appointments/${id}`, data);
 };
 
 export const deleteAppointment = (id: string) => {
-  return apiClient.delete(`/appointments/${id}`);
+  return apiClient.delete(`/api-mysql.php/appointments/${id}`);
 };
 
 export const getTodayAppointments = () => {
-  return apiClient.get<Appointment[]>('/appointments/today');
+  return apiClient.get<Appointment[]>('/api-mysql.php/appointments/today');
 };
 
 // Additional service functions for optometrist management
 export const getOptometrists = () => {
-  return apiClient.get('/users?role=optometrist');
+  return apiClient.get('/api-mysql.php/users?role=optometrist');
 };
 
 export const getAvailableTimeSlots = (optometristId: string, date: string) => {
-  return apiClient.get(`/appointments/available-slots`, {
+  return apiClient.get(`/api-mysql.php/appointments/available-slots`, {
     params: { optometrist_id: optometristId, date }
   });
 };

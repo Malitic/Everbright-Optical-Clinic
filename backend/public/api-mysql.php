@@ -56,7 +56,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
         preg_match('/^http:\/\/127\.0\.0\.1(?:\:[0-9]+)?$/', $origin) ||
         preg_match('/^http:\/\/192\.168\.[0-9]+\.[0-9]+(?:\:[0-9]+)?$/', $origin) ||
         preg_match('/^http:\/\/10\.[0-9]+\.[0-9]+\.[0-9]+(?:\:[0-9]+)?$/', $origin)) {
-        header('Access-Control-Allow-Origin: ' . $origin);
+    header('Access-Control-Allow-Origin: ' . $origin);
     } else {
         header('Access-Control-Allow-Origin: http://192.168.100.6:5173'); // Default fallback
     }
@@ -122,7 +122,7 @@ if (in_array($origin, $allowedOrigins) ||
     preg_match('/^http:\/\/127\.0\.0\.1(?:\:[0-9]+)?$/', $origin) ||
     preg_match('/^http:\/\/192\.168\.[0-9]+\.[0-9]+(?:\:[0-9]+)?$/', $origin) ||
     preg_match('/^http:\/\/10\.[0-9]+\.[0-9]+\.[0-9]+(?:\:[0-9]+)?$/', $origin)) {
-    header('Access-Control-Allow-Origin: ' . $origin);
+header('Access-Control-Allow-Origin: ' . $origin);
 } else {
     header('Access-Control-Allow-Origin: http://192.168.100.6:5173'); // Default fallback
 }
@@ -228,11 +228,1230 @@ try {
             }
             break;
             
-        case 'branches':
+        case 'register':
+            // Handle user registration
+            $input = json_decode(file_get_contents('php://input'), true);
+            
+            if (!isset($input['name'], $input['email'], $input['password'], $input['password_confirmation'], $input['role'])) {
+                http_response_code(400);
+                echo json_encode(['message' => 'Name, email, password, password_confirmation, and role are required']);
+                exit();
+            }
+            
+            $name = trim($input['name']);
+            $email = trim(strtolower($input['email']));
+            $password = $input['password'];
+            $passwordConfirmation = $input['password_confirmation'];
+            $role = $input['role'];
+            $branchId = $input['branch_id'] ?? null;
+            
+            // Validate password confirmation
+            if ($password !== $passwordConfirmation) {
+                http_response_code(400);
+                echo json_encode(['message' => 'Password confirmation does not match']);
+                exit();
+            }
+            
+            // Validate password length
+            if (strlen($password) < 8) {
+                http_response_code(400);
+                echo json_encode(['message' => 'Password must be at least 8 characters long']);
+                exit();
+            }
+            
+            // Check if user already exists
+            $stmt = $pdo->prepare("SELECT id FROM users WHERE email = ?");
+            $stmt->execute([$email]);
+            if ($stmt->fetch()) {
+                http_response_code(400);
+                echo json_encode(['message' => 'User with this email already exists']);
+                exit();
+            }
+            
+            // Hash password
+            $hashedPassword = password_hash($password, PASSWORD_DEFAULT);
+            
+            // Insert new user
+            $stmt = $pdo->prepare("
+                INSERT INTO users (name, email, password, role, branch_id, email_verified_at, created_at, updated_at) 
+                VALUES (?, ?, ?, ?, ?, NOW(), NOW(), NOW())
+            ");
+            
+            try {
+                $stmt->execute([$name, $email, $hashedPassword, $role, $branchId]);
+                $userId = $pdo->lastInsertId();
+                
+                // Get branch info if branch_id is provided
+                $branch = null;
+                if ($branchId) {
+                    $stmt = $pdo->prepare("SELECT * FROM branches WHERE id = ?");
+                    $stmt->execute([$branchId]);
+                    $branch = $stmt->fetch();
+                }
+                
+                // For customer role, immediately log them in and return token
+                if ($role === 'customer') {
+                    $response = [
+                        'message' => 'Registration successful',
+                        'token' => 'mysql_token_' . time(),
+                        'token_expires_at' => date('Y-m-d H:i:s', strtotime('+24 hours')),
+                        'token_expires_in_minutes' => 1440,
+                        'user' => [
+                            'id' => $userId,
+                            'name' => $name,
+                            'email' => $email,
+                            'role' => $role,
+                            'phone' => null,
+                            'address' => null,
+                            'branch' => $branch ? [
+                                'id' => $branch['id'],
+                                'name' => $branch['name'],
+                                'address' => $branch['address']
+                            ] : null,
+                            'email_verified_at' => date('Y-m-d H:i:s'),
+                            'created_at' => date('Y-m-d H:i:s'),
+                            'updated_at' => date('Y-m-d H:i:s')
+                        ]
+                    ];
+                } else {
+                    // For other roles, don't return token (admin approval needed)
+                    $response = [
+                        'message' => 'Registration submitted successfully. Your account is pending admin approval.',
+                        'user' => [
+                            'id' => $userId,
+                            'name' => $name,
+                            'email' => $email,
+                            'role' => $role,
+                            'phone' => null,
+                            'address' => null,
+                            'branch' => $branch ? [
+                                'id' => $branch['id'],
+                                'name' => $branch['name'],
+                                'address' => $branch['address']
+                            ] : null,
+                            'email_verified_at' => null,
+                            'created_at' => date('Y-m-d H:i:s'),
+                            'updated_at' => date('Y-m-d H:i:s')
+                        ]
+                    ];
+                }
+                
+                http_response_code(201);
+                echo json_encode($response);
+                exit();
+                
+            } catch (PDOException $e) {
+                http_response_code(500);
+                echo json_encode(['message' => 'Registration failed. Please try again.']);
+                exit();
+            }
+            break;
+            
+        case 'appointments':
             if ($_SERVER['REQUEST_METHOD'] === 'GET') {
-                // Check if requesting specific branch by ID
+                // Check if requesting specific sub-route
+                $pathParts = explode('/', trim($fullPath, '/'));
+                
+                if (count($pathParts) > 1 && $pathParts[1] === 'availability') {
+                    // Handle availability check
+                    $date = $_GET['date'] ?? date('Y-m-d');
+                    $optometristId = $_GET['optometrist_id'] ?? null;
+                    $branchId = $_GET['branch_id'] ?? null;
+                    
+                    // Get available time slots for the date
+                    $availableSlots = [];
+                    $timeSlots = [
+                        '09:00', '09:30', '10:00', '10:30', '11:00', '11:30',
+                        '12:00', '12:30', '13:00', '13:30', '14:00', '14:30',
+                        '15:00', '15:30', '16:00', '16:30', '17:00', '17:30'
+                    ];
+                    
+                    // Get existing appointments for the date
+                    $sql = "SELECT appointment_time FROM appointments WHERE appointment_date = ?";
+                    $params = [$date];
+                    
+                    if ($optometristId) {
+                        $sql .= " AND optometrist_id = ?";
+                        $params[] = $optometristId;
+                    }
+                    
+                    if ($branchId) {
+                        $sql .= " AND branch_id = ?";
+                        $params[] = $branchId;
+                    }
+                    
+                    $stmt = $pdo->prepare($sql);
+                    $stmt->execute($params);
+                    $bookedTimes = array_column($stmt->fetchAll(), 'appointment_time');
+                    
+                    // Filter available slots
+                    foreach ($timeSlots as $slot) {
+                        if (!in_array($slot, $bookedTimes)) {
+                            $availableSlots[] = [
+                                'value' => $slot,
+                                'display' => date('g:i A', strtotime($slot))
+                            ];
+                        }
+                    }
+                    
+                    $response = [
+                        'date' => $date,
+                        'available_slots' => $availableSlots,
+                        'total_available' => count($availableSlots)
+                    ];
+                    
+                } else {
+                    // Get appointments
+                    $userId = null;
+                    $role = null;
+                    
+                    // Get user info from token (simplified - in real app, validate token properly)
+                    $authHeader = $_SERVER['HTTP_AUTHORIZATION'] ?? '';
+                    if (empty($authHeader) && function_exists('getallheaders')) {
+                        $headers = getallheaders();
+                        $authHeader = $headers['Authorization'] ?? '';
+                    }
+                    
+                    if (preg_match('/Bearer mysql_token_(\d+)/', $authHeader, $matches)) {
+                        // For now, we'll use a simple approach - get user from session or default
+                        // In a real app, you'd validate the token and get user info
+                        $userId = 1001; // Default to genesis user for now
+                        $role = 'customer';
+                    }
+                    
+                    // Get appointments for the user
+                    if ($userId) {
+                        $stmt = $pdo->prepare("
+                            SELECT a.*, u.name as patient_name, u.email as patient_email,
+                                   o.name as optometrist_name, b.name as branch_name
+                            FROM appointments a
+                            LEFT JOIN users u ON a.patient_id = u.id
+                            LEFT JOIN users o ON a.optometrist_id = o.id
+                            LEFT JOIN branches b ON a.branch_id = b.id
+                            WHERE a.patient_id = ? OR a.optometrist_id = ?
+                            ORDER BY a.appointment_date DESC, a.appointment_time DESC
+                        ");
+                        $stmt->execute([$userId, $userId]);
+                        $appointments = $stmt->fetchAll();
+                    } else {
+                        // If no auth, return empty array
+                        $appointments = [];
+                    }
+                    
+                    $response = [
+                        'data' => $appointments
+                    ];
+                }
+                
+            } elseif ($_SERVER['REQUEST_METHOD'] === 'POST') {
+                // Create new appointment
+                $input = json_decode(file_get_contents('php://input'), true);
+                
+                $requiredFields = ['patient_id', 'optometrist_id', 'appointment_date', 'appointment_time', 'branch_id'];
+                foreach ($requiredFields as $field) {
+                    if (!isset($input[$field])) {
+                        http_response_code(400);
+                        echo json_encode(['message' => "Field '$field' is required"]);
+                        exit();
+                    }
+                }
+                
+                $patientId = $input['patient_id'];
+                $optometristId = $input['optometrist_id'];
+                $appointmentDate = $input['appointment_date'];
+                $appointmentTime = $input['appointment_time'];
+                $branchId = $input['branch_id'];
+                $notes = $input['notes'] ?? '';
+                $status = $input['status'] ?? 'scheduled';
+                
+                $stmt = $pdo->prepare("
+                    INSERT INTO appointments (patient_id, optometrist_id, appointment_date, appointment_time, branch_id, notes, status, created_at, updated_at) 
+                    VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
+                ");
+                
+                try {
+                    $stmt->execute([$patientId, $optometristId, $appointmentDate, $appointmentTime, $branchId, $notes, $status]);
+                    $appointmentId = $pdo->lastInsertId();
+                    
+                    // Get the created appointment with related data
+                    $stmt = $pdo->prepare("
+                        SELECT a.*, u.name as patient_name, u.email as patient_email,
+                               o.name as optometrist_name, b.name as branch_name
+                        FROM appointments a
+                        LEFT JOIN users u ON a.patient_id = u.id
+                        LEFT JOIN users o ON a.optometrist_id = o.id
+                        LEFT JOIN branches b ON a.branch_id = b.id
+                        WHERE a.id = ?
+                    ");
+                    $stmt->execute([$appointmentId]);
+                    $appointment = $stmt->fetch();
+                    
+                    $response = [
+                        'data' => $appointment,
+                        'message' => 'Appointment created successfully'
+                    ];
+                    
+                    http_response_code(201);
+                    
+                } catch (PDOException $e) {
+                    http_response_code(500);
+                    echo json_encode(['message' => 'Failed to create appointment']);
+                    exit();
+                }
+                
+            } elseif ($_SERVER['REQUEST_METHOD'] === 'PUT') {
+                // Update appointment
                 $pathParts = explode('/', trim($fullPath, '/'));
                 if (count($pathParts) > 1 && is_numeric($pathParts[1])) {
+                    $appointmentId = $pathParts[1];
+                    $input = json_decode(file_get_contents('php://input'), true);
+                    
+                    $updateFields = [];
+                    $updateValues = [];
+                    
+                    $allowedFields = ['appointment_date', 'appointment_time', 'notes', 'status'];
+                    foreach ($allowedFields as $field) {
+                        if (isset($input[$field])) {
+                            $updateFields[] = "$field = ?";
+                            $updateValues[] = $input[$field];
+                        }
+                    }
+                    
+                    if (empty($updateFields)) {
+                        http_response_code(400);
+                        echo json_encode(['message' => 'No valid fields to update']);
+                        exit();
+                    }
+                    
+                    $updateValues[] = $appointmentId;
+                    $sql = "UPDATE appointments SET " . implode(', ', $updateFields) . ", updated_at = NOW() WHERE id = ?";
+                    
+                    try {
+                        $stmt = $pdo->prepare($sql);
+                        $stmt->execute($updateValues);
+                        
+                        // Get updated appointment
+                        $stmt = $pdo->prepare("
+                            SELECT a.*, u.name as patient_name, u.email as patient_email,
+                                   o.name as optometrist_name, b.name as branch_name
+                            FROM appointments a
+                            LEFT JOIN users u ON a.patient_id = u.id
+                            LEFT JOIN users o ON a.optometrist_id = o.id
+                            LEFT JOIN branches b ON a.branch_id = b.id
+                            WHERE a.id = ?
+                        ");
+                        $stmt->execute([$appointmentId]);
+                        $appointment = $stmt->fetch();
+                        
+                        if ($appointment) {
+                            $response = [
+                                'data' => $appointment,
+                                'message' => 'Appointment updated successfully'
+                            ];
+                        } else {
+                            http_response_code(404);
+                            echo json_encode(['message' => 'Appointment not found']);
+                            exit();
+                        }
+                        
+                    } catch (PDOException $e) {
+                        http_response_code(500);
+                        echo json_encode(['message' => 'Failed to update appointment']);
+                        exit();
+                    }
+                } else {
+                    http_response_code(400);
+                    echo json_encode(['message' => 'Invalid appointment ID']);
+                    exit();
+                }
+                
+            } elseif ($_SERVER['REQUEST_METHOD'] === 'DELETE') {
+                // Delete appointment
+                $pathParts = explode('/', trim($fullPath, '/'));
+                if (count($pathParts) > 1 && is_numeric($pathParts[1])) {
+                    $appointmentId = $pathParts[1];
+                    
+                    try {
+                        $stmt = $pdo->prepare("DELETE FROM appointments WHERE id = ?");
+                        $stmt->execute([$appointmentId]);
+                        
+                        if ($stmt->rowCount() > 0) {
+                            $response = ['message' => 'Appointment deleted successfully'];
+                        } else {
+                            http_response_code(404);
+                            echo json_encode(['message' => 'Appointment not found']);
+                            exit();
+                        }
+                        
+                    } catch (PDOException $e) {
+                        http_response_code(500);
+                        echo json_encode(['message' => 'Failed to delete appointment']);
+                        exit();
+                    }
+                } else {
+                    http_response_code(400);
+                    echo json_encode(['message' => 'Invalid appointment ID']);
+                    exit();
+                }
+            }
+            break;
+            
+        case 'prescriptions':
+            if ($_SERVER['REQUEST_METHOD'] === 'GET') {
+                // Get prescriptions
+                $userId = null;
+                $role = null;
+                
+                // Get user info from token (simplified - in real app, validate token properly)
+                $authHeader = $_SERVER['HTTP_AUTHORIZATION'] ?? '';
+                if (empty($authHeader) && function_exists('getallheaders')) {
+                    $headers = getallheaders();
+                    $authHeader = $headers['Authorization'] ?? '';
+                }
+                
+                if (preg_match('/Bearer mysql_token_(\d+)/', $authHeader, $matches)) {
+                    // For now, we'll use a simple approach - get user from session or default
+                    // In a real app, you'd validate the token and get user info
+                    $userId = 1001; // Default to genesis user for now
+                    $role = 'customer';
+                }
+                
+                // Check if requesting specific prescription by ID or patient prescriptions
+                $pathParts = explode('/', trim($fullPath, '/'));
+                if (count($pathParts) > 1) {
+                    if ($pathParts[1] === 'patient' && isset($pathParts[2]) && is_numeric($pathParts[2])) {
+                        // Get prescriptions for specific patient
+                        $requestedPatientId = $pathParts[2];
+                        
+                        // Check if user has permission to view this patient's prescriptions
+                        if ($userId && ($userId == $requestedPatientId || $role === 'optometrist' || $role === 'admin')) {
+                            $stmt = $pdo->prepare("
+                                SELECT p.*, 
+                                       u.name as patient_name, u.email as patient_email,
+                                       o.name as optometrist_name, o.email as optometrist_email,
+                                       b.name as branch_name, b.code as branch_code,
+                                       a.appointment_date, a.appointment_time
+                                FROM prescriptions p
+                                LEFT JOIN users u ON p.patient_id = u.id
+                                LEFT JOIN users o ON p.optometrist_id = o.id
+                                LEFT JOIN branches b ON p.branch_id = b.id
+                                LEFT JOIN appointments a ON p.appointment_id = a.id
+                                WHERE p.patient_id = ?
+                                ORDER BY p.issue_date DESC, p.created_at DESC
+                            ");
+                            $stmt->execute([$requestedPatientId]);
+                            $prescriptions = $stmt->fetchAll();
+                            
+                            // Parse JSON fields for each prescription
+                            foreach ($prescriptions as &$prescription) {
+                                $prescription['prescription_data'] = json_decode($prescription['prescription_data'], true);
+                                $prescription['right_eye'] = json_decode($prescription['right_eye'], true);
+                                $prescription['left_eye'] = json_decode($prescription['left_eye'], true);
+                            }
+                            
+                            $response = [
+                                'data' => $prescriptions
+                            ];
+                        } else {
+                            http_response_code(403);
+                            echo json_encode(['message' => 'Access denied']);
+                            exit();
+                        }
+                    } elseif (is_numeric($pathParts[1])) {
+                    // Get specific prescription by ID
+                    $prescriptionId = $pathParts[1];
+                    $stmt = $pdo->prepare("
+                        SELECT p.*, 
+                               u.name as patient_name, u.email as patient_email,
+                               o.name as optometrist_name, o.email as optometrist_email,
+                               b.name as branch_name, b.code as branch_code,
+                               a.appointment_date, a.appointment_time
+                        FROM prescriptions p
+                        LEFT JOIN users u ON p.patient_id = u.id
+                        LEFT JOIN users o ON p.optometrist_id = o.id
+                        LEFT JOIN branches b ON p.branch_id = b.id
+                        LEFT JOIN appointments a ON p.appointment_id = a.id
+                        WHERE p.id = ? AND (p.patient_id = ? OR p.optometrist_id = ?)
+                    ");
+                    $stmt->execute([$prescriptionId, $userId, $userId]);
+                    $prescription = $stmt->fetch();
+                    
+                    if ($prescription) {
+                        // Parse prescription_data JSON
+                        $prescription['prescription_data'] = json_decode($prescription['prescription_data'], true);
+                        $prescription['right_eye'] = json_decode($prescription['right_eye'], true);
+                        $prescription['left_eye'] = json_decode($prescription['left_eye'], true);
+                        
+                        $response = [
+                            'data' => $prescription
+                        ];
+                    } else {
+                        http_response_code(404);
+                        echo json_encode(['message' => 'Prescription not found']);
+                        exit();
+                    }
+                    } else {
+                        http_response_code(400);
+                        echo json_encode(['message' => 'Invalid prescription request']);
+                        exit();
+                    }
+                } else {
+                    // Get all prescriptions for the user
+                    if ($userId) {
+                        $stmt = $pdo->prepare("
+                        SELECT p.*, 
+                               u.name as patient_name, u.email as patient_email,
+                               o.name as optometrist_name, o.email as optometrist_email,
+                               b.name as branch_name, b.code as branch_code,
+                               a.appointment_date, a.appointment_time
+                        FROM prescriptions p
+                        LEFT JOIN users u ON p.patient_id = u.id
+                        LEFT JOIN users o ON p.optometrist_id = o.id
+                        LEFT JOIN branches b ON p.branch_id = b.id
+                        LEFT JOIN appointments a ON p.appointment_id = a.id
+                        WHERE p.patient_id = ? OR p.optometrist_id = ?
+                        ORDER BY p.issue_date DESC, p.created_at DESC
+                        ");
+                        $stmt->execute([$userId, $userId]);
+                        $prescriptions = $stmt->fetchAll();
+                        
+                        // Parse JSON fields for each prescription
+                        foreach ($prescriptions as &$prescription) {
+                            $prescription['prescription_data'] = json_decode($prescription['prescription_data'], true);
+                            $prescription['right_eye'] = json_decode($prescription['right_eye'], true);
+                            $prescription['left_eye'] = json_decode($prescription['left_eye'], true);
+                        }
+                    } else {
+                        // If no auth, return empty array
+                        $prescriptions = [];
+                    }
+                    
+                    $response = [
+                        'data' => $prescriptions
+                    ];
+                }
+                
+            } elseif ($_SERVER['REQUEST_METHOD'] === 'POST') {
+                // Create new prescription
+                $input = json_decode(file_get_contents('php://input'), true);
+                
+                $requiredFields = ['patient_id', 'optometrist_id', 'type', 'prescription_data', 'issue_date', 'expiry_date'];
+                foreach ($requiredFields as $field) {
+                    if (!isset($input[$field])) {
+                        http_response_code(400);
+                        echo json_encode(['message' => "Field '$field' is required"]);
+                        exit();
+                    }
+                }
+                
+                $patientId = $input['patient_id'];
+                $optometristId = $input['optometrist_id'];
+                $appointmentId = $input['appointment_id'] ?? null;
+                $branchId = $input['branch_id'] ?? null;
+                $type = $input['type'];
+                $prescriptionData = json_encode($input['prescription_data']);
+                $rightEye = json_encode($input['right_eye'] ?? []);
+                $leftEye = json_encode($input['left_eye'] ?? []);
+                $visionAcuity = $input['vision_acuity'] ?? '';
+                $additionalNotes = $input['additional_notes'] ?? '';
+                $recommendations = $input['recommendations'] ?? '';
+                $lensType = $input['lens_type'] ?? '';
+                $coating = $input['coating'] ?? '';
+                $followUpDate = $input['follow_up_date'] ?? null;
+                $followUpNotes = $input['follow_up_notes'] ?? '';
+                $issueDate = $input['issue_date'];
+                $expiryDate = $input['expiry_date'];
+                $notes = $input['notes'] ?? '';
+                $status = $input['status'] ?? 'active';
+                
+                // Generate prescription number
+                $prescriptionNumber = 'RX' . date('Ymd') . sprintf('%04d', rand(1, 9999));
+                
+                $stmt = $pdo->prepare("
+                    INSERT INTO prescriptions (
+                        patient_id, optometrist_id, appointment_id, branch_id, type, prescription_data,
+                        prescription_number, right_eye, left_eye, vision_acuity, additional_notes,
+                        recommendations, lens_type, coating, follow_up_date, follow_up_notes,
+                        issue_date, expiry_date, notes, status, created_at, updated_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
+                ");
+                
+                try {
+                    $stmt->execute([
+                        $patientId, $optometristId, $appointmentId, $branchId, $type, $prescriptionData,
+                        $prescriptionNumber, $rightEye, $leftEye, $visionAcuity, $additionalNotes,
+                        $recommendations, $lensType, $coating, $followUpDate, $followUpNotes,
+                        $issueDate, $expiryDate, $notes, $status
+                    ]);
+                    $prescriptionId = $pdo->lastInsertId();
+                    
+                    // Get the created prescription with related data
+                    $stmt = $pdo->prepare("
+                        SELECT p.*, 
+                               u.name as patient_name, u.email as patient_email,
+                               o.name as optometrist_name, o.email as optometrist_email,
+                               b.name as branch_name, b.code as branch_code,
+                               a.appointment_date, a.appointment_time
+                        FROM prescriptions p
+                        LEFT JOIN users u ON p.patient_id = u.id
+                        LEFT JOIN users o ON p.optometrist_id = o.id
+                        LEFT JOIN branches b ON p.branch_id = b.id
+                        LEFT JOIN appointments a ON p.appointment_id = a.id
+                        WHERE p.id = ?
+                    ");
+                    $stmt->execute([$prescriptionId]);
+                    $prescription = $stmt->fetch();
+                    
+                    // Parse JSON fields
+                    $prescription['prescription_data'] = json_decode($prescription['prescription_data'], true);
+                    $prescription['right_eye'] = json_decode($prescription['right_eye'], true);
+                    $prescription['left_eye'] = json_decode($prescription['left_eye'], true);
+                    
+                    $response = [
+                        'data' => $prescription,
+                        'message' => 'Prescription created successfully'
+                    ];
+                    
+                    http_response_code(201);
+                    
+                } catch (PDOException $e) {
+                    http_response_code(500);
+                    echo json_encode(['message' => 'Failed to create prescription']);
+                    exit();
+                }
+                
+            } elseif ($_SERVER['REQUEST_METHOD'] === 'PUT') {
+                // Update prescription
+                $pathParts = explode('/', trim($fullPath, '/'));
+                if (count($pathParts) > 1 && is_numeric($pathParts[1])) {
+                    $prescriptionId = $pathParts[1];
+                    $input = json_decode(file_get_contents('php://input'), true);
+                    
+                    $updateFields = [];
+                    $updateValues = [];
+                    
+                    $allowedFields = ['type', 'prescription_data', 'right_eye', 'left_eye', 'vision_acuity', 
+                                    'additional_notes', 'recommendations', 'lens_type', 'coating', 
+                                    'follow_up_date', 'follow_up_notes', 'issue_date', 'expiry_date', 'notes', 'status'];
+                    
+                    foreach ($allowedFields as $field) {
+                        if (isset($input[$field])) {
+                            if (in_array($field, ['prescription_data', 'right_eye', 'left_eye'])) {
+                                $updateFields[] = "$field = ?";
+                                $updateValues[] = json_encode($input[$field]);
+                            } else {
+                                $updateFields[] = "$field = ?";
+                                $updateValues[] = $input[$field];
+                            }
+                        }
+                    }
+                    
+                    if (empty($updateFields)) {
+                        http_response_code(400);
+                        echo json_encode(['message' => 'No valid fields to update']);
+                        exit();
+                    }
+                    
+                    $updateValues[] = $prescriptionId;
+                    $sql = "UPDATE prescriptions SET " . implode(', ', $updateFields) . ", updated_at = NOW() WHERE id = ?";
+                    
+                    try {
+                        $stmt = $pdo->prepare($sql);
+                        $stmt->execute($updateValues);
+                        
+                        // Get updated prescription
+                        $stmt = $pdo->prepare("
+                            SELECT p.*, 
+                                   u.name as patient_name, u.email as patient_email,
+                                   o.name as optometrist_name, o.email as optometrist_email,
+                                   b.name as branch_name, b.code as branch_code,
+                                   a.appointment_date, a.appointment_time
+                            FROM prescriptions p
+                            LEFT JOIN users u ON p.patient_id = u.id
+                            LEFT JOIN users o ON p.optometrist_id = o.id
+                            LEFT JOIN branches b ON p.branch_id = b.id
+                            LEFT JOIN appointments a ON p.appointment_id = a.id
+                            WHERE p.id = ?
+                        ");
+                        $stmt->execute([$prescriptionId]);
+                        $prescription = $stmt->fetch();
+                        
+                        if ($prescription) {
+                            // Parse JSON fields
+                            $prescription['prescription_data'] = json_decode($prescription['prescription_data'], true);
+                            $prescription['right_eye'] = json_decode($prescription['right_eye'], true);
+                            $prescription['left_eye'] = json_decode($prescription['left_eye'], true);
+                            
+                            $response = [
+                                'data' => $prescription,
+                                'message' => 'Prescription updated successfully'
+                            ];
+                        } else {
+                            http_response_code(404);
+                            echo json_encode(['message' => 'Prescription not found']);
+                            exit();
+                        }
+                        
+                    } catch (PDOException $e) {
+                        http_response_code(500);
+                        echo json_encode(['message' => 'Failed to update prescription']);
+                        exit();
+                    }
+                } else {
+                    http_response_code(400);
+                    echo json_encode(['message' => 'Invalid prescription ID']);
+                    exit();
+                }
+                
+            } elseif ($_SERVER['REQUEST_METHOD'] === 'DELETE') {
+                // Delete prescription
+                $pathParts = explode('/', trim($fullPath, '/'));
+                if (count($pathParts) > 1 && is_numeric($pathParts[1])) {
+                    $prescriptionId = $pathParts[1];
+                    
+                    try {
+                        $stmt = $pdo->prepare("DELETE FROM prescriptions WHERE id = ?");
+                        $stmt->execute([$prescriptionId]);
+                        
+                        if ($stmt->rowCount() > 0) {
+                            $response = ['message' => 'Prescription deleted successfully'];
+                        } else {
+                            http_response_code(404);
+                            echo json_encode(['message' => 'Prescription not found']);
+                            exit();
+                        }
+                        
+                    } catch (PDOException $e) {
+                        http_response_code(500);
+                        echo json_encode(['message' => 'Failed to delete prescription']);
+                        exit();
+                    }
+                } else {
+                    http_response_code(400);
+                    echo json_encode(['message' => 'Invalid prescription ID']);
+                    exit();
+                }
+            }
+            break;
+            
+        case 'product-categories':
+            if ($_SERVER['REQUEST_METHOD'] === 'GET') {
+                // Get product categories
+                $stmt = $pdo->query("
+                    SELECT pc.*, 
+                           COUNT(p.id) as product_count
+                    FROM product_categories pc
+                    LEFT JOIN products p ON pc.name = p.category
+                    GROUP BY pc.id
+                    ORDER BY pc.name ASC
+                ");
+                $categories = $stmt->fetchAll();
+                
+                $response = [
+                    'data' => $categories
+                ];
+                
+            } elseif ($_SERVER['REQUEST_METHOD'] === 'POST') {
+                // Create new product category
+                $input = json_decode(file_get_contents('php://input'), true);
+                
+                if (!isset($input['name'])) {
+                    http_response_code(400);
+                    echo json_encode(['message' => 'Name is required']);
+                    exit();
+                }
+                
+                $name = trim($input['name']);
+                $description = $input['description'] ?? '';
+                
+                $stmt = $pdo->prepare("
+                    INSERT INTO product_categories (name, description, created_at, updated_at) 
+                    VALUES (?, ?, NOW(), NOW())
+                ");
+                
+                try {
+                    $stmt->execute([$name, $description]);
+                    $categoryId = $pdo->lastInsertId();
+                    
+                    // Get the created category
+                    $stmt = $pdo->prepare("SELECT * FROM product_categories WHERE id = ?");
+                    $stmt->execute([$categoryId]);
+                    $category = $stmt->fetch();
+                    
+                    $response = [
+                        'data' => $category,
+                        'message' => 'Product category created successfully'
+                    ];
+                    
+                    http_response_code(201);
+                    
+                } catch (PDOException $e) {
+                    http_response_code(500);
+                    echo json_encode(['message' => 'Failed to create product category']);
+                    exit();
+                }
+                
+            } elseif ($_SERVER['REQUEST_METHOD'] === 'PUT') {
+                // Update product category
+                $pathParts = explode('/', trim($fullPath, '/'));
+                if (count($pathParts) > 1 && is_numeric($pathParts[1])) {
+                    $categoryId = $pathParts[1];
+                    $input = json_decode(file_get_contents('php://input'), true);
+                    
+                    $updateFields = [];
+                    $updateValues = [];
+                    
+                    $allowedFields = ['name', 'description'];
+                    foreach ($allowedFields as $field) {
+                        if (isset($input[$field])) {
+                            $updateFields[] = "$field = ?";
+                            $updateValues[] = $input[$field];
+                        }
+                    }
+                    
+                    if (empty($updateFields)) {
+                        http_response_code(400);
+                        echo json_encode(['message' => 'No valid fields to update']);
+                        exit();
+                    }
+                    
+                    $updateValues[] = $categoryId;
+                    $sql = "UPDATE product_categories SET " . implode(', ', $updateFields) . ", updated_at = NOW() WHERE id = ?";
+                    
+                    try {
+                        $stmt = $pdo->prepare($sql);
+                        $stmt->execute($updateValues);
+                        
+                        // Get updated category
+                        $stmt = $pdo->prepare("SELECT * FROM product_categories WHERE id = ?");
+                        $stmt->execute([$categoryId]);
+                        $category = $stmt->fetch();
+                        
+                        if ($category) {
+                            $response = [
+                                'data' => $category,
+                                'message' => 'Product category updated successfully'
+                            ];
+                        } else {
+                            http_response_code(404);
+                            echo json_encode(['message' => 'Product category not found']);
+                            exit();
+                        }
+                        
+                    } catch (PDOException $e) {
+                        http_response_code(500);
+                        echo json_encode(['message' => 'Failed to update product category']);
+                        exit();
+                    }
+                } else {
+                    http_response_code(400);
+                    echo json_encode(['message' => 'Invalid category ID']);
+                    exit();
+                }
+                
+            } elseif ($_SERVER['REQUEST_METHOD'] === 'DELETE') {
+                // Delete product category
+                $pathParts = explode('/', trim($fullPath, '/'));
+                if (count($pathParts) > 1 && is_numeric($pathParts[1])) {
+                    $categoryId = $pathParts[1];
+                    
+                    try {
+                        $stmt = $pdo->prepare("DELETE FROM product_categories WHERE id = ?");
+                        $stmt->execute([$categoryId]);
+                        
+                        if ($stmt->rowCount() > 0) {
+                            $response = ['message' => 'Product category deleted successfully'];
+                        } else {
+                            http_response_code(404);
+                            echo json_encode(['message' => 'Product category not found']);
+                            exit();
+                        }
+                        
+                    } catch (PDOException $e) {
+                        http_response_code(500);
+                        echo json_encode(['message' => 'Failed to delete product category']);
+                        exit();
+                    }
+                } else {
+                    http_response_code(400);
+                    echo json_encode(['message' => 'Invalid category ID']);
+                    exit();
+                }
+            }
+            break;
+            
+        case 'schedules':
+            if ($_SERVER['REQUEST_METHOD'] === 'GET') {
+                // Get doctor schedules
+                $stmt = $pdo->query("
+                    SELECT 
+                        u.id as doctor_id,
+                        u.name as doctor_name,
+                        u.email as doctor_email,
+                        u.role,
+                        b.id as branch_id,
+                        b.name as branch_name,
+                        b.code as branch_code,
+                        b.address as branch_address,
+                        b.phone as branch_phone,
+                        b.email as branch_email,
+                        b.is_active as branch_active
+                    FROM users u
+                    LEFT JOIN branches b ON u.branch_id = b.id
+                    WHERE u.role IN ('optometrist', 'doctor') AND u.branch_id IS NOT NULL
+                    ORDER BY u.name, b.name
+                ");
+                $schedules = $stmt->fetchAll();
+                
+                // Group by doctor
+                $groupedSchedules = [];
+                foreach ($schedules as $schedule) {
+                    $doctorId = $schedule['doctor_id'];
+                    if (!isset($groupedSchedules[$doctorId])) {
+                        $groupedSchedules[$doctorId] = [
+                            'doctor' => [
+                                'id' => $schedule['doctor_id'],
+                                'name' => $schedule['doctor_name'],
+                                'email' => $schedule['doctor_email'],
+                                'role' => $schedule['role']
+                            ],
+                            'branches' => []
+                        ];
+                    }
+                    
+                    if ($schedule['branch_id']) {
+                        $groupedSchedules[$doctorId]['branches'][] = [
+                            'id' => $schedule['branch_id'],
+                            'name' => $schedule['branch_name'],
+                            'code' => $schedule['branch_code'],
+                            'address' => $schedule['branch_address'],
+                            'phone' => $schedule['branch_phone'],
+                            'email' => $schedule['branch_email'],
+                            'is_active' => (bool)$schedule['branch_active']
+                        ];
+                    }
+                }
+                
+                $response = [
+                    'data' => array_values($groupedSchedules)
+                ];
+            }
+            break;
+
+        case 'admin':
+            // Handle admin endpoints
+            $pathParts = explode('/', trim($fullPath, '/'));
+            if (count($pathParts) > 1 && $pathParts[1] === 'users') {
+                if ($_SERVER['REQUEST_METHOD'] === 'GET') {
+                    // Get all users (admin only)
+                    $stmt = $pdo->query("
+                        SELECT u.*, b.name as branch_name, b.address as branch_address
+                        FROM users u
+                        LEFT JOIN branches b ON u.branch_id = b.id
+                        ORDER BY u.created_at DESC
+                    ");
+                    $users = $stmt->fetchAll();
+                    
+                    $response = [
+                        'data' => $users
+                    ];
+                    
+                } elseif ($_SERVER['REQUEST_METHOD'] === 'POST') {
+                    // Create new user
+                    $input = json_decode(file_get_contents('php://input'), true);
+                    
+                    if (!isset($input['name'], $input['email'], $input['password'], $input['role'])) {
+                        http_response_code(400);
+                        echo json_encode(['message' => 'Name, email, password, and role are required']);
+                        exit();
+                    }
+                    
+                    $name = trim($input['name']);
+                    $email = trim(strtolower($input['email']));
+                    $password = $input['password'];
+                    $role = $input['role'];
+                    $branchId = $input['branch_id'] ?? null;
+                    $isApproved = $input['is_approved'] ?? true;
+                    
+                    // Validate password length
+                    if (strlen($password) < 8) {
+                        http_response_code(400);
+                        echo json_encode(['message' => 'Password must be at least 8 characters long']);
+                        exit();
+                    }
+                    
+                    // Check if user already exists
+                    $stmt = $pdo->prepare("SELECT id FROM users WHERE email = ?");
+                    $stmt->execute([$email]);
+                    if ($stmt->fetch()) {
+                        http_response_code(400);
+                        echo json_encode(['message' => 'User with this email already exists']);
+                        exit();
+                    }
+                    
+                    // Hash password
+                    $hashedPassword = password_hash($password, PASSWORD_DEFAULT);
+                    
+                    // Insert new user
+                    $stmt = $pdo->prepare("
+                        INSERT INTO users (name, email, password, role, branch_id, is_approved, email_verified_at, created_at, updated_at)
+                        VALUES (?, ?, ?, ?, ?, ?, NOW(), NOW(), NOW())
+                    ");
+                    
+                    try {
+                        $stmt->execute([$name, $email, $hashedPassword, $role, $branchId, $isApproved]);
+                        $userId = $pdo->lastInsertId();
+                        
+                        // Get the created user with branch info
+                        $stmt = $pdo->prepare("
+                            SELECT u.*, b.name as branch_name, b.address as branch_address
+                            FROM users u
+                            LEFT JOIN branches b ON u.branch_id = b.id
+                            WHERE u.id = ?
+                        ");
+                        $stmt->execute([$userId]);
+                        $user = $stmt->fetch();
+                        
+                        $response = [
+                            'data' => $user,
+                            'message' => 'User created successfully'
+                        ];
+                        
+                        http_response_code(201);
+                        
+                    } catch (PDOException $e) {
+                        http_response_code(500);
+                        echo json_encode(['message' => 'Failed to create user']);
+                        exit();
+                    }
+                    
+                } elseif ($_SERVER['REQUEST_METHOD'] === 'PUT') {
+                    // Update user
+                    if (count($pathParts) > 2 && is_numeric($pathParts[2])) {
+                        $userId = $pathParts[2];
+                        $input = json_decode(file_get_contents('php://input'), true);
+                        
+                        $updateFields = [];
+                        $updateValues = [];
+                        
+                        $allowedFields = ['name', 'email', 'role', 'branch_id', 'is_approved'];
+                        foreach ($allowedFields as $field) {
+                            if (isset($input[$field])) {
+                                $updateFields[] = "$field = ?";
+                                $updateValues[] = $input[$field];
+                            }
+                        }
+                        
+                        // Handle password update separately
+                        if (isset($input['password']) && !empty($input['password'])) {
+                            if (strlen($input['password']) < 8) {
+                                http_response_code(400);
+                                echo json_encode(['message' => 'Password must be at least 8 characters long']);
+                                exit();
+                            }
+                            $updateFields[] = "password = ?";
+                            $updateValues[] = password_hash($input['password'], PASSWORD_DEFAULT);
+                        }
+                        
+                        if (empty($updateFields)) {
+                            http_response_code(400);
+                            echo json_encode(['message' => 'No valid fields to update']);
+                            exit();
+                        }
+                        
+                        $updateValues[] = $userId;
+                        $sql = "UPDATE users SET " . implode(', ', $updateFields) . ", updated_at = NOW() WHERE id = ?";
+                        
+                        try {
+                            $stmt = $pdo->prepare($sql);
+                            $stmt->execute($updateValues);
+                            
+                            // Get updated user
+                            $stmt = $pdo->prepare("
+                                SELECT u.*, b.name as branch_name, b.address as branch_address
+                                FROM users u
+                                LEFT JOIN branches b ON u.branch_id = b.id
+                                WHERE u.id = ?
+                            ");
+                            $stmt->execute([$userId]);
+                            $user = $stmt->fetch();
+                            
+                            if ($user) {
+                                $response = [
+                                    'data' => $user,
+                                    'message' => 'User updated successfully'
+                                ];
+                            } else {
+                                http_response_code(404);
+                                echo json_encode(['message' => 'User not found']);
+                                exit();
+                            }
+                            
+                        } catch (PDOException $e) {
+                            http_response_code(500);
+                            echo json_encode(['message' => 'Failed to update user']);
+                            exit();
+                        }
+                    } else {
+                        http_response_code(400);
+                        echo json_encode(['message' => 'Invalid user ID']);
+                        exit();
+                    }
+                    
+                } elseif ($_SERVER['REQUEST_METHOD'] === 'DELETE') {
+                    // Delete user
+                    if (count($pathParts) > 2 && is_numeric($pathParts[2])) {
+                        $userId = $pathParts[2];
+                        
+                        try {
+                            $stmt = $pdo->prepare("DELETE FROM users WHERE id = ?");
+                            $stmt->execute([$userId]);
+                            
+                            if ($stmt->rowCount() > 0) {
+                                $response = ['message' => 'User deleted successfully'];
+                            } else {
+                                http_response_code(404);
+                                echo json_encode(['message' => 'User not found']);
+                                exit();
+                            }
+                            
+                        } catch (PDOException $e) {
+                            http_response_code(500);
+                            echo json_encode(['message' => 'Failed to delete user']);
+                            exit();
+                        }
+                    } else {
+                        http_response_code(400);
+                        echo json_encode(['message' => 'Invalid user ID']);
+                        exit();
+                    }
+                    
+                } elseif ($_SERVER['REQUEST_METHOD'] === 'PATCH') {
+                    // Handle approve user
+                    if (count($pathParts) > 3 && $pathParts[3] === 'approve') {
+                        $userId = $pathParts[2];
+                        
+                        try {
+                            $stmt = $pdo->prepare("UPDATE users SET is_approved = 1, updated_at = NOW() WHERE id = ?");
+                            $stmt->execute([$userId]);
+                            
+                            if ($stmt->rowCount() > 0) {
+                                // Get updated user
+                                $stmt = $pdo->prepare("
+                                    SELECT u.*, b.name as branch_name, b.address as branch_address
+                                    FROM users u
+                                    LEFT JOIN branches b ON u.branch_id = b.id
+                                    WHERE u.id = ?
+                                ");
+                                $stmt->execute([$userId]);
+                                $user = $stmt->fetch();
+                                
+                                $response = [
+                                    'data' => $user,
+                                    'message' => 'User approved successfully'
+                                ];
+                            } else {
+                                http_response_code(404);
+                                echo json_encode(['message' => 'User not found']);
+                                exit();
+                            }
+                            
+                        } catch (PDOException $e) {
+                            http_response_code(500);
+                            echo json_encode(['message' => 'Failed to approve user']);
+                            exit();
+                        }
+                    } else {
+                        http_response_code(400);
+                        echo json_encode(['message' => 'Invalid approve request']);
+                        exit();
+                    }
+                }
+            }
+            break;
+
+        case 'analytics':
+            // Handle analytics endpoints
+            $pathParts = explode('/', trim($fullPath, '/'));
+            if (count($pathParts) > 1 && $pathParts[1] === 'product-availability') {
+                if ($_SERVER['REQUEST_METHOD'] === 'GET') {
+                    $productId = $_GET['product_id'] ?? null;
+                    $branchId = $_GET['branch_id'] ?? null;
+                    
+                    $sql = "
+                        SELECT 
+                            p.id as product_id,
+                            p.name as product_name,
+                            b.id as branch_id,
+                            b.name as branch_name,
+                            b.code as branch_code,
+                            COALESCE(bs.stock_quantity, 0) as stock_quantity,
+                            COALESCE(bs.reserved_quantity, 0) as reserved_quantity,
+                            GREATEST(COALESCE(bs.stock_quantity, 0) - COALESCE(bs.reserved_quantity, 0), 0) as available_quantity,
+                            CASE 
+                                WHEN COALESCE(bs.stock_quantity, 0) - COALESCE(bs.reserved_quantity, 0) > 0 THEN 1 
+                                ELSE 0 
+                            END as is_available
+                        FROM products p
+                        CROSS JOIN branches b
+                        LEFT JOIN branch_stock bs ON p.id = bs.product_id AND b.id = bs.branch_id
+                        WHERE p.is_active = 1 AND b.is_active = 1
+                    ";
+                    
+                    $params = [];
+                    if ($productId) {
+                        $sql .= " AND p.id = ?";
+                        $params[] = $productId;
+                    }
+                    if ($branchId) {
+                        $sql .= " AND b.id = ?";
+                        $params[] = $branchId;
+                    }
+                    
+                    $sql .= " ORDER BY p.name, b.name";
+                    
+                    $stmt = $pdo->prepare($sql);
+                    $stmt->execute($params);
+                    $availability = $stmt->fetchAll();
+                    
+                    $response = [
+                        'availability' => $availability,
+                        'summary' => [
+                            'total_products' => count(array_unique(array_column($availability, 'product_id'))),
+                            'total_branches' => count(array_unique(array_column($availability, 'branch_id'))),
+                            'total_available' => count(array_filter($availability, fn($item) => $item['is_available']))
+                        ]
+                    ];
+                }
+            }
+            break;
+            
+        case 'branches':
+            if ($_SERVER['REQUEST_METHOD'] === 'GET') {
+                // Check if requesting specific sub-route
+                $pathParts = explode('/', trim($fullPath, '/'));
+                
+                if (count($pathParts) > 1) {
+                    if ($pathParts[1] === 'active') {
+                        // Get active branches
+                        $stmt = $pdo->query("
+                            SELECT b.*, 
+                                   COUNT(DISTINCT bs.product_id) as product_count,
+                                   COUNT(DISTINCT u.id) as staff_count
+                            FROM branches b
+                            LEFT JOIN branch_stock bs ON b.id = bs.branch_id
+                            LEFT JOIN users u ON b.id = u.branch_id AND u.role IN ('staff', 'optometrist')
+                            WHERE b.is_active = 1
+                            GROUP BY b.id
+                            ORDER BY b.name ASC
+                        ");
+                        $branches = $stmt->fetchAll();
+                        
+                        $response = [
+                            'data' => $branches
+                        ];
+                        
+                    } elseif (is_numeric($pathParts[1])) {
                     // Get specific branch by ID
                     $branchId = $pathParts[1];
                     $stmt = $pdo->prepare("SELECT * FROM branches WHERE id = ?");
@@ -246,11 +1465,25 @@ try {
                     } else {
                         http_response_code(404);
                         echo json_encode(['message' => 'Branch not found']);
+                            exit();
+                        }
+                    } else {
+                        http_response_code(400);
+                        echo json_encode(['message' => 'Invalid branch request']);
                         exit();
                     }
                 } else {
                     // Get all branches
-                    $stmt = $pdo->query("SELECT * FROM branches ORDER BY name");
+                    $stmt = $pdo->query("
+                        SELECT b.*, 
+                               COUNT(DISTINCT bs.product_id) as product_count,
+                               COUNT(DISTINCT u.id) as staff_count
+                        FROM branches b
+                        LEFT JOIN branch_stock bs ON b.id = bs.branch_id
+                        LEFT JOIN users u ON b.id = u.branch_id AND u.role IN ('staff', 'optometrist')
+                        GROUP BY b.id
+                        ORDER BY b.name ASC
+                    ");
                     $branches = $stmt->fetchAll();
                     
                     $response = [
@@ -417,6 +1650,58 @@ try {
                 $stmt = $pdo->prepare($sql);
                 $stmt->execute($params);
                 $products = $stmt->fetchAll();
+                
+                // Parse JSON fields for each product
+                foreach ($products as &$product) {
+                    if ($product['image_paths']) {
+                        $product['image_paths'] = json_decode($product['image_paths'], true) ?: [];
+                    } else {
+                        $product['image_paths'] = [];
+                    }
+                    
+                    // Get branch availability for this product
+                    $branchAvailabilitySql = "
+                        SELECT 
+                            b.id as branch_id,
+                            b.name as branch_name,
+                            b.code as branch_code,
+                            COALESCE(bs.stock_quantity, 0) as stock_quantity,
+                            COALESCE(bs.reserved_quantity, 0) as reserved_quantity,
+                            GREATEST(COALESCE(bs.stock_quantity, 0) - COALESCE(bs.reserved_quantity, 0), 0) as available_quantity,
+                            CASE 
+                                WHEN COALESCE(bs.stock_quantity, 0) - COALESCE(bs.reserved_quantity, 0) > 0 THEN 1 
+                                ELSE 0 
+                            END as is_available
+                        FROM branches b
+                        LEFT JOIN branch_stock bs ON b.id = bs.branch_id AND bs.product_id = ?
+                        WHERE b.is_active = 1
+                        ORDER BY b.name
+                    ";
+                    
+                    $branchStmt = $pdo->prepare($branchAvailabilitySql);
+                    $branchStmt->execute([$product['id']]);
+                    $branchAvailability = $branchStmt->fetchAll();
+                    
+                    // Format branch availability data
+                    $product['branch_availability'] = array_map(function($ba) {
+                        return [
+                            'branch' => [
+                                'id' => $ba['branch_id'],
+                                'name' => $ba['branch_name'],
+                                'code' => $ba['branch_code']
+                            ],
+                            'stock_quantity' => (int)$ba['stock_quantity'],
+                            'reserved_quantity' => (int)$ba['reserved_quantity'],
+                            'available_quantity' => (int)$ba['available_quantity'],
+                            'is_available' => (bool)$ba['is_available']
+                        ];
+                    }, $branchAvailability);
+                    
+                    // Calculate totals for admin interface
+                    $product['total_stock'] = array_sum(array_column($branchAvailability, 'stock_quantity'));
+                    $product['total_reserved'] = array_sum(array_column($branchAvailability, 'reserved_quantity'));
+                    $product['total_available'] = array_sum(array_column($branchAvailability, 'available_quantity'));
+                }
                 
                 $response = [
                     'data' => $products,

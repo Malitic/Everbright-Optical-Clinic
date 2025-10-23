@@ -47,11 +47,25 @@ export const isValidImageUrl = async (url: string): Promise<boolean> => {
 /**
  * Get a fallback image URL when the primary image fails to load
  * @param productName - The name of the product for alt text
+ * @param size - The size of the placeholder (width x height)
  * @returns A placeholder image URL
  */
-export const getFallbackImageUrl = (productName: string): string => {
-  // You can replace this with a placeholder service or a local placeholder
-  return `https://via.placeholder.com/400x300/f3f4f6/9ca3af?text=${encodeURIComponent(productName)}`;
+export const getFallbackImageUrl = (productName: string, size: string = '400x300'): string => {
+  // Create a data URI for a simple placeholder instead of relying on external services
+  const [width, height] = size.split('x').map(Number);
+  const text = encodeURIComponent(productName || 'N/A');
+  
+  // Create a simple SVG placeholder
+  const svg = `
+    <svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">
+      <rect width="100%" height="100%" fill="#f3f4f6"/>
+      <text x="50%" y="50%" font-family="Arial, sans-serif" font-size="16" fill="#9ca3af" text-anchor="middle" dy=".3em">
+        ${text}
+      </text>
+    </svg>
+  `;
+  
+  return `data:image/svg+xml;base64,${btoa(svg)}`;
 };
 
 // ==============================

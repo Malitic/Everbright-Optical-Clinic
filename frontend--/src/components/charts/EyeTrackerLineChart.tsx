@@ -216,6 +216,7 @@ export function EyeTrackerLineChart({
                 }}
               />
               <Line
+                key="rightEye"
                 dataKey="rightEye"
                 type="monotone"
                 stroke="#2563eb"
@@ -225,6 +226,7 @@ export function EyeTrackerLineChart({
                   const hasCondition = payload.condition && payload.condition !== 'None' && payload.condition !== 'Not specified';
                   return (
                     <circle
+                      key={`rightEye-dot-${payload.date}`}
                       cx={cx}
                       cy={cy}
                       r={hasCondition ? 6 : 4}
@@ -239,6 +241,7 @@ export function EyeTrackerLineChart({
                 }}
               />
               <Line
+                key="leftEye"
                 dataKey="leftEye"
                 type="monotone"
                 stroke="#dc2626"
@@ -248,6 +251,7 @@ export function EyeTrackerLineChart({
                   const hasCondition = payload.condition && payload.condition !== 'None' && payload.condition !== 'Not specified';
                   return (
                     <circle
+                      key={`leftEye-dot-${payload.date}`}
                       cx={cx}
                       cy={cy}
                       r={hasCondition ? 6 : 4}

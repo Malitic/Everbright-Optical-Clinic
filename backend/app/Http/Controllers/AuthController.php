@@ -122,6 +122,13 @@ class AuthController extends Controller
             ], 401);
         }
 
+        \Log::info('User found for login', [
+            'user_id' => $user->id,
+            'user_email' => $user->email,
+            'user_role' => $user->role->value ?? (string)$user->role,
+            'is_approved' => $user->is_approved
+        ]);
+
         // Verify password
         if (!Hash::check($request->password, $user->password)) {
             \Log::warning('Login failed: Invalid password', ['email' => $request->email]);
@@ -247,6 +254,12 @@ class AuthController extends Controller
      */
     public function getAllUsers(Request $request)
     {
+        // Debug logging
+        \Log::info('getAllUsers method called', [
+            'method' => $request->method(),
+            'url' => $request->url()
+        ]);
+        
         try {
             $user = $request->user();
 
@@ -311,6 +324,13 @@ class AuthController extends Controller
      */
     public function createUser(Request $request)
     {
+        // Debug logging
+        \Log::info('createUser method called', [
+            'method' => $request->method(),
+            'url' => $request->url(),
+            'data' => $request->all()
+        ]);
+        
         $user = $request->user();
 
         if (($user->role->value ?? (string)$user->role) !== 'admin') {
@@ -364,9 +384,10 @@ class AuthController extends Controller
     /**
      * Update a user (Admin only)
      */
-    public function updateUser(Request $request, User $targetUser)
+    public function updateUser(Request $request, $id)
     {
         $user = $request->user();
+        $targetUser = User::findOrFail($id);
 
         if (($user->role->value ?? (string)$user->role) !== 'admin') {
             return response()->json(['message' => 'Unauthorized'], 403);

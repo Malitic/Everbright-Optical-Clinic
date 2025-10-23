@@ -6,7 +6,7 @@ import { useQuery } from '@tanstack/react-query';
 import { getActiveBranches, Branch } from '@/services/branchApi';
 import { getProductAvailability } from '@/services/branchAnalyticsApi';
 import ReservationModal from './ReservationModal';
-import { getStorageUrl } from '../../../utils/imageUtils';
+import { getStorageUrl, getFallbackImageUrl } from '../../../utils/imageUtils';
 import { RefreshCw } from 'lucide-react';
 import { shouldSkipRefresh, clearDeletionProtection } from '../../../utils/deletionProtection';
 
@@ -499,7 +499,7 @@ const ProductGallery: React.FC = () => {
                         }}
                         onError={(e) => {
                           // Show placeholder image instead of hiding
-                          e.currentTarget.src = 'https://via.placeholder.com/400x300/f3f4f6/9ca3af?text=' + encodeURIComponent(product.name);
+                          e.currentTarget.src = getFallbackImageUrl(product.name, '400x300');
                         }}
                       />
                       
@@ -596,7 +596,7 @@ const ProductGallery: React.FC = () => {
                                 }`}
                                 onError={(e) => {
                                   // Show small placeholder thumbnail
-                                  (e.currentTarget as HTMLImageElement).src = 'https://via.placeholder.com/64x64/f3f4f6/9ca3af?text=N/A';
+                                  e.currentTarget.src = getFallbackImageUrl('N/A', '64x64');
                                 }}
                               />
                               {/* Active indicator */}

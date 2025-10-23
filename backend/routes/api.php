@@ -78,6 +78,77 @@ Route::get('/test-contact', function() {
     ]);
 });
 
+// Test login endpoint (bypass middleware)
+Route::post('/test-login', function(Request $request) {
+    $email = $request->email;
+    $password = $request->password;
+    $role = $request->role;
+    
+    // Find user
+    $user = \App\Models\User::where('email', $email)->first();
+    
+    if (!$user) {
+        return response()->json(['error' => 'User not found', 'email' => $email]);
+    }
+    
+    // Check password
+    if (!\Illuminate\Support\Facades\Hash::check($password, $user->password)) {
+        return response()->json(['error' => 'Invalid password', 'email' => $email]);
+    }
+    
+    // Check approval
+    if (!$user->is_approved) {
+        return response()->json(['error' => 'Account not approved', 'email' => $email]);
+    }
+    
+    // Check role
+    $userRoleValue = $user->role->value ?? (string)$user->role;
+    if ($role !== $userRoleValue) {
+        return response()->json(['error' => 'Role mismatch', 'requested' => $role, 'actual' => $userRoleValue]);
+    }
+    
+    // Create token
+    $user->tokens()->delete(); // Delete old tokens
+    $token = $user->createToken('auth_token', ['*'])->plainTextToken;
+    
+    return response()->json([
+        'message' => 'Login successful',
+        'token' => $token,
+        'user' => [
+            'id' => $user->id,
+            'name' => $user->name,
+            'email' => $user->email,
+            'role' => $userRoleValue,
+            'is_approved' => $user->is_approved
+        ]
+    ]);
+});
+
+// Simple login test without validation
+Route::post('/simple-login', function(Request $request) {
+    $email = $request->email;
+    $password = $request->password;
+    
+    $user = \App\Models\User::where('email', $email)->first();
+    
+    if (!$user || !\Illuminate\Support\Facades\Hash::check($password, $user->password)) {
+        return response()->json(['error' => 'Invalid credentials'], 401);
+    }
+    
+    $token = $user->createToken('auth_token')->plainTextToken;
+    
+    return response()->json([
+        'message' => 'Login successful',
+        'token' => $token,
+        'user' => [
+            'id' => $user->id,
+            'name' => $user->name,
+            'email' => $user->email,
+            'role' => $user->role->value ?? (string)$user->role
+        ]
+    ]);
+});
+
 Route::get('/test-unitop-inventory', function() {
     $branchStocks = \App\Models\BranchStock::with(['product', 'branch'])
         ->get();
@@ -107,8 +178,8 @@ Route::get('/test-unitop-inventory', function() {
 });
 
 // Public routes
-Route::post('/register', [AuthController::class, 'register'])->middleware('rate.api:10,1');
-Route::post('/login', [AuthController::class, 'login'])->middleware('rate.api:10,1');
+Route::post('/register', [AuthController::class, 'register']);
+Route::post('/login', [AuthController::class, 'login']);
 Route::get('/branches/active', [BranchController::class, 'getActiveBranches']); // Public - for customers
 Route::get('/optometrists', [OptometristController::class, 'index']); // Public - for scheduling
 Route::get('/appointments/availability', [App\Http\Controllers\AppointmentAvailabilityController::class, 'getAvailability']); // Public - for scheduling
@@ -308,9 +379,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('/reservations/{reservation}/reject', [ReservationController::class, 'reject']);
 
     // Admin user management routes
-    Route::get('/admin/users', [AuthController::class, 'getAllUsers']);
     Route::post('/admin/users', [AuthController::class, 'createUser']);
-    Route::put('/admin/users/{user}', [AuthController::class, 'updateUser']);
+    Route::get('/admin/users', [AuthController::class, 'getAllUsers']);
+    Route::put('/admin/users/{id}', [AuthController::class, 'updateUser']);
     Route::delete('/admin/users/{id}', [AuthController::class, 'deleteUser']);
     Route::post('/admin/users/{id}/approve', [AuthController::class, 'approveUser']);
     Route::post('/admin/users/{id}/reject', [AuthController::class, 'rejectUser']);

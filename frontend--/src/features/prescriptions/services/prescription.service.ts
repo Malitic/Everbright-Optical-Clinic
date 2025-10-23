@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
 // Create axios instance with default config
 const apiClient = axios.create({
@@ -102,32 +102,32 @@ export interface UpdatePrescriptionRequest extends Partial<CreatePrescriptionReq
 }
 
 export const getPrescriptions = (params?: any) => {
-  return apiClient.get<{ data: Prescription[] }>('/prescriptions', { params });
+  return apiClient.get<{ data: Prescription[] }>('/api-mysql.php/prescriptions', { params });
 };
 
 export const getPrescription = (id: string) => {
-  return apiClient.get<Prescription>(`/prescriptions/${id}`);
+  return apiClient.get<Prescription>(`/api-mysql.php/prescriptions/${id}`);
 };
 
 export const createPrescription = (data: CreatePrescriptionRequest) => {
-  return apiClient.post<Prescription>('/prescriptions', data);
+  return apiClient.post<Prescription>('/api-mysql.php/prescriptions', data);
 };
 
 export const updatePrescription = (id: string, data: UpdatePrescriptionRequest) => {
-  return apiClient.put<Prescription>(`/prescriptions/${id}`, data);
+  return apiClient.put<Prescription>(`/api-mysql.php/prescriptions/${id}`, data);
 };
 
 export const deletePrescription = (id: string) => {
-  return apiClient.delete(`/prescriptions/${id}`);
+  return apiClient.delete(`/api-mysql.php/prescriptions/${id}`);
 };
 
 export const getPatientPrescriptions = (patientId: number) => {
-  return apiClient.get<Prescription[]>(`/prescriptions/patient/${patientId}`);
+  return apiClient.get<Prescription[]>(`/api-mysql.php/prescriptions/patient/${patientId}`);
 };
 
 export const downloadPrescriptionPdf = async (prescriptionId: number) => {
   const token = sessionStorage.getItem('auth_token');
-  const url = `${API_BASE_URL}/pdf/prescriptions/${prescriptionId}`;
+  const url = `${API_BASE_URL}/api-mysql.php/pdf/prescriptions/${prescriptionId}`;
   const resp = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
   const blob = await resp.blob();
   const href = window.URL.createObjectURL(blob);
@@ -141,12 +141,12 @@ export const downloadPrescriptionPdf = async (prescriptionId: number) => {
 };
 
 export const listCustomerReceipts = async () => {
-  return apiClient.get(`${API_BASE_URL}/pdf/receipts/customer`);
+  return apiClient.get(`${API_BASE_URL}/api-mysql.php/pdf/receipts/customer`);
 };
 
 export const downloadReceiptPdf = async (appointmentId: number) => {
   const token = sessionStorage.getItem('auth_token');
-  const url = `${API_BASE_URL}/pdf/receipts/${appointmentId}`;
+  const url = `${API_BASE_URL}/api-mysql.php/pdf/receipts/${appointmentId}`;
   const resp = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
   const blob = await resp.blob();
   const href = window.URL.createObjectURL(blob);

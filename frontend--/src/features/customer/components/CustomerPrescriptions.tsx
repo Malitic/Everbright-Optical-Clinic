@@ -2,15 +2,19 @@ import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Eye, Download, Calendar, AlertCircle, Loader2 } from 'lucide-react';
+import { Eye, Calendar, AlertCircle, Loader2, ShoppingCart, MessageCircle, Stethoscope } from 'lucide-react';
 import { format } from 'date-fns';
 import { usePatientPrescriptions } from '@/features/prescriptions/hooks/usePrescriptions';
 import { useAuth } from '@/contexts/AuthContext';
 import { Skeleton } from '@/components/ui/skeleton';
+import AppointmentBookingForm from '@/components/appointments/AppointmentBookingForm';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 
 const CustomerPrescriptions: React.FC = () => {
   const { user } = useAuth();
   const [selectedPrescription, setSelectedPrescription] = useState<number | null>(null);
+  const [appointmentDialogOpen, setAppointmentDialogOpen] = useState(false);
+  const [appointmentType, setAppointmentType] = useState<'exam' | 'consultation' | 'order'>('exam');
   const { prescriptions, loading, error } = usePatientPrescriptions(user?.id || null);
 
   const getStatusColor = (status: string) => {
@@ -39,6 +43,30 @@ const CustomerPrescriptions: React.FC = () => {
       case 'progressive': return 'Progressive Lenses';
       case 'bifocal': return 'Bifocal Lenses';
       default: return type.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
+    }
+  };
+
+  const handleOrderGlasses = () => {
+    setAppointmentType('order');
+    setAppointmentDialogOpen(true);
+  };
+
+  const handleContactOptometrist = () => {
+    setAppointmentType('consultation');
+    setAppointmentDialogOpen(true);
+  };
+
+  const handleScheduleExam = () => {
+    setAppointmentType('exam');
+    setAppointmentDialogOpen(true);
+  };
+
+  const getAppointmentTitle = () => {
+    switch (appointmentType) {
+      case 'order': return 'Order New Glasses';
+      case 'consultation': return 'Contact Optometrist';
+      case 'exam': return 'Schedule Eye Exam';
+      default: return 'Book Appointment';
     }
   };
 
@@ -268,13 +296,28 @@ const CustomerPrescriptions: React.FC = () => {
               <CardTitle>Quick Actions</CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
-              <Button className="w-full" variant="default">
+              <Button 
+                className="w-full" 
+                variant="default"
+                onClick={handleOrderGlasses}
+              >
+                <ShoppingCart className="w-4 h-4 mr-2" />
                 Order New Glasses
               </Button>
-              <Button className="w-full" variant="outline">
-                Order Contact Lenses
+              <Button 
+                className="w-full" 
+                variant="outline"
+                onClick={handleContactOptometrist}
+              >
+                <MessageCircle className="w-4 h-4 mr-2" />
+                Contact Optometrist
               </Button>
-              <Button className="w-full" variant="outline">
+              <Button 
+                className="w-full" 
+                variant="outline"
+                onClick={handleScheduleExam}
+              >
+                <Stethoscope className="w-4 h-4 mr-2" />
                 Schedule Eye Exam
               </Button>
             </CardContent>
@@ -312,13 +355,26 @@ const CustomerPrescriptions: React.FC = () => {
               </div>
             </CardContent>
           </Card>
-
-          <Button className="w-full" variant="outline">
-            <Download className="w-4 h-4 mr-2" />
-            Download All Prescriptions
-          </Button>
         </div>
       </div>
+
+      {/* Appointment Booking Dialog */}
+      <Dialog open={appointmentDialogOpen} onOpenChange={setAppointmentDialogOpen}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{getAppointmentTitle()}</DialogTitle>
+            <DialogDescription>
+              {appointmentType === 'order' && 'Book an appointment to order new glasses based on your prescription.'}
+              {appointmentType === 'consultation' && 'Schedule a consultation with an optometrist to discuss your vision needs.'}
+              {appointmentType === 'exam' && 'Schedule a comprehensive eye examination to update your prescription.'}
+            </DialogDescription>
+          </DialogHeader>
+          <AppointmentBookingForm 
+            appointmentType={appointmentType}
+            onSuccess={() => setAppointmentDialogOpen(false)}
+          />
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

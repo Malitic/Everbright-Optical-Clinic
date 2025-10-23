@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useToast } from '@/hooks/use-toast';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getBranches } from '@/services/branchApi';
+import { API_BASE_URL, getAuthHeaders } from '@/config/api';
 
 interface User {
   id: number;
@@ -66,11 +67,8 @@ const AdminUserManagement: React.FC = () => {
       const token = sessionStorage.getItem('auth_token');
       console.log('Fetching users with token:', token ? 'Present' : 'Missing');
       
-      const response = await fetch('http://127.0.0.1:8000/api/admin/users', {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Accept': 'application/json',
-        },
+      const response = await fetch(`${API_BASE_URL}/admin/users`, {
+        headers: getAuthHeaders(),
       });
 
       console.log('Users API response status:', response.status);
@@ -103,6 +101,17 @@ const AdminUserManagement: React.FC = () => {
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    // Validate name
+    const nameError = validateName(formData.name);
+    if (nameError) {
+      toast({
+        title: "Validation Error",
+        description: nameError,
+        variant: "destructive",
+      });
+      return;
+    }
+    
     // Client-side validation
     if (formData.password !== formData.password_confirmation) {
       toast({
@@ -122,13 +131,9 @@ const AdminUserManagement: React.FC = () => {
       
       console.log('Creating user with data:', requestData);
       
-      const response = await fetch('http://127.0.0.1:8000/api/admin/users', {
+      const response = await fetch(`${API_BASE_URL}/admin/users`, {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
+        headers: getAuthHeaders(),
         body: JSON.stringify(requestData),
       });
 
@@ -164,6 +169,17 @@ const AdminUserManagement: React.FC = () => {
   const handleUpdateUser = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedUser) return;
+    
+    // Validate name
+    const nameError = validateName(formData.name);
+    if (nameError) {
+      toast({
+        title: "Validation Error",
+        description: nameError,
+        variant: "destructive",
+      });
+      return;
+    }
 
     // Client-side validation for password confirmation
     if (formData.password && formData.password !== formData.password_confirmation) {
@@ -194,13 +210,9 @@ const AdminUserManagement: React.FC = () => {
       
       console.log('Updating user with data:', requestData);
       
-      const response = await fetch(`http://127.0.0.1:8000/api/admin/users/${selectedUser.id}`, {
+      const response = await fetch(`${API_BASE_URL}/admin/users/${selectedUser.id}`, {
         method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
+        headers: getAuthHeaders(),
         body: JSON.stringify(requestData),
       });
 
@@ -241,13 +253,20 @@ const AdminUserManagement: React.FC = () => {
       const token = sessionStorage.getItem('auth_token');
       console.log('Deleting user ID:', userId);
       console.log('Auth token present:', token ? 'Yes' : 'No');
+      console.log('Auth token value:', token);
       
-      const response = await fetch(`http://127.0.0.1:8000/api/admin/users/${userId}`, {
+      if (!token) {
+        toast({
+          title: "Authentication Error",
+          description: "Please log in again to perform this action",
+          variant: "destructive",
+        });
+        return;
+      }
+      
+      const response = await fetch(`${API_BASE_URL}/admin/users/${userId}`, {
         method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Accept': 'application/json',
-        },
+        headers: getAuthHeaders(),
       });
 
       console.log('Delete user response status:', response.status);
@@ -256,6 +275,16 @@ const AdminUserManagement: React.FC = () => {
       if (!response.ok) {
         const errorData = await response.json();
         console.error('Delete user error:', errorData);
+        
+        if (response.status === 401) {
+          toast({
+            title: "Authentication Error",
+            description: "Your session has expired. Please log in again.",
+            variant: "destructive",
+          });
+          return;
+        }
+        
         throw new Error(errorData.message || `Failed to delete user: ${response.status}`);
       }
 
@@ -295,6 +324,17 @@ const AdminUserManagement: React.FC = () => {
       branch_id: '',
       is_approved: true
     });
+  };
+
+  const validateName = (name: string) => {
+    const trimmedName = name.trim();
+    if (trimmedName.toLowerCase().endsWith(' user')) {
+      return 'Please do not add "User" to the name - enter the person\'s actual name only';
+    }
+    if (trimmedName.length < 2) {
+      return 'Name must be at least 2 characters long';
+    }
+    return null;
   };
 
   const openEditDialog = (user: User) => {
@@ -379,12 +419,9 @@ const AdminUserManagement: React.FC = () => {
     try {
       const token = sessionStorage.getItem('auth_token');
       const deletePromises = Array.from(selectedUsers).map(userId =>
-        fetch(`http://127.0.0.1:8000/api/admin/users/${userId}`, {
+        fetch(`${API_BASE_URL}/admin/users/${userId}`, {
           method: 'DELETE',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Accept': 'application/json',
-          },
+          headers: getAuthHeaders(),
         })
       );
 
@@ -435,12 +472,9 @@ const AdminUserManagement: React.FC = () => {
     try {
       const token = sessionStorage.getItem('auth_token');
       const approvePromises = Array.from(selectedUsers).map(userId =>
-        fetch(`http://127.0.0.1:8000/api/admin/users/${userId}/approve`, {
+        fetch(`${API_BASE_URL}/admin/users/${userId}/approve`, {
           method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Accept': 'application/json',
-          },
+          headers: getAuthHeaders(),
         })
       );
 
@@ -515,8 +549,10 @@ const AdminUserManagement: React.FC = () => {
                     id="name"
                     value={formData.name}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    placeholder="Enter full name (e.g., John Smith)"
                     required
                   />
+                  <p className="text-xs text-gray-500">Enter the person's actual name - do not add "User" suffix</p>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="email">Email</Label>
@@ -762,8 +798,10 @@ const AdminUserManagement: React.FC = () => {
                   id="edit-name"
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  placeholder="Enter full name (e.g., John Smith)"
                   required
                 />
+                <p className="text-xs text-gray-500">Enter the person's actual name - do not add "User" suffix</p>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="edit-email">Email</Label>

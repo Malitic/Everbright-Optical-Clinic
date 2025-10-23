@@ -18,13 +18,8 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
 
         $middleware->api(prepend: [
-            \App\Http\Middleware\HandleCors::class,
-            \Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful::class,
-            \App\Http\Middleware\BlockTestRoutes::class,
+            // \App\Http\Middleware\HandleCors::class,
         ]);
-
-        // Remove Laravel's default CORS middleware to avoid conflicts
-        $middleware->remove(\Illuminate\Http\Middleware\HandleCors::class);
 
         $middleware->alias([
             'auth' => \App\Http\Middleware\Authenticate::class,

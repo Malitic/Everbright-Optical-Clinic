@@ -117,7 +117,7 @@ export const getProductAvailability = async (productId?: number, branchId?: numb
   if (branchId) params.append('branch_id', branchId.toString());
   
   try {
-    const response = await api.get(`/analytics/product-availability?${params.toString()}`, {
+    const response = await api.get(`/api-mysql.php/analytics/product-availability?${params.toString()}`, {
       headers: {
         'Authorization': `Bearer ${token}`,
         'Accept': 'application/json',

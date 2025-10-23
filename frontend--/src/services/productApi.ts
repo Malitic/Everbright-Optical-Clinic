@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { Product, ProductFormData, ProductCategory } from '@/features/products/types/product.types';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api-mysql.php';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api';
 const API_BASE = `${API_BASE_URL}`;
 
 // Include auth token if present

@@ -40,6 +40,11 @@ const CustomerAppointments: React.FC = () => {
     }
   };
 
+  const formatText = (text: string | undefined, fallback: string = 'Unknown') => {
+    if (!text) return fallback;
+    return text.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
+  };
+
   const handleCancelAppointment = async (appointmentId: number) => {
     if (window.confirm('Are you sure you want to cancel this appointment?')) {
       try {
@@ -116,7 +121,7 @@ const CustomerAppointments: React.FC = () => {
                     <div>
                       <div className="flex items-center gap-2 mb-1">
                         <span className="font-semibold text-lg">
-                          {appointment.type.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                          {formatText(appointment.type, 'Appointment')}
                         </span>
                       </div>
                       <Badge className={getStatusColor(appointment.status)}>
@@ -157,7 +162,7 @@ const CustomerAppointments: React.FC = () => {
                     <div className="flex items-center gap-2">
                       <Eye className="w-4 h-4 text-gray-500" />
                       <span className="text-sm text-gray-600">
-                        {appointment.type.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                        {formatText(appointment.type, 'Appointment')}
                       </span>
                     </div>
 
@@ -210,7 +215,7 @@ const CustomerAppointments: React.FC = () => {
                             <div className="flex items-center gap-2">
                               <Eye className="w-4 h-4 text-gray-500" />
                               <span className="text-gray-600">
-                                <strong>Type:</strong> {appointment.type.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                                <strong>Type:</strong> {formatText(appointment.type, 'Appointment')}
                               </span>
                             </div>
                             
@@ -219,7 +224,7 @@ const CustomerAppointments: React.FC = () => {
                               <span className="text-gray-600">
                                 <strong>Status:</strong> 
                                 <Badge className={`ml-2 ${getStatusColor(appointment.status)}`}>
-                                  {appointment.status.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                                  {formatText(appointment.status, 'Unknown')}
                                 </Badge>
                               </span>
                             </div>

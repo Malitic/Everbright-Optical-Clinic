@@ -1,34 +1,21 @@
-RewriteEngine On
+<IfModule mod_rewrite.c>
+    <IfModule mod_negotiation.c>
+        Options -MultiViews -Indexes
+    </IfModule>
 
-# Handle CORS preflight requests
-RewriteCond %{REQUEST_METHOD} OPTIONS
-RewriteRule ^(.*)$ $1 [R=200,L]
+    RewriteEngine On
 
-# Route API requests to appropriate PHP files
-RewriteCond %{REQUEST_URI} ^/api/branches$
-RewriteRule ^api/branches$ api/branches.php [L]
+    # Handle Authorization Header
+    RewriteCond %{HTTP:Authorization} .
+    RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
 
-RewriteCond %{REQUEST_URI} ^/api/analytics/realtime$
-RewriteRule ^api/analytics/realtime$ api/router.php [L]
+    # Redirect Trailing Slashes If Not A Folder...
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteCond %{REQUEST_URI} (.+)/$
+    RewriteRule ^ %1 [L,R=301]
 
-RewriteCond %{REQUEST_URI} ^/api/analytics/trends
-RewriteRule ^api/analytics/trends.*$ api/router.php [L]
-
-RewriteCond %{REQUEST_URI} ^/api/admin/analytics
-RewriteRule ^api/admin/analytics.*$ api/router.php [L]
-
-RewriteCond %{REQUEST_URI} ^/api/admin/feedback/analytics
-RewriteRule ^api/admin/feedback/analytics.*$ api/router.php [L]
-
-RewriteCond %{REQUEST_URI} ^/api/admin/users
-RewriteRule ^api/admin/users.*$ api/router.php [L]
-
-RewriteCond %{REQUEST_URI} ^/api/notifications
-RewriteRule ^api/notifications.*$ api/notifications.php [L]
-
-RewriteCond %{REQUEST_URI} ^/api/login$
-RewriteRule ^api/login$ api/login-real.php [L]
-
-# Fallback for any other API routes
-RewriteCond %{REQUEST_URI} ^/api/
-RewriteRule ^api/(.*)$ api/router.php [L]
+    # Send Requests To Front Controller...
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteRule ^ index.php [L]
+</IfModule>
