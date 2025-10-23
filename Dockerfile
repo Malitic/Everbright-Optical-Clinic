@@ -46,8 +46,18 @@ RUN chown -R www-data:www-data /var/www/html \
 RUN a2enmod rewrite
 COPY docker/apache.conf /etc/apache2/sites-available/000-default.conf
 
-# Expose port
+# Create startup script to handle PORT environment variable
+RUN echo '#!/bin/bash\n\
+# Set Apache to listen on Railway PORT\n\
+if [ -n "$PORT" ]; then\n\
+    sed -i "s/Listen 80/Listen $PORT/" /etc/apache2/ports.conf\n\
+    sed -i "s/*:80/*:$PORT/" /etc/apache2/sites-available/000-default.conf\n\
+fi\n\
+exec apache2-foreground' > /usr/local/bin/start-apache.sh \
+    && chmod +x /usr/local/bin/start-apache.sh
+
+# Expose port (Railway will override this)
 EXPOSE 80
 
-# Start Apache
-CMD ["apache2-foreground"]
+# Start Apache with PORT handling
+CMD ["/usr/local/bin/start-apache.sh"]
