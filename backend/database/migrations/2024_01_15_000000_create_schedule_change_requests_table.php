@@ -16,7 +16,7 @@ return new class extends Migration
             $table->foreignId('staff_id')->constrained('users')->onDelete('cascade');
             $table->string('staff_role')->default('optometrist');
             $table->integer('day_of_week'); // 1-7 (Monday-Sunday)
-            $table->foreignId('branch_id')->nullable()->constrained('branches')->onDelete('cascade');
+            $table->foreignId('branch_id')->nullable();
             $table->time('start_time')->nullable();
             $table->time('end_time')->nullable();
             $table->text('reason');

@@ -11,7 +11,8 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('receipts', function (Blueprint $table) {
+        if (!Schema::hasTable('receipts')) {
+            Schema::create('receipts', function (Blueprint $table) {
             $table->id();
             $table->string('receipt_number')->unique();
             $table->unsignedBigInteger('customer_id');
@@ -27,11 +28,12 @@ return new class extends Migration
             $table->json('items'); // Store receipt items as JSON
             $table->timestamps();
 
-            $table->foreign('customer_id')->references('id')->on('users')->onDelete('cascade');
-            $table->foreign('branch_id')->references('id')->on('branches')->onDelete('cascade');
-            $table->foreign('appointment_id')->references('id')->on('appointments')->onDelete('set null');
-            $table->foreign('reservation_id')->references('id')->on('reservations')->onDelete('set null');
-        });
+            // $table->foreign('customer_id')->references('id')->on('users')->onDelete('cascade');
+            // $table->foreign('branch_id')->references('id')->on('branches')->onDelete('cascade');
+            // $table->foreign('appointment_id')->references('id')->on('appointments')->onDelete('set null');
+            // $table->foreign('reservation_id')->references('id')->on('reservations')->onDelete('set null');
+            });
+        }
     }
 
     /**

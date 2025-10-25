@@ -13,40 +13,30 @@ Route::get('/health', function () {
     ]);
 });
 
+// Serve frontend assets
+Route::get('/assets/{file}', function ($file) {
+    $assetPath = public_path('assets/' . $file);
+    if (File::exists($assetPath)) {
+        $mimeType = mime_content_type($assetPath);
+        return response()->file($assetPath, ['Content-Type' => $mimeType]);
+    }
+    return response()->json(['error' => 'Asset not found'], 404);
+});
+
+// Serve other frontend files
+Route::get('/{file}', function ($file) {
+    $filePath = public_path($file);
+    if (File::exists($filePath)) {
+        $mimeType = mime_content_type($filePath);
+        return response()->file($filePath, ['Content-Type' => $mimeType]);
+    }
+    return response()->json(['error' => 'File not found'], 404);
+});
+
 // Serve frontend for root route only
 Route::get('/', function () {
-    // Try multiple possible paths for frontend
-    $possiblePaths = [
-        base_path('frontend--/dist'),
-        base_path('../frontend--/dist'),
-        '/app/frontend--/dist',
-        public_path('../frontend--/dist')
-    ];
+    $indexPath = public_path('index.html');
     
-    $frontendPath = null;
-    foreach ($possiblePaths as $testPath) {
-        if (File::exists($testPath) && File::exists($testPath . '/index.html')) {
-            $frontendPath = $testPath;
-            break;
-        }
-    }
-    
-    // If no frontend found, return detailed debug info
-    if (!$frontendPath) {
-        return response()->json([
-            'status' => 'error',
-            'message' => 'Frontend not found',
-            'base_path' => base_path(),
-            'public_path' => public_path(),
-            'checked_paths' => $possiblePaths,
-            'directory_contents' => File::directories(base_path()),
-            'solution' => 'Check if frontend--/dist/ directory exists and contains index.html',
-            'timestamp' => now()
-        ]);
-    }
-    
-    // Serve index.html for root route
-    $indexPath = $frontendPath . '/index.html';
     if (File::exists($indexPath)) {
         return response()->file($indexPath, ['Content-Type' => 'text/html']);
     }
@@ -54,8 +44,8 @@ Route::get('/', function () {
     // Fallback error
     return response()->json([
         'status' => 'error',
-        'message' => 'Frontend index.html not found',
-        'frontend_path' => $frontendPath,
+        'message' => 'Frontend not found in public',
+        'index_path' => $indexPath,
         'timestamp' => now()
     ]);
 });

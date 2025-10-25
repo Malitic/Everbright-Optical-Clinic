@@ -7,7 +7,7 @@ use App\Models\ConfirmationToken;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
-use Illuminate\Validation\Rules\Enum;
+
 use Laravel\Sanctum\HasApiTokens;
 use App\Helpers\Realtime;
 use App\Http\Controllers\NotificationController;
@@ -25,7 +25,7 @@ class AuthController extends Controller
             'password' => 'required|string|min:8',
             'password_confirmation' => 'nullable|string|same:password',
             // Allow user to choose desired role; actual account starts as customer
-            'role' => ['required', 'string', new Enum(\App\Enums\UserRole::class)],
+            'role' => ['required', 'string', 'in:Customer,Optometrist,Staff,Admin'],
             'branch_id' => 'nullable|exists:branches,id',
         ]);
 
@@ -102,7 +102,7 @@ class AuthController extends Controller
         $validator = Validator::make($request->all(), [
             'email' => 'required|string|email',
             'password' => 'required|string',
-            'role' => ['required', 'string', new Enum(\App\Enums\UserRole::class)],
+            'role' => ['required', 'string', 'in:Customer,Optometrist,Staff,Admin'],
         ]);
 
         if ($validator->fails()) {
@@ -230,7 +230,7 @@ class AuthController extends Controller
     public function getUsersByRole(Request $request)
     {
         $validator = Validator::make($request->all(), [
-            'role' => ['required', 'string', new Enum(\App\Enums\UserRole::class)],
+            'role' => ['required', 'string', 'in:Customer,Optometrist,Staff,Admin'],
         ]);
 
         if ($validator->fails()) {
@@ -342,7 +342,7 @@ class AuthController extends Controller
             'email' => 'required|string|email|max:255|unique:users',
             'password' => 'required|string|min:8',
             'password_confirmation' => 'required|string|same:password',
-            'role' => ['required', 'string', new Enum(\App\Enums\UserRole::class)],
+            'role' => ['required', 'string', 'in:Customer,Optometrist,Staff,Admin'],
             'branch_id' => 'nullable|exists:branches,id',
         ]);
 
@@ -460,7 +460,7 @@ class AuthController extends Controller
             'name' => 'sometimes|required|string|max:255',
             'email' => 'sometimes|required|string|email|max:255|unique:users,email,' . $targetUser->id,
             'password' => 'sometimes|required|string|min:8',
-            'role' => ['sometimes', 'required', 'string', new Enum(\App\Enums\UserRole::class)],
+            'role' => ['sometimes', 'required', 'string', 'in:Customer,Optometrist,Staff,Admin'],
             'branch_id' => 'sometimes|nullable|exists:branches,id',
             'is_approved' => 'sometimes|boolean',
         ]);

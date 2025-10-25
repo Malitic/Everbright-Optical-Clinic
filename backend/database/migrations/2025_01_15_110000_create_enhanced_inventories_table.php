@@ -13,7 +13,7 @@ return new class extends Migration
     {
         Schema::create('enhanced_inventories', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('branch_id')->constrained()->onDelete('cascade');
+            $table->foreignId('branch_id');
             $table->string('product_name');
             $table->string('sku')->unique();
             $table->integer('quantity')->default(0);
@@ -43,6 +43,3 @@ return new class extends Migration
         Schema::dropIfExists('enhanced_inventories');
     }
 };
-
-
-
