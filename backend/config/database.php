@@ -17,9 +17,9 @@ return [
     */
 
     // 'default' => env('DB_CONNECTION', 'mysql'),
-    
-    // Force MySQL connection
-    'default' => 'mysql',
+
+    // Use SQLite for development
+    'default' => 'sqlite',
 
     /*
     |--------------------------------------------------------------------------
