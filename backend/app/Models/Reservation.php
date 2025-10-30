@@ -26,7 +26,6 @@ class Reservation extends Model
         'approved_at',
         'rejected_at',
         'completed_at',
-        'transaction_id',
     ];
 
     /**
@@ -104,13 +103,5 @@ class Reservation extends Model
     public function isCompleted(): bool
     {
         return $this->status === 'completed';
-    }
-
-    /**
-     * Get the transaction for this reservation.
-     */
-    public function transaction()
-    {
-        return $this->belongsTo(Transaction::class);
     }
 }

@@ -54,7 +54,6 @@ class ProductSeeder extends Seeder
                 'category_id' => $categoryIds['eyeglasses'],
                 'stock_quantity' => 25,
                 'is_active' => true,
-                'approval_status' => 'approved',
             ],
             [
                 'name' => 'Round Vintage Glasses - VisionPro RV-200',
@@ -63,7 +62,6 @@ class ProductSeeder extends Seeder
                 'category_id' => $categoryIds['eyeglasses'],
                 'stock_quantity' => 18,
                 'is_active' => true,
-                'approval_status' => 'approved',
             ],
             [
                 'name' => 'Cat Eye Fashion Frame - ElegantView CE-300',
@@ -72,7 +70,6 @@ class ProductSeeder extends Seeder
                 'category_id' => $categoryIds['eyeglasses'],
                 'stock_quantity' => 22,
                 'is_active' => true,
-                'approval_status' => 'approved',
             ],
             [
                 'name' => 'Aviator Metal Frame',
@@ -81,7 +78,6 @@ class ProductSeeder extends Seeder
                 'category_id' => $categoryIds['eyeglasses'],
                 'stock_quantity' => 30,
                 'is_active' => true,
-                'approval_status' => 'approved',
             ],
 
             // Sunglasses
@@ -92,7 +88,6 @@ class ProductSeeder extends Seeder
                 'category_id' => $categoryIds['sunglasses'],
                 'stock_quantity' => 20,
                 'is_active' => true,
-                'approval_status' => 'approved',
             ],
             [
                 'name' => 'Classic Wayfarer Sunglasses',
@@ -101,7 +96,6 @@ class ProductSeeder extends Seeder
                 'category_id' => $categoryIds['sunglasses'],
                 'stock_quantity' => 28,
                 'is_active' => true,
-                'approval_status' => 'approved',
             ],
             [
                 'name' => 'Oversized Fashion Sunglasses',
@@ -110,7 +104,6 @@ class ProductSeeder extends Seeder
                 'category_id' => $categoryIds['sunglasses'],
                 'stock_quantity' => 15,
                 'is_active' => true,
-                'approval_status' => 'approved',
             ],
 
             // Contact Lenses
@@ -121,7 +114,6 @@ class ProductSeeder extends Seeder
                 'category_id' => $categoryIds['contact-lenses'],
                 'stock_quantity' => 50,
                 'is_active' => true,
-                'approval_status' => 'approved',
             ],
             [
                 'name' => 'Monthly Contact Lenses',
@@ -130,7 +122,6 @@ class ProductSeeder extends Seeder
                 'category_id' => $categoryIds['contact-lenses'],
                 'stock_quantity' => 40,
                 'is_active' => true,
-                'approval_status' => 'approved',
             ],
             [
                 'name' => 'Colored Contact Lenses',
@@ -139,7 +130,6 @@ class ProductSeeder extends Seeder
                 'category_id' => $categoryIds['contact-lenses'],
                 'stock_quantity' => 35,
                 'is_active' => true,
-                'approval_status' => 'approved',
             ],
 
             // Accessories
@@ -150,7 +140,6 @@ class ProductSeeder extends Seeder
                 'category_id' => $categoryIds['accessories'],
                 'stock_quantity' => 100,
                 'is_active' => true,
-                'approval_status' => 'approved',
             ],
             [
                 'name' => 'Lens Cleaning Solution',
@@ -159,7 +148,6 @@ class ProductSeeder extends Seeder
                 'category_id' => $categoryIds['accessories'],
                 'stock_quantity' => 150,
                 'is_active' => true,
-                'approval_status' => 'approved',
             ],
             [
                 'name' => 'Microfiber Cleaning Cloth Set',
@@ -168,7 +156,6 @@ class ProductSeeder extends Seeder
                 'category_id' => $categoryIds['accessories'],
                 'stock_quantity' => 200,
                 'is_active' => true,
-                'approval_status' => 'approved',
             ],
             [
                 'name' => 'Anti-Slip Eyeglass Strap',
@@ -177,7 +164,6 @@ class ProductSeeder extends Seeder
                 'category_id' => $categoryIds['accessories'],
                 'stock_quantity' => 80,
                 'is_active' => true,
-                'approval_status' => 'approved',
             ],
         ];
 
@@ -196,6 +182,3 @@ class ProductSeeder extends Seeder
         $this->command->info('Successfully seeded ' . count($products) . ' products!');
     }
 }
-
-
-

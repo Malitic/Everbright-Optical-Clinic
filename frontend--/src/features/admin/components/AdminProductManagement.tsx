@@ -71,7 +71,7 @@ const AdminProductManagement: React.FC = () => {
     // Load categories for category selector
     (async () => {
       try {
-        const apiBaseUrl = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api-mysql.php';
+        const apiBaseUrl = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api';
         const token = sessionStorage.getItem('auth_token');
         const res = await fetch(`${apiBaseUrl}/product-categories`, {
           headers: {
@@ -90,7 +90,7 @@ const AdminProductManagement: React.FC = () => {
     // Load branches for branch selector
     (async () => {
       try {
-        const apiBaseUrl = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api-mysql.php';
+        const apiBaseUrl = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api';
         const token = sessionStorage.getItem('auth_token');
         const res = await fetch(`${apiBaseUrl}/branches`, {
           headers: {
@@ -326,7 +326,7 @@ const AdminProductManagement: React.FC = () => {
     setSelectedProduct(product);
     setIsLoadingStock(true);
     try {
-      const apiBaseUrl = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api-mysql.php';
+  const apiBaseUrl = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api';
       const token = sessionStorage.getItem('auth_token');
       
       if (!token) {
@@ -1255,7 +1255,7 @@ const AdminProductManagement: React.FC = () => {
                               className="text-blue-600 hover:text-blue-900"
                               onClick={async () => {
                                 try {
-                                  const apiBaseUrl = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api-mysql.php';
+                                  const apiBaseUrl = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api';
                                   const token = sessionStorage.getItem('auth_token');
                                   const quantity = editQuantities[stock.branch_id] ?? stock.stock_quantity;
                                   const res = await fetch(`${apiBaseUrl}/branch-stock`, {

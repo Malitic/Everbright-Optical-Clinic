@@ -20,7 +20,6 @@ class Appointment extends Model
         'type',
         'status',
         'notes',
-        'transaction_id',
     ];
 
     protected $casts = [
@@ -49,11 +48,6 @@ class Appointment extends Model
     public function feedback()
     {
         return $this->hasOne(Feedback::class);
-    }
-
-    public function transaction()
-    {
-        return $this->belongsTo(Transaction::class);
     }
 
     // Scopes

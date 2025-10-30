@@ -12,20 +12,14 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        // Disable sessions for web routes to avoid file permission issues
-        $middleware->web(prepend: [
-            \App\Http\Middleware\DisableSessions::class,
+        $middleware->api(prepend: [
+            \Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful::class,
         ]);
 
-        $middleware->api(prepend: [
-            // \App\Http\Middleware\HandleCors::class,
-        ]);
+        $middleware->replace(\Illuminate\Foundation\Http\Middleware\ValidateCsrfToken::class, \App\Http\Middleware\VerifyCsrfToken::class);
 
         $middleware->alias([
-            'auth' => \App\Http\Middleware\Authenticate::class,
             'verified' => \Illuminate\Auth\Middleware\EnsureEmailIsVerified::class,
-            'role' => \App\Http\Middleware\CheckRole::class,
-            'rate.api' => \App\Http\Middleware\RateLimitApi::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

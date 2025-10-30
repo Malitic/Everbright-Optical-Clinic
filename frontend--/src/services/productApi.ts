@@ -1,23 +1,11 @@
-import axios from 'axios';
+import api from '../api/axiosClient';
 import { Product, ProductFormData, ProductCategory } from '@/features/products/types/product.types';
-
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api';
-const API_BASE = `${API_BASE_URL}`;
-
-// Include auth token if present
-axios.interceptors.request.use((config) => {
-  const token = sessionStorage.getItem('auth_token');
-  if (token && config.headers) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  return config;
-});
 
 /**
  * Get all products with optional filters
  */
 export const getProducts = async (search = '', categoryId?: number, isActive?: boolean): Promise<Product[]> => {
-  const response = await axios.get(`${API_BASE}/products`, {
+  const response = await api.get(`/products`, {
     params: { 
       search,
       category: categoryId, // Changed from category_id to category to match our API
@@ -31,8 +19,8 @@ export const getProducts = async (search = '', categoryId?: number, isActive?: b
  * Get a single product by ID
  */
 export const getProduct = async (id: string | number): Promise<Product> => {
-  const response = await axios.get(`${API_BASE}/${id}`);
-  return response.data;
+  const response = await api.get(`/products`, { params: { id } });
+  return response.data.data || response.data;
 };
 
 /**
@@ -79,7 +67,7 @@ export const createProduct = async (productData: ProductFormData | FormData): Pr
     return fd;
   })();
   
-  const response = await axios.post(`${API_BASE}/products`, formData, {
+  const response = await api.post(`/products`, formData, {
     headers: { 'Content-Type': 'multipart/form-data' },
   });
   return response.data;
@@ -129,7 +117,7 @@ export const updateProduct = async (id: string | number, productData: ProductFor
     return fd;
   })();
   
-  const response = await axios.put(`${API_BASE}/products?id=${id}`, formData, {
+  const response = await api.put(`/products?id=${id}`, formData, {
     headers: { 'Content-Type': 'multipart/form-data' },
   });
   return response.data;
@@ -139,7 +127,7 @@ export const updateProduct = async (id: string | number, productData: ProductFor
  * Delete a product (soft delete)
  */
 export const deleteProduct = async (id: string | number): Promise<void> => {
-  const response = await axios.delete(`${API_BASE}/products?id=${id}`);
+  const response = await api.delete(`/products?id=${id}`);
   return response.data;
 };
 
@@ -147,6 +135,6 @@ export const deleteProduct = async (id: string | number): Promise<void> => {
  * Get all product categories
  */
 export const getProductCategories = async (): Promise<ProductCategory[]> => {
-  const response = await axios.get(`${API_BASE}/product-categories`);
+  const response = await api.get(`/product-categories`);
   return response.data.data || response.data; // Handle both response formats
 };

@@ -454,20 +454,24 @@ const ProductGallery: React.FC = () => {
           </div>
       )}
 
+
+
       {/* Enhanced Products Grid */}
       <div className="max-w-7xl mx-auto">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-          {filteredProducts.map(product => (
+          {products.map(product => (
             <div key={product.id} className="group bg-white rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-300 overflow-hidden border border-gray-100 hover:border-blue-200 transform hover:-translate-y-1">
+
+
                 {/* Enhanced Product Images with Navigation */}
-                {product.image_paths && product.image_paths.length > 0 ? (
+                {Array.isArray(product.image_paths) && product.image_paths.length > 0 ? (
                   <div className="relative">
                     {/* Main Image Display */}
                     <div 
                       className="relative aspect-[4/3] overflow-hidden bg-gradient-to-br from-gray-50 to-gray-100 rounded-t-2xl focus-within:ring-2 focus-within:ring-blue-500 select-none cursor-zoom-in"
                       tabIndex={0}
                       onKeyDown={(e) => {
-                        if (product.image_paths.length > 1) {
+                        if (Array.isArray(product.image_paths) && product.image_paths.length > 1) {
                           const currentIndex = selectedImageIndices[product.id] || 0;
                           if (e.key === 'ArrowLeft') {
                             e.preventDefault();
@@ -482,7 +486,7 @@ const ProductGallery: React.FC = () => {
                       }}
                       onTouchStart={onTouchStart}
                       onTouchMove={onTouchMove}
-                      onTouchEnd={() => onTouchEnd(product.id, product.image_paths.length)}
+                      onTouchEnd={() => Array.isArray(product.image_paths) ? onTouchEnd(product.id, product.image_paths.length) : null}
                       onMouseEnter={() => handleMouseEnter(product.id)}
                       onMouseLeave={() => handleMouseLeave(product.id)}
                     >
@@ -510,8 +514,8 @@ const ProductGallery: React.FC = () => {
                       
                       <div className="absolute inset-0 bg-gradient-to-t from-black/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
                       
-                      {/* Navigation Arrows - Only show if multiple images */}
-                      {product.image_paths.length > 1 && (
+                      {/* Navigation Arrows - Only show if multiple images and is array */}
+                      {Array.isArray(product.image_paths) && product.image_paths.length > 1 && (
                         <>
                           {/* Previous Image Button */}
                           <button
@@ -570,7 +574,7 @@ const ProductGallery: React.FC = () => {
                     </div>
                     
                     {/* Enhanced Thumbnail Navigation */}
-                    {product.image_paths.length > 1 && (
+                    {Array.isArray(product.image_paths) && product.image_paths.length > 1 && (
                       <div className="px-4 py-3 bg-gray-50/50">
                         <div className="flex space-x-2 overflow-x-auto scrollbar-hide">
                           {product.image_paths.map((imagePath, index) => (
@@ -776,4 +780,3 @@ const ProductGallery: React.FC = () => {
 };
 
 export default ProductGallery;
-

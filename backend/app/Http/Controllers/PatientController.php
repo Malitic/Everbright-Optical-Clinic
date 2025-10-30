@@ -27,7 +27,7 @@ class PatientController extends Controller
         $query = User::where('role', UserRole::CUSTOMER->value)
             ->with(['appointments', 'prescriptions']);
 
-        // If staff, only show patients assigned to their branch
+        // If staff, only show patients from their branch
         if ($userRole === 'staff') {
             if (!$user->branch_id) {
                 return response()->json([

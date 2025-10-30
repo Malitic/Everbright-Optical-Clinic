@@ -12,17 +12,18 @@ class StockTransfer extends Model
         'from_branch_id',
         'to_branch_id',
         'quantity',
+        'reason',
         'status',
         'requested_by',
-        'processed_by',
-        'processed_at',
-        'reason',
-        'notes',
+        'approved_by',
+        'approved_at',
+        'completed_at',
     ];
 
     protected $casts = [
         'quantity' => 'integer',
-        'processed_at' => 'datetime',
+        'approved_at' => 'datetime',
+        'completed_at' => 'datetime',
     ];
 
     /**
@@ -58,39 +59,15 @@ class StockTransfer extends Model
     }
 
     /**
-     * Get the user who processed this transfer
+     * Get the user who approved this transfer
      */
-    public function processedBy(): BelongsTo
+    public function approvedBy(): BelongsTo
     {
-        return $this->belongsTo(User::class, 'processed_by');
+        return $this->belongsTo(User::class, 'approved_by');
     }
 
     /**
-     * Scope to get pending transfers
-     */
-    public function scopePending($query)
-    {
-        return $query->where('status', 'pending');
-    }
-
-    /**
-     * Scope to get completed transfers
-     */
-    public function scopeCompleted($query)
-    {
-        return $query->where('status', 'completed');
-    }
-
-    /**
-     * Scope to get rejected transfers
-     */
-    public function scopeRejected($query)
-    {
-        return $query->where('status', 'rejected');
-    }
-
-    /**
-     * Check if transfer is pending
+     * Check if the transfer is pending
      */
     public function isPending(): bool
     {
@@ -98,7 +75,23 @@ class StockTransfer extends Model
     }
 
     /**
-     * Check if transfer is completed
+     * Check if the transfer is approved
+     */
+    public function isApproved(): bool
+    {
+        return $this->status === 'approved';
+    }
+
+    /**
+     * Check if the transfer is in transit
+     */
+    public function isInTransit(): bool
+    {
+        return $this->status === 'in_transit';
+    }
+
+    /**
+     * Check if the transfer is completed
      */
     public function isCompleted(): bool
     {
@@ -106,10 +99,10 @@ class StockTransfer extends Model
     }
 
     /**
-     * Check if transfer is rejected
+     * Check if the transfer is cancelled
      */
-    public function isRejected(): bool
+    public function isCancelled(): bool
     {
-        return $this->status === 'rejected';
+        return $this->status === 'cancelled';
     }
 }

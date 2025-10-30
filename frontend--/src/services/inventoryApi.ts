@@ -1,13 +1,14 @@
 import axios from 'axios';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api';
+const API_BASE_URL = (import.meta as any)?.env?.VITE_API_URL || (import.meta as any)?.env?.VITE_API_BASE_URL || (typeof window !== 'undefined' ? `${window.location.origin}/api` : '') || 'http://127.0.0.1:8000/api';
 
 // Include auth token if present (use sessionStorage for consistency)
 axios.interceptors.request.use((config) => {
   const token = sessionStorage.getItem('auth_token');
   if (token) {
-    config.headers = config.headers || {};
-    config.headers.Authorization = `Bearer ${token}`;
+    const headers: Record<string, string> = { ...(config.headers as any) };
+    headers['Authorization'] = `Bearer ${token}`;
+    config.headers = headers as any;
   }
   return config;
 });

@@ -79,5 +79,3 @@ class PrescriptionPolicy
         return $user->role->value === UserRole::ADMIN->value;
     }
 }
-
-

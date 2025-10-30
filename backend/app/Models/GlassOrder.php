@@ -2,62 +2,49 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\SoftDeletes;
-use App\Traits\Auditable;
 
 class GlassOrder extends Model
 {
-    use SoftDeletes, Auditable;
+    use HasFactory;
 
     protected $fillable = [
-        'appointment_id',
         'patient_id',
-        'prescription_id',
-        'receipt_id',
+        'appointment_id',
         'branch_id',
-        'reserved_products',
+        'created_by',
+        'order_number',
         'prescription_data',
-        'frame_type',
-        'lens_type',
-        'lens_coating',
-        'blue_light_filter',
-        'progressive_lens',
-        'bifocal_lens',
-        'lens_material',
-        'frame_material',
-        'frame_color',
-        'lens_color',
+        'frame_details',
         'special_instructions',
-        'manufacturer_notes',
-        'priority',
         'status',
+        'production_started_at',
         'sent_to_manufacturer_at',
-        'expected_delivery_date',
-        'manufacturer_feedback',
+        'completed_at',
+        'estimated_completion_date',
+        'manufacturer_name',
+        'manufacturer_contact',
+        'manufacturer_notes',
+        'tracking_number',
+        'total_cost',
+        'advance_payment',
     ];
 
     protected $casts = [
-        'reserved_products' => 'array',
         'prescription_data' => 'array',
-        'blue_light_filter' => 'boolean',
-        'progressive_lens' => 'boolean',
-        'bifocal_lens' => 'boolean',
+        'frame_details' => 'array',
+        'production_started_at' => 'datetime',
         'sent_to_manufacturer_at' => 'datetime',
-        'expected_delivery_date' => 'datetime',
+        'completed_at' => 'datetime',
+        'estimated_completion_date' => 'datetime',
+        'total_cost' => 'decimal:2',
+        'advance_payment' => 'decimal:2',
     ];
 
     /**
-     * Get the appointment that owns the glass order.
-     */
-    public function appointment(): BelongsTo
-    {
-        return $this->belongsTo(Appointment::class);
-    }
-
-    /**
-     * Get the patient that owns the glass order.
+     * Get the patient this order belongs to
      */
     public function patient(): BelongsTo
     {
@@ -65,23 +52,15 @@ class GlassOrder extends Model
     }
 
     /**
-     * Get the prescription associated with the glass order.
+     * Get the appointment this order was created from
      */
-    public function prescription(): BelongsTo
+    public function appointment(): BelongsTo
     {
-        return $this->belongsTo(Prescription::class);
+        return $this->belongsTo(Appointment::class);
     }
 
     /**
-     * Get the receipt associated with the glass order.
-     */
-    public function receipt(): BelongsTo
-    {
-        return $this->belongsTo(Receipt::class);
-    }
-
-    /**
-     * Get the branch where the glass order was created.
+     * Get the branch this order was created at
      */
     public function branch(): BelongsTo
     {
@@ -89,63 +68,29 @@ class GlassOrder extends Model
     }
 
     /**
-     * Scope for orders by status.
+     * Get the user who created this order
      */
-    public function scopeByStatus($query, string $status)
+    public function creator(): BelongsTo
     {
-        return $query->where('status', $status);
+        return $this->belongsTo(User::class, 'created_by');
     }
 
     /**
-     * Scope for orders by priority.
+     * Generate a unique order number
      */
-    public function scopeByPriority($query, string $priority)
+    public static function generateOrderNumber(): string
     {
-        return $query->where('priority', $priority);
-    }
+        $date = now()->format('Ymd');
+        $lastOrder = self::where('order_number', 'like', $date . '%')
+                        ->orderBy('id', 'desc')
+                        ->first();
 
-    /**
-     * Scope for orders by patient.
-     */
-    public function scopeForPatient($query, int $patientId)
-    {
-        return $query->where('patient_id', $patientId);
-    }
+        $sequence = 1;
+        if ($lastOrder) {
+            $lastSequence = (int) substr($lastOrder->order_number, -4);
+            $sequence = $lastSequence + 1;
+        }
 
-    /**
-     * Scope for orders by branch.
-     */
-    public function scopeForBranch($query, int $branchId)
-    {
-        return $query->where('branch_id', $branchId);
-    }
-
-    /**
-     * Get formatted order number.
-     */
-    public function getFormattedNumberAttribute(): string
-    {
-        return 'GO-' . str_pad($this->id, 6, '0', STR_PAD_LEFT);
-    }
-
-    /**
-     * Check if order is ready for manufacturer contact.
-     */
-    public function isReadyForManufacturer(): bool
-    {
-        return $this->status === 'pending' && 
-               !empty($this->reserved_products) && 
-               !empty($this->prescription_data);
-    }
-
-    /**
-     * Mark as sent to manufacturer.
-     */
-    public function markAsSentToManufacturer(): void
-    {
-        $this->update([
-            'status' => 'sent_to_manufacturer',
-            'sent_to_manufacturer_at' => now(),
-        ]);
+        return $date . sprintf('%04d', $sequence);
     }
 }

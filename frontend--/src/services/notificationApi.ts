@@ -1,6 +1,4 @@
-import axios from 'axios';
-
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api';
+import api from '../api/axiosClient';
 
 export interface Notification {
   id: number;
@@ -39,56 +37,33 @@ export const getNotifications = async (params?: {
   per_page?: number;
 }): Promise<NotificationResponse> => {
   const token = sessionStorage.getItem('auth_token');
-  console.log('Notification API: Token from sessionStorage:', token ? 'Present' : 'Missing');
-  
-  if (!token) {
-    throw new Error('No authentication token found');
-  }
-  
-  const response = await axios.get(`${API_BASE_URL}/notifications`, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
-    params,
-  });
+  if (!token) throw new Error('No authentication token found');
+
+  const response = await api.get('/notifications', { params });
   return response.data;
 };
 
 // Get unread notification count
 export const getUnreadCount = async (): Promise<UnreadCountResponse> => {
   const token = sessionStorage.getItem('auth_token');
-  console.log('Notification API: Token from sessionStorage:', token ? 'Present' : 'Missing');
-  
-  if (!token) {
-    throw new Error('No authentication token found');
-  }
-  
-  const response = await axios.get(`${API_BASE_URL}/notifications/unread-count`, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
-  });
+  if (!token) throw new Error('No authentication token found');
+
+  const response = await api.get('/notifications/unread-count');
   return response.data;
 };
 
 // Mark notification as read
 export const markAsRead = async (notificationId: number): Promise<void> => {
   const token = sessionStorage.getItem('auth_token');
-  await axios.put(`${API_BASE_URL}/notifications/${notificationId}/read`, {}, {
-    headers: {
-      Authorization: token ? `Bearer ${token}` : '',
-    },
-  });
+  if (!token) throw new Error('No authentication token found');
+  await api.put(`/notifications/${notificationId}/read`);
 };
 
 // Mark all notifications as read
 export const markAllAsRead = async (): Promise<{ count: number }> => {
   const token = sessionStorage.getItem('auth_token');
-  const response = await axios.put(`${API_BASE_URL}/notifications/mark-all-read`, {}, {
-    headers: {
-      Authorization: token ? `Bearer ${token}` : '',
-    },
-  });
+  if (!token) throw new Error('No authentication token found');
+  const response = await api.put('/notifications/mark-all-read');
   return response.data;
 };
 
@@ -102,11 +77,8 @@ export const createNotification = async (notification: {
   data?: any;
 }): Promise<Notification> => {
   const token = sessionStorage.getItem('auth_token');
-  const response = await axios.post(`${API_BASE_URL}/notifications`, notification, {
-    headers: {
-      Authorization: token ? `Bearer ${token}` : '',
-    },
-  });
-  return response.data.notification;
+  if (!token) throw new Error('No authentication token found');
+  const response = await api.post('/notifications', notification);
+  return response.data.notification || response.data;
 };
 

@@ -3,387 +3,706 @@
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AuthController;
-use App\Http\Controllers\BranchController;
-use App\Http\Controllers\ScheduleController;
+use App\Http\Controllers\ReservationController;
 use App\Http\Controllers\AppointmentController;
 use App\Http\Controllers\PrescriptionController;
-use App\Http\Controllers\NotificationController;
-use App\Http\Controllers\EyewearReminderController;
-use App\Http\Controllers\ImageUploadController;
-use App\Http\Controllers\OptometristController;
+use App\Http\Controllers\ReportsController;
 use App\Http\Controllers\ProductController;
-use App\Http\Controllers\ProductCategoryController;
-use App\Http\Controllers\PatientController;
-use App\Http\Controllers\AnalyticsController;
-use App\Http\Controllers\TransactionController;
-use App\Http\Controllers\ReceiptController;
-use App\Http\Controllers\FeedbackController;
-use App\Http\Controllers\StaffScheduleController;
-use App\Http\Controllers\RestockRequestController;
-use App\Http\Controllers\ReservationController;
+use App\Http\Controllers\BranchController;
 use App\Http\Controllers\BranchStockController;
-use App\Http\Controllers\StockTransferController;
+use App\Http\Controllers\RestockRequestController;
+use App\Http\Controllers\ImageUploadController;
+use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\EnhancedInventoryController;
-use App\Http\Controllers\RealTimeInventoryController;
-use App\Http\Controllers\CrossBranchInventoryController;
-use App\Http\Controllers\BranchContactController;
+use App\Http\Controllers\RealtimeController;
+use App\Http\Controllers\RoleRequestController;
+use App\Http\Controllers\PdfController;
+use App\Http\Controllers\BranchAnalyticsController;
+use App\Http\Controllers\ScheduleController;
+use App\Http\Controllers\StockTransferController;
+use App\Http\Controllers\AnalyticsController;
+use App\Http\Controllers\EyewearController;
+use App\Http\Controllers\OptometristController;
+use App\Http\Controllers\StaffScheduleController;
+use App\Http\Controllers\PatientController;
+use App\Http\Controllers\FeedbackController;
+use App\Http\Controllers\ReceiptController;
 use App\Http\Controllers\GlassOrderController;
+use App\Http\Controllers\TransactionsController;
 
 /*
 |--------------------------------------------------------------------------
 | API Routes
 |--------------------------------------------------------------------------
+|
+| Here is where you can register API routes for your application. These
+| routes are loaded by the RouteServiceProvider and all of them will
+| be assigned to the "api" middleware group. Make something great!
+|
 */
 
-// Test route to verify inventory data
-// Health check endpoint for Railway
-Route::get('/health', function() {
+Route::get('/user', function (Request $request) {
+    return $request->user();
+});
+
+// Authentication routes
+Route::post('/auth/register', [AuthController::class, 'register']);
+Route::post('/auth/login', [AuthController::class, 'login']);
+Route::middleware('auth:sanctum')->post('/auth/logout', [AuthController::class, 'logout']);
+
+
+
+// Image upload route
+Route::middleware('auth:sanctum')->post('/upload/image', [ImageUploadController::class, 'upload']);
+
+// New profile route - returns only name and email
+Route::middleware('auth:sanctum')->get('/auth/profile', [AuthController::class, 'profile']);
+
+// Get users by role
+Route::middleware('auth:sanctum')->get('/users', [AuthController::class, 'getUsersByRole']);
+
+// Admin user management routes
+Route::middleware('auth:sanctum')->group(function () {
+    Route::get('/admin/users', [AuthController::class, 'getAllUsers']);
+    Route::post('/admin/users', [AuthController::class, 'createUser']);
+    Route::put('/admin/users/{targetUser}', [AuthController::class, 'updateUser']);
+    Route::delete('/admin/users/{targetUser}', [AuthController::class, 'deleteUser']);
+});
+
+// Product routes - public read access, authenticated write access
+Route::get('products', [ProductController::class, 'index']);
+Route::get('products/{product}', [ProductController::class, 'show']);
+Route::get('product-categories', [ProductController::class, 'getCategories']);
+
+// Public branch routes
+Route::get('branches/active', [BranchController::class, 'getActiveBranches'])->name('branches.active');
+
+// Debug route - temporarily make branches public for testing
+Route::get('debug/branches', function() {
+    try {
+        $branches = App\Models\Branch::where('is_active', true)->get(['id', 'name', 'code', 'address']);
+        return response()->json([
+            'count' => $branches->count(),
+            'branches' => $branches,
+            'message' => 'This is a debug endpoint - use /api/branches/active instead'
+        ]);
+    } catch (\Exception $e) {
+        return response()->json(['error' => $e->getMessage()], 500);
+    }
+});
+
+// Staff and Admin product management
+Route::middleware('auth:sanctum')->group(function () {
+    Route::post('products', [ProductController::class, 'store']);
+    Route::put('products/{product}', [ProductController::class, 'update']);
+    Route::delete('products/{product}', [ProductController::class, 'destroy']);
+    
+    // Admin-only routes
+    Route::get('admin/products', [ProductController::class, 'adminIndex']);
+    Route::put('admin/products/{product}/approve', [ProductController::class, 'approveProduct']);
+});
+
+// Reservation routes
+Route::middleware('auth:sanctum')->group(function () {
+    Route::apiResource('reservations', ReservationController::class);
+    Route::get('reservations/user/{userId}', [ReservationController::class, 'getUserReservations']);
+    Route::get('reservations/total-bill', [ReservationController::class, 'getTotalBill']);
+    Route::put('reservations/{reservation}/confirm', [ReservationController::class, 'confirmReservation']);
+    Route::put('reservations/{reservation}/approve', [ReservationController::class, 'confirmReservation']); // Alias for frontend compatibility
+    Route::put('reservations/{reservation}/reject', [ReservationController::class, 'rejectReservation']);
+    Route::put('reservations/{reservation}/complete', [ReservationController::class, 'completeReservation']);
+});
+
+// Appointment availability routes - public for testing
+Route::get('appointments/availability', [App\Http\Controllers\AppointmentAvailabilityController::class, 'getAvailability']);
+Route::get('appointments/weekly-schedule', [App\Http\Controllers\AppointmentAvailabilityController::class, 'getWeeklySchedule']);
+
+// Appointment routes - protected by authentication
+Route::middleware('auth:sanctum')->group(function () {
+    Route::apiResource('appointments', AppointmentController::class);
+    Route::get('appointments/today', [AppointmentController::class, 'getTodayAppointments']);
+    Route::get('appointments/available-slots', [AppointmentController::class, 'getAvailableTimeSlots']);
+});
+
+// Prescription routes - protected by authentication
+Route::middleware('auth:sanctum')->group(function () {
+    // Specific routes first (before parameterized routes)
+    Route::get('prescriptions/test', [PrescriptionController::class, 'test']);
+    Route::get('prescriptions/patient/{patientId}', [PrescriptionController::class, 'getPatientPrescriptions']);
+    Route::get('prescriptions/optometrist/{optometristId}', [PrescriptionController::class, 'getOptometristPrescriptions']);
+    
+    // Main CRUD routes
+    Route::get('prescriptions', [PrescriptionController::class, 'index']);
+    Route::post('prescriptions', [PrescriptionController::class, 'store']);
+    Route::get('prescriptions/{prescription}', [PrescriptionController::class, 'show']);
+    Route::put('prescriptions/{prescription}', [PrescriptionController::class, 'update']);
+    Route::delete('prescriptions/{prescription}', [PrescriptionController::class, 'destroy']);
+});
+
+// Test route
+Route::get('test-prescriptions', function () {
+    return response()->json(['message' => 'Test route works']);
+});
+
+// Test authenticated route
+Route::middleware('auth:sanctum')->get('test-auth', function () {
+    return response()->json(['message' => 'Authenticated route works', 'user' => auth()->user()->name]);
+});
+
+// Test prescriptions route
+Route::middleware('auth:sanctum')->get('test-prescriptions-simple', function () {
+    $user = auth()->user();
+    return response()->json(['message' => 'Prescriptions route works', 'user' => $user ? $user->name : 'No user']);
+});
+
+// Test prescriptions with controller
+
+
+// Debug authentication endpoint
+Route::middleware('auth:sanctum')->get('debug-auth', function () {
+    $user = auth()->user();
     return response()->json([
-        'status' => 'healthy',
-        'service' => 'Everbright Optical System',
-        'timestamp' => now()->toISOString(),
-        'version' => '1.0.0'
+        'authenticated' => true,
+        'user_id' => $user->id,
+        'user_name' => $user->name,
+        'user_role' => $user->role->value,
+        'user_email' => $user->email,
+        'token_valid' => true,
+        'timestamp' => now()->toISOString()
     ]);
 });
 
-// Database connection test endpoint
-Route::get('/db-test', function() {
+// Schedule management routes (admin only)
+Route::middleware(['auth:sanctum'])->group(function () {
+    Route::apiResource('schedules', App\Http\Controllers\ScheduleController::class);
+    Route::get('schedules/branches', [App\Http\Controllers\ScheduleController::class, 'getBranches']);
+    Route::get('schedules/employees', [App\Http\Controllers\ScheduleController::class, 'getEmployees']);
+    Route::get('schedules/filtered', [App\Http\Controllers\ScheduleController::class, 'getSchedulesWithFilters']);
+    Route::put('schedules/doctor/{doctorId}', [App\Http\Controllers\ScheduleController::class, 'updateScheduleDirectly']);
+});
+
+// Schedule change request routes
+Route::middleware(['auth:sanctum'])->group(function () {
+    Route::get('schedule-change-requests', [App\Http\Controllers\ScheduleChangeRequestController::class, 'index']);
+    Route::post('schedule-change-requests', [App\Http\Controllers\ScheduleChangeRequestController::class, 'store']);
+    Route::get('schedule-change-requests/{id}', [App\Http\Controllers\ScheduleChangeRequestController::class, 'show']);
+    Route::put('schedule-change-requests/{id}', [App\Http\Controllers\ScheduleChangeRequestController::class, 'update']);
+    Route::get('schedule-change-requests/optometrist/{optometristId}', [App\Http\Controllers\ScheduleChangeRequestController::class, 'getOptometristRequests']);
+});
+
+// Public schedule routes (for customers to view doctor schedules)
+Route::get('schedules/doctor/{id}', [App\Http\Controllers\ScheduleController::class, 'getDoctorSchedule']);
+
+// Employee management routes
+Route::get('employees', function() {
     try {
-        $pdo = DB::connection()->getPdo();
-        $databaseName = DB::connection()->getDatabaseName();
+        $employees = \App\Models\User::whereIn('role', ['optometrist', 'staff'])
+            ->where('is_approved', true)
+            ->with('branch')
+            ->get();
         
         return response()->json([
-            'status' => 'success',
-            'message' => 'Database connected successfully',
-            'database' => $databaseName,
-            'driver' => DB::connection()->getDriverName(),
-            'timestamp' => now()->toISOString()
+            'employees' => $employees
         ]);
     } catch (\Exception $e) {
         return response()->json([
-            'status' => 'error',
-            'message' => 'Database connection failed',
-            'error' => $e->getMessage(),
-            'timestamp' => now()->toISOString()
+            'error' => 'Failed to fetch employees',
+            'message' => $e->getMessage()
+        ], 500);
+    }
+});
+Route::get('optometrists', function() {
+    try {
+        $optometrists = \App\Models\User::where('role', 'optometrist')
+            ->where('is_approved', true)
+            ->select('id', 'name', 'email')
+            ->get();
+            
+        return response()->json([
+            'optometrists' => $optometrists
+        ]);
+    } catch (\Exception $e) {
+        return response()->json([
+            'error' => 'Failed to fetch optometrists',
+            'message' => $e->getMessage()
         ], 500);
     }
 });
 
-// Test route for contact API (public access)
-Route::get('/test-contact', function() {
-    return response()->json([
-        'message' => 'Contact API is working',
-        'timestamp' => now(),
-        'user' => auth()->user() ? auth()->user()->name : 'Not authenticated'
-    ]);
+// Test route
+Route::get('test-availability', function() {
+    return response()->json(['message' => 'Test route works']);
 });
 
-// Test login endpoint (bypass middleware)
-Route::post('/test-login', function(Request $request) {
-    $email = $request->email;
-    $password = $request->password;
-    $role = $request->role;
-    
-    // Find user
-    $user = \App\Models\User::where('email', $email)->first();
-    
-    if (!$user) {
-        return response()->json(['error' => 'User not found', 'email' => $email]);
+// Debug schedule route
+Route::get('debug-schedules', function() {
+    try {
+        $optometrists = \App\Models\User::where('role', 'optometrist')
+            ->where('is_approved', true)
+            ->select('id', 'name', 'email')
+            ->get();
+            
+        return response()->json([
+            'success' => true,
+            'optometrists' => $optometrists,
+            'count' => $optometrists->count()
+        ]);
+    } catch (\Exception $e) {
+        return response()->json([
+            'success' => false,
+            'error' => $e->getMessage(),
+            'trace' => $e->getTraceAsString()
+        ], 500);
     }
-    
-    // Check password
-    if (!\Illuminate\Support\Facades\Hash::check($password, $user->password)) {
-        return response()->json(['error' => 'Invalid password', 'email' => $email]);
-    }
-    
-    // Check approval
-    if (!$user->is_approved) {
-        return response()->json(['error' => 'Account not approved', 'email' => $email]);
-    }
-    
-    // Check role
-    $userRoleValue = $user->role->value ?? (string)$user->role;
-    if ($role !== $userRoleValue) {
-        return response()->json(['error' => 'Role mismatch', 'requested' => $role, 'actual' => $userRoleValue]);
-    }
-    
-    // Create token
-    $user->tokens()->delete(); // Delete old tokens
-    $token = $user->createToken('auth_token', ['*'])->plainTextToken;
-    
+});
+
+// Test authentication route
+Route::get('test-auth', function() {
+    $user = Auth::user();
     return response()->json([
-        'message' => 'Login successful',
-        'token' => $token,
-        'user' => [
+        'authenticated' => !!$user,
+        'user' => $user ? [
             'id' => $user->id,
             'name' => $user->name,
             'email' => $user->email,
-            'role' => $userRoleValue,
-            'is_approved' => $user->is_approved
-        ]
+            'role' => $user->role?->value ?? 'no role'
+        ] : null
     ]);
-});
+})->middleware('auth:sanctum');
 
-// Simple login test without validation
-Route::post('/simple-login', function(Request $request) {
-    $email = $request->email;
-    $password = $request->password;
-    
-    $user = \App\Models\User::where('email', $email)->first();
-    
-    if (!$user || !\Illuminate\Support\Facades\Hash::check($password, $user->password)) {
-        return response()->json(['error' => 'Invalid credentials'], 401);
+// Test availability route
+Route::get('test-appointment-availability', function(Request $request) {
+    try {
+        $date = $request->get('date', '2025-10-01');
+        $dayOfWeek = \Carbon\Carbon::parse($date)->dayOfWeekIso;
+        
+        $schedules = \App\Models\Schedule::with(['optometrist', 'branch'])
+            ->where('is_active', true)
+            ->where('day_of_week', $dayOfWeek)
+            ->get();
+            
+        return response()->json([
+            'date' => $date,
+            'day_of_week' => $dayOfWeek,
+            'schedules_count' => $schedules->count(),
+            'schedules' => $schedules->map(function($schedule) {
+                return [
+                    'optometrist' => $schedule->optometrist->name,
+                    'branch' => $schedule->branch->name,
+                    'start_time' => $schedule->start_time,
+                    'end_time' => $schedule->end_time,
+                ];
+            })
+        ]);
+    } catch (\Exception $e) {
+        return response()->json(['error' => $e->getMessage()], 500);
     }
-    
-    $token = $user->createToken('auth_token')->plainTextToken;
-    
+});
+
+
+// Simple availability route - always returns available
+Route::get('appointments/availability-simple', function(Request $request) {
     return response()->json([
-        'message' => 'Login successful',
-        'token' => $token,
-        'user' => [
-            'id' => $user->id,
-            'name' => $user->name,
-            'email' => $user->email,
-            'role' => $user->role->value ?? (string)$user->role
-        ]
+        'date' => $request->get('date', '2025-10-01'),
+        'available' => true,
+        'branch' => [
+            'id' => 2,
+            'name' => 'Unitop Branch',
+            'code' => 'UNITOP',
+        ],
+        'optometrist' => [
+            'id' => 25,
+            'name' => 'Samuel Loreto Prieto',
+        ],
+        'available_times' => ['09:00', '10:00', '11:00', '14:00', '15:00', '16:00'],
+        'services' => ['Eye Exam', 'Follow-up Checkup', 'Prescription Update']
     ]);
 });
 
-Route::get('/test-unitop-inventory', function() {
-    $branchStocks = \App\Models\BranchStock::with(['product', 'branch'])
-        ->get();
+// Simple appointment booking route
+Route::post('appointments/simple', function(Request $request) {
+    try {
+        $data = $request->all();
+        
+        // Basic validation
+        if (empty($data['patient_id']) || empty($data['optometrist_id']) || empty($data['branch_id']) || 
+            empty($data['appointment_date']) || empty($data['start_time']) || empty($data['type'])) {
+            return response()->json(['error' => 'Missing required fields'], 400);
+        }
+        
+        // Create appointment record (simplified)
+        $appointment = [
+            'id' => rand(1000, 9999),
+            'patient_id' => $data['patient_id'],
+            'optometrist_id' => $data['optometrist_id'],
+            'branch_id' => $data['branch_id'],
+            'appointment_date' => $data['appointment_date'],
+            'start_time' => $data['start_time'],
+            'end_time' => $data['end_time'],
+            'type' => $data['type'],
+            'status' => 'scheduled',
+            'notes' => $data['notes'] ?? '',
+            'created_at' => now()->toISOString(),
+        ];
+        
+        return response()->json([
+            'message' => 'Appointment booked successfully',
+            'appointment' => $appointment
+        ], 201);
+        
+    } catch (\Exception $e) {
+        return response()->json([
+            'error' => 'Failed to book appointment',
+            'message' => $e->getMessage()
+        ], 500);
+    }
+});
+
+// Schedule routes
+Route::get('schedules/doctor/{id}', [App\Http\Controllers\ScheduleController::class, 'getDoctorSchedule']);
+Route::get('schedules', [App\Http\Controllers\ScheduleController::class, 'getAllSchedules']);
+
+// Prescription routes are already defined above with proper authentication
+
+// Reports routes (Admin only)
+Route::middleware('auth:sanctum')->group(function () {
+    Route::get('/admin/reports/stats', [ReportsController::class, 'getSystemStats']);
+    Route::get('/admin/reports/reservations', [ReportsController::class, 'getReservationLogs']);
+    Route::get('/admin/reports/users', [ReportsController::class, 'getUserActivityLogs']);
+    Route::get('/admin/reports/revenue', [ReportsController::class, 'getRevenueReports']);
+    Route::get('/admin/reports/appointments', [ReportsController::class, 'getAppointmentLogs']);
+    Route::get('/reports/analytics/pdf', [AnalyticsController::class, 'exportAnalyticsPdf']);
+});
+
+// Branch management routes (Admin only)
+Route::middleware('auth:sanctum')->group(function () {
+    Route::get('branches', [BranchController::class, 'index']);
+    Route::post('branches', [BranchController::class, 'store']);
+    Route::get('branches/{branch}', [BranchController::class, 'show']);
+    Route::put('branches/{branch}', [BranchController::class, 'update']);
+    Route::delete('branches/{branch}', [BranchController::class, 'destroy']);
     
-    $lowStock = $branchStocks->filter(function($item) {
-        return ($item->stock_quantity - $item->reserved_quantity) <= ($item->min_stock_threshold ?? 5);
-    });
+    // Branch stock management
+    Route::get('branch-stock', [BranchStockController::class, 'index']);
+    Route::get('branches/{branch}/stock', [BranchStockController::class, 'getBranchStock']);
+    Route::put('products/{product}/branches/{branch}/stock', [BranchStockController::class, 'updateStock']);
+    Route::post('products/{product}/branch-stock', [BranchStockController::class, 'setProductStockForAllBranches']);
+    Route::get('branch-stock/low-stock', [BranchStockController::class, 'getLowStockAlerts']);
+});
+
+// Restock request routes
+Route::middleware('auth:sanctum')->group(function () {
+    Route::apiResource('restock-requests', RestockRequestController::class);
+    Route::put('restock-requests/{restockRequest}/approve', [RestockRequestController::class, 'approve']);
+    Route::put('restock-requests/{restockRequest}/reject', [RestockRequestController::class, 'reject']);
+    Route::put('restock-requests/{restockRequest}/fulfill', [RestockRequestController::class, 'fulfill']);
+});
+
+// Patient management routes (Staff and Admin only)
+Route::middleware('auth:sanctum')->group(function () {
+    Route::get('patients', [PatientController::class, 'index']);
+    Route::get('patients/{id}', [PatientController::class, 'show']);
+    Route::put('patients/{id}', [PatientController::class, 'update']);
+});
+
+// Receipt routes
+Route::middleware('auth:sanctum')->group(function () {
+    Route::get('customers/{customerId}/receipts', [ReceiptController::class, 'getCustomerReceipts']);
+    Route::get('receipts/{receiptId}/download', [PdfController::class, 'downloadReceiptById']);
+    Route::get('receipts/{receiptId}', [ReceiptController::class, 'show']);
+});
+
+// Glass order routes
+Route::middleware('auth:sanctum')->group(function () {
+    Route::apiResource('glass-orders', GlassOrderController::class);
+    Route::get('glass-orders/patient/{patientId}', [GlassOrderController::class, 'getPatientOrders']);
+    Route::post('glass-orders/{id}/send-to-manufacturer', [GlassOrderController::class, 'sendToManufacturer']);
+});
+
+// Feedback routes
+Route::middleware('auth:sanctum')->group(function () {
+    // Customer feedback routes
+    Route::post('feedback', [FeedbackController::class, 'store']);
+    Route::get('feedback/available-appointments', [FeedbackController::class, 'getAvailableAppointments']);
+    Route::get('customers/{id}/feedback', [FeedbackController::class, 'getCustomerFeedback']);
+
+    // Admin analytics routes
+    Route::get('admin/feedback/analytics', [FeedbackController::class, 'getAnalytics']);
+});
+
+// Notification routes
+Route::middleware('auth:sanctum')->group(function () {
+    // New notification system routes
+    Route::get('/notifications', [NotificationController::class, 'index']);
+    Route::get('/notifications/unread-count', [NotificationController::class, 'getUnreadCount']);
+    Route::put('/notifications/{notificationId}/read', [NotificationController::class, 'markAsRead']);
+    Route::put('/notifications/mark-all-read', [NotificationController::class, 'markAllAsRead']);
+    Route::post('/notifications', [NotificationController::class, 'create']);
     
-    return response()->json([
-        'total_items' => $branchStocks->count(),
-        'low_stock_count' => $lowStock->count(),
-        'items' => $branchStocks->map(function($item) {
-            $available = $item->stock_quantity - $item->reserved_quantity;
-            $threshold = $item->min_stock_threshold ?? 5;
-            return [
-                'id' => $item->id,
-                'product' => $item->product->name,
-                'stock' => $item->stock_quantity,
-                'reserved' => $item->reserved_quantity,
-                'available' => $available,
-                'threshold' => $threshold,
-                'is_low_stock' => $available <= $threshold,
-                'status' => $item->status
-            ];
-        })
-    ]);
+    // Legacy email notification routes
+    Route::post('/notifications/send-appointment-reminders', [NotificationController::class, 'sendAppointmentReminders']);
+    Route::post('/notifications/send-prescription-expiry', [NotificationController::class, 'sendPrescriptionExpiryNotifications']);
+    Route::post('/notifications/send-low-stock', [NotificationController::class, 'sendLowStockNotifications']);
+    Route::post('/notifications/send-custom', [NotificationController::class, 'sendCustomNotification']);
+    Route::get('/notifications/history', [NotificationController::class, 'getNotificationHistory']);
+});
+
+// Enhanced Inventory routes
+Route::middleware('auth:sanctum')->group(function () {
+    Route::get('/inventory/enhanced', [EnhancedInventoryController::class, 'getEnhancedInventory']);
+    Route::get('/inventory/expiring', [EnhancedInventoryController::class, 'getExpiringProducts']);
+    Route::get('/inventory/low-stock-alerts', [EnhancedInventoryController::class, 'getLowStockAlerts']);
+    Route::post('/inventory/auto-restock', [EnhancedInventoryController::class, 'processAutoRestock']);
+    Route::put('/inventory/products/{product}/settings', [EnhancedInventoryController::class, 'updateProductSettings']);
+    Route::get('/inventory/analytics', [EnhancedInventoryController::class, 'getInventoryAnalytics']);
+});
+
+// Stock Transfer routes
+Route::middleware('auth:sanctum')->group(function () {
+    Route::apiResource('stock-transfers', StockTransferController::class);
+    Route::put('stock-transfers/{stockTransfer}/approve', [StockTransferController::class, 'approve']);
+    Route::put('stock-transfers/{stockTransfer}/reject', [StockTransferController::class, 'reject']);
+    Route::put('stock-transfers/{stockTransfer}/complete', [StockTransferController::class, 'complete']);
+    Route::put('stock-transfers/{stockTransfer}/cancel', [StockTransferController::class, 'cancel']);
+});
+
+// Realtime SSE stream (handles auth manually via token parameter)
+Route::get('/realtime/stream', [RealtimeController::class, 'stream']);
+
+// Role request routes
+Route::middleware('auth:sanctum')->group(function () {
+    Route::post('/role-requests', [RoleRequestController::class, 'store']);
+    Route::get('/admin/role-requests', [RoleRequestController::class, 'index']);
+    Route::put('/admin/role-requests/{roleRequest}/approve', [RoleRequestController::class, 'approve']);
+    Route::put('/admin/role-requests/{roleRequest}/reject', [RoleRequestController::class, 'reject']);
+});
+
+// Public route to check role request status by email
+Route::get('/role-requests/status/{email}', [RoleRequestController::class, 'checkStatus']);
+
+// Eyewear reminder routes (Customer)
+Route::middleware('auth:sanctum')->group(function () {
+    Route::get('eyewear/reminders', [EyewearController::class, 'getReminders']);
+    Route::post('eyewear/{eyewearId}/condition-form', [EyewearController::class, 'submitConditionForm']);
+    Route::post('eyewear/{eyewearId}/set-appointment', [EyewearController::class, 'scheduleEyewearAppointment']);
+});
+
+// Optometrist-specific routes
+Route::middleware('auth:sanctum')->group(function () {
+    Route::get('optometrist/patients', [OptometristController::class, 'getPatients']);
+    Route::get('optometrist/patients/{id}', [OptometristController::class, 'getPatient']);
+    Route::get('optometrist/appointments/today', [OptometristController::class, 'getTodayAppointments']);
+    Route::get('optometrist/appointments', [OptometristController::class, 'getAllAppointments']);
+    Route::get('optometrist/prescriptions', [OptometristController::class, 'getPrescriptions']);
 });
 
 // Public routes
-Route::post('/register', [AuthController::class, 'register']);
-Route::post('/login', [AuthController::class, 'login']);
-Route::get('/branches/active', [BranchController::class, 'getActiveBranches']); // Public - for customers
-Route::get('/optometrists', [OptometristController::class, 'index']); // Public - for scheduling
-Route::get('/appointments/availability', [App\Http\Controllers\AppointmentAvailabilityController::class, 'getAvailability']); // Public - for scheduling
+Route::get('products/{product}/availability', [BranchStockController::class, 'getProductAvailability']);
 
-// Protected routes
+// Analytics routes (including real-time and trends - missing in original)
 Route::middleware('auth:sanctum')->group(function () {
-    // Auth routes
-    Route::post('/logout', [AuthController::class, 'logout']);
-    Route::get('/user', [AuthController::class, 'user']);
-    Route::get('/profile', [AuthController::class, 'profile']);
-    Route::put('/profile', [AuthController::class, 'updateProfile']);
+    Route::get('analytics/realtime', [AnalyticsController::class, 'getRealTimeAnalytics']);
+    Route::get('analytics/trends', [AnalyticsController::class, 'getAnalyticsTrends']);
+});
 
-    // Branch routes (Admin only)
-    Route::get('/branches', [BranchController::class, 'index']); // Moved inside auth
-    Route::post('/branches', [BranchController::class, 'store']);
-    Route::get('/branches/{branch}', [BranchController::class, 'show']);
-    Route::put('/branches/{branch}', [BranchController::class, 'update']);
-    Route::delete('/branches/{branch}', [BranchController::class, 'destroy']);
+// Branch Analytics routes
+Route::middleware('auth:sanctum')->group(function () {
+    Route::get('analytics/branch-performance', [BranchAnalyticsController::class, 'getBranchPerformance']);
+    Route::get('analytics/branches/{branch}', [BranchAnalyticsController::class, 'getBranchAnalytics']);
+    Route::get('analytics/product-availability', [BranchAnalyticsController::class, 'getProductAvailability']);
+});
 
-    // Enhanced Inventory Routes
-    Route::get('/inventory/enhanced', [EnhancedInventoryController::class, 'index']);
-    Route::post('/enhanced-inventory', [EnhancedInventoryController::class, 'store']);
-    Route::put('/enhanced-inventory/{id}', [EnhancedInventoryController::class, 'update']);
-    Route::delete('/enhanced-inventory/{id}', [EnhancedInventoryController::class, 'destroy']);
-    Route::get('/inventory/branch/{branch}', [EnhancedInventoryController::class, 'getBranchInventory']);
-    Route::get('/inventory/low-stock-alerts', [EnhancedInventoryController::class, 'getLowStockAlerts']);
+// Product Analytics routes (missing - add to ProductController or create new one)
+Route::middleware('auth:sanctum')->get('admin/products/analytics', [ProductController::class, 'getProductAnalytics']);
 
-    // General analytics routes (accessible by authenticated users)
-    Route::get('/analytics/realtime', [AnalyticsController::class, 'getRealTimeAnalytics']);
-    Route::get('/analytics/trends', [AnalyticsController::class, 'getAnalyticsTrends']);
-    Route::post('/inventory/send-low-stock-alert', [EnhancedInventoryController::class, 'sendLowStockAlert']);
+// PDF generation and downloads
+Route::middleware('auth:sanctum')->group(function () {
+    Route::get('pdf/receipts/customer', [PdfController::class, 'getCustomerReceipts']);
+    Route::get('pdf/prescriptions/customer', [PdfController::class, 'getCustomerPrescriptions']);
+    Route::get('pdf/receipts/{appointmentId}', [PdfController::class, 'downloadReceipt']);
+    Route::get('pdf/receipt-by-id/{receiptId}', [PdfController::class, 'downloadReceiptById']);
+    Route::get('pdf/prescriptions/{prescriptionId}', [PdfController::class, 'downloadPrescription']);
+    // Receipt create (staff)
+    Route::post('receipts', [ReceiptController::class, 'store']);
+});
+
+// Role-based Analytics routes
+Route::middleware('auth:sanctum')->group(function () {
+    // Customer analytics
+    Route::get('customers/{id}/analytics', [AnalyticsController::class, 'getCustomerAnalytics']);
     
-    // Realtime stream endpoint for Server-Sent Events
-    Route::get('/realtime/stream', function(Request $request) {
-        return response()->stream(function() {
-            echo "data: " . json_encode(['type' => 'connected', 'timestamp' => now()]) . "\n\n";
-            
-            // Keep connection alive for 30 seconds
-            $endTime = time() + 30;
-            while (time() < $endTime) {
-                echo "data: " . json_encode(['type' => 'heartbeat', 'timestamp' => now()]) . "\n\n";
-                ob_flush();
-                flush();
-                sleep(5);
-            }
-        }, 200, [
-            'Content-Type' => 'text/event-stream',
-            'Cache-Control' => 'no-cache',
-            'Connection' => 'keep-alive',
-            'Access-Control-Allow-Origin' => '*',
-            'Access-Control-Allow-Headers' => 'Cache-Control',
-        ]);
-    });
-
-    // Branch Stock Routes
-    Route::get('/branch-stock', [BranchStockController::class, 'index']);
-    Route::post('/branch-stock', [BranchStockController::class, 'store']);
-    Route::put('/branch-stock/{branchStock}', [BranchStockController::class, 'update']);
-    Route::delete('/branch-stock/{branchStock}', [BranchStockController::class, 'destroy']);
-    Route::get('/branch-stock/product/{productId}', [BranchStockController::class, 'getByProduct']);
-    Route::get('/branch-stock/branch/{branchId}', [BranchStockController::class, 'getByBranch']);
+    // Optometrist analytics
+    Route::get('optometrists/{id}/analytics', [AnalyticsController::class, 'getOptometristAnalytics']);
     
-    // Product stock by branch - specific endpoint for frontend calls
-    Route::get('/products/{product}/branches/{branch}/stock', [BranchStockController::class, 'getProductBranchStock']);
-    Route::put('/products/{product}/branches/{branch}/stock', [BranchStockController::class, 'updateStock']);
+    // Staff analytics
+    Route::get('staff/{id}/analytics', [AnalyticsController::class, 'getStaffAnalytics']);
+    
+    // Admin analytics
+    Route::get('admin/analytics', [AnalyticsController::class, 'getAdminAnalytics']);
+});
 
-    // Cross-branch availability
-    Route::get('/inventory/cross-branch-availability', [CrossBranchInventoryController::class, 'getCrossBranchAvailability']);
+    // Staff Scheduling routes
+    Route::middleware('auth:sanctum')->group(function () {
+        // Get staff schedules
+        Route::get('staff-schedules/all', [StaffScheduleController::class, 'getAllStaffSchedules']);
+        Route::get('staff-schedules/branch/{branchId}', [StaffScheduleController::class, 'getBranchStaffSchedules']);
+        Route::get('staff-schedules/staff/{staffId}', [StaffScheduleController::class, 'getStaffSchedule']);
+        Route::get('staff-schedules/staff-members', [StaffScheduleController::class, 'getStaffMembers']);
+        Route::get('staff-schedules/branches', [StaffScheduleController::class, 'getBranches']);
+    
+    // Admin-only schedule management
+    Route::post('staff-schedules', [StaffScheduleController::class, 'createOrUpdateSchedule']);
+    Route::delete('staff-schedules/{scheduleId}', [StaffScheduleController::class, 'deleteSchedule']);
+    
+    // Schedule change requests
+    Route::get('staff-schedules/change-requests', [StaffScheduleController::class, 'getChangeRequests']);
+    Route::post('staff-schedules/change-requests', [StaffScheduleController::class, 'createChangeRequest']);
+    Route::put('staff-schedules/change-requests/{requestId}/approve', [StaffScheduleController::class, 'approveChangeRequest']);
+    Route::put('staff-schedules/change-requests/{requestId}/reject', [StaffScheduleController::class, 'rejectChangeRequest']);
+});
 
-    // Stock transfers
-    Route::post('/inventory/stock-transfer-request', [CrossBranchInventoryController::class, 'requestStockTransfer']);
-    Route::get('/inventory/stock-transfers', [CrossBranchInventoryController::class, 'getStockTransferHistory']);
+// Test PDF generation (for development)
+Route::get('pdf/test-receipt', function() {
+    $data = [
+        'invoice_no' => '0601',
+        'date' => date('Y-m-d'),
+        'sales_type' => 'cash',
+        'customer_name' => 'John Doe',
+        'tin' => '123-456-789-000',
+        'address' => '123 Main Street, City, Province',
+        'items' => [
+            [
+                'description' => 'Eye Examination',
+                'qty' => 1,
+                'unit_price' => 500.00,
+                'amount' => 500.00
+            ],
+            [
+                'description' => 'Prescription Lenses',
+                'qty' => 1,
+                'unit_price' => 300.00,
+                'amount' => 300.00
+            ]
+        ],
+        'total_sales' => 800.00,
+        'vatable_sales' => 714.29,
+        'less_vat' => 85.71,
+        'add_vat' => 85.71,
+        'zero_rated_sales' => 0.00,
+        'net_of_vat' => 714.29,
+        'vat_exempt_sales' => 0.00,
+        'discount' => 0.00,
+        'withholding_tax' => 0.00,
+        'total_due' => 800.00
+    ];
 
-    // Real-time inventory routes
-    Route::get('/inventory/realtime', [RealTimeInventoryController::class, 'getRealTimeInventory']);
-    Route::post('/inventory/realtime/update', [RealTimeInventoryController::class, 'updateInventory']);
-    Route::get('/inventory/realtime/alerts', [RealTimeInventoryController::class, 'getInventoryAlerts']);
+    $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('pdf.receipt', $data);
+    return $pdf->download('test_receipt.pdf');
+});
 
-    // Product routes
-    Route::get('/products', [ProductController::class, 'index']);
-    Route::post('/products', [ProductController::class, 'store']);
-    Route::get('/products/{product}', [ProductController::class, 'show']);
-    Route::put('/products/{product}', [ProductController::class, 'update']);
-    Route::delete('/products/{product}', [ProductController::class, 'destroy']);
-    Route::get('/products/search/{query}', [ProductController::class, 'search']);
+// Test PDF generation with actual appointment data (for development)
+Route::get('pdf/test-receipt/{appointmentId}', function($appointmentId) {
+    try {
+        $appointment = \App\Models\Appointment::with(['patient', 'optometrist', 'branch'])->find($appointmentId);
 
-    // Product categories
-    Route::get('/product-categories', [ProductCategoryController::class, 'index']);
-    Route::post('/product-categories', [ProductCategoryController::class, 'store']);
-    Route::get('/product-categories/{category}', [ProductCategoryController::class, 'show']);
-    Route::put('/product-categories/{category}', [ProductCategoryController::class, 'update']);
-    Route::delete('/product-categories/{category}', [ProductCategoryController::class, 'destroy']);
+        $baseAmount = 500.00;
+        $vatRate = 0.12;
+        $vatableAmount = $baseAmount / (1 + $vatRate);
+        $vatAmount = $baseAmount - $vatableAmount;
 
-    // Appointment routes
-    Route::get('/appointments', [AppointmentController::class, 'index']);
-    Route::post('/appointments', [AppointmentController::class, 'store']);
-    Route::get('/appointments/{appointment}', [AppointmentController::class, 'show']);
-    Route::put('/appointments/{appointment}', [AppointmentController::class, 'update']);
-    Route::delete('/appointments/{appointment}', [AppointmentController::class, 'destroy']);
-    Route::get('/appointments/patient/{patientId}', [AppointmentController::class, 'getByPatient']);
-    Route::get('/appointments/optometrist/{optometristId}', [AppointmentController::class, 'getByOptometrist']);
-    Route::get('/appointments/branch/{branchId}', [AppointmentController::class, 'getByBranch']);
-    Route::post('/appointments/{appointment}/confirm', [AppointmentController::class, 'confirm']);
-    Route::post('/appointments/{appointment}/cancel', [AppointmentController::class, 'cancel']);
-    Route::post('/appointments/{appointment}/complete', [AppointmentController::class, 'complete']);
+        if ($appointment) {
+            // Use real appointment details
+            $invoiceNumber = str_pad($appointment->id, 4, '0', STR_PAD_LEFT);
+            $dateValue = method_exists($appointment->appointment_date, 'format')
+                ? $appointment->appointment_date->format('Y-m-d')
+                : (string)$appointment->appointment_date;
 
-    // Prescription routes
-    Route::get('/prescriptions', [PrescriptionController::class, 'index']);
-    Route::post('/prescriptions', [PrescriptionController::class, 'store']);
-    Route::get('/prescriptions/{prescription}', [PrescriptionController::class, 'show']);
-    Route::put('/prescriptions/{prescription}', [PrescriptionController::class, 'update']);
-    Route::delete('/prescriptions/{prescription}', [PrescriptionController::class, 'destroy']);
-    Route::get('/prescriptions/patient/{patientId}', [PrescriptionController::class, 'getByPatient']);
+            $data = [
+                'invoice_no' => $invoiceNumber,
+                'date' => $dateValue,
+                'sales_type' => 'cash',
+                'customer_name' => $appointment->patient->name,
+                'tin' => 'N/A',
+                'address' => $appointment->patient->address ?? 'N/A',
+                'items' => [
+                    [
+                        'description' => 'Eye Examination',
+                        'qty' => 1,
+                        'unit_price' => $baseAmount,
+                        'amount' => $baseAmount
+                    ]
+                ],
+                'total_sales' => $baseAmount,
+                'vatable_sales' => $vatableAmount,
+                'less_vat' => $vatAmount,
+                'add_vat' => $vatAmount,
+                'zero_rated_sales' => 0.00,
+                'net_of_vat' => $vatableAmount,
+                'vat_exempt_sales' => 0.00,
+                'discount' => 0.00,
+                'withholding_tax' => 0.00,
+                'total_due' => $baseAmount
+            ];
+        } else {
+            // Fallback sample data when appointment does not exist
+            $invoiceNumber = str_pad($appointmentId, 4, '0', STR_PAD_LEFT);
+            $data = [
+                'invoice_no' => $invoiceNumber,
+                'date' => date('Y-m-d'),
+                'sales_type' => 'cash',
+                'customer_name' => 'Sample Customer',
+                'tin' => 'N/A',
+                'address' => 'N/A',
+                'items' => [
+                    [
+                        'description' => 'Eye Examination',
+                        'qty' => 1,
+                        'unit_price' => $baseAmount,
+                        'amount' => $baseAmount
+                    ]
+                ],
+                'total_sales' => $baseAmount,
+                'vatable_sales' => $vatableAmount,
+                'less_vat' => $vatAmount,
+                'add_vat' => $vatAmount,
+                'zero_rated_sales' => 0.00,
+                'net_of_vat' => $vatableAmount,
+                'vat_exempt_sales' => 0.00,
+                'discount' => 0.00,
+                'withholding_tax' => 0.00,
+                'total_due' => $baseAmount
+            ];
+        }
 
-    // Notification routes
-    Route::get('/notifications', [NotificationController::class, 'index']);
-    Route::post('/notifications/mark-read', [NotificationController::class, 'markAsRead']);
-    Route::put('/notifications/mark-all-read', [NotificationController::class, 'markAllAsRead']);
-    Route::post('/notifications/eyewear-condition', [NotificationController::class, 'sendEyewearConditionNotification']);
+        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('pdf.receipt', $data);
+        return $pdf->download('receipt_' . $data['invoice_no'] . '.pdf');
 
-    // Eyewear reminder routes
-    Route::get('/eyewear/reminders', [EyewearReminderController::class, 'getReminders']);
-    Route::post('/eyewear/{id}/condition-form', [EyewearReminderController::class, 'submitConditionForm']);
-    Route::post('/eyewear/{id}/set-appointment', [EyewearReminderController::class, 'setAppointment']);
+    } catch (\Throwable $e) {
+        return response()->json(['error' => 'Failed to generate PDF', 'message' => $e->getMessage()], 500);
+    }
+});
 
-    // Branch contact routes
-    Route::get('/branch-contacts', [BranchContactController::class, 'index']);
-    Route::get('/branch-contacts/{branchId}', [BranchContactController::class, 'show']);
+// Transaction routes (backend compatibility layer for frontend expectations)
+Route::middleware('auth:sanctum')->group(function () {
+    // Main transaction CRUD
+    Route::get('transactions', [TransactionsController::class, 'index']);
+    Route::get('transactions/{id}', [TransactionsController::class, 'show']);
+    Route::post('transactions', [TransactionsController::class, 'store']);
+    Route::post('transactions/{id}/finalize', [TransactionsController::class, 'finalize']);
 
-    // Glass order routes
-    Route::get('/glass-orders', [GlassOrderController::class, 'index']);
-    Route::post('/glass-orders', [GlassOrderController::class, 'store']);
-    Route::get('/glass-orders/{id}', [GlassOrderController::class, 'show']);
-    Route::put('/glass-orders/{id}', [GlassOrderController::class, 'update']);
-    Route::get('/glass-orders/patient/{patientId}', [GlassOrderController::class, 'getByPatient']);
-    Route::post('/glass-orders/{id}/send-to-manufacturer', [GlassOrderController::class, 'markAsSentToManufacturer']);
+    // Customer route
+    Route::get('customer/transactions', [TransactionsController::class, 'getCustomerTransactions']);
 
-    // Report routes
-    Route::get('/reports/analytics/pdf', [App\Http\Controllers\ReportController::class, 'generateAnalyticsReport']);
-    Route::get('/branch-contacts/my-branch', [BranchContactController::class, 'getMyBranchContact']);
-    Route::post('/branch-contacts', [BranchContactController::class, 'store']);
-    Route::put('/branch-contacts/{id}', [BranchContactController::class, 'update']);
-    Route::delete('/branch-contacts/{id}', [BranchContactController::class, 'destroy']);
+    // Admin analytics
+    Route::get('admin/transactions/analytics', [TransactionsController::class, 'getAnalytics']);
 
-    Route::get('/schedules', [ScheduleController::class, 'index']);
-    Route::get('/schedules/doctor/{doctorId}', [ScheduleController::class, 'getDoctorSchedule']);
-    Route::get('/schedules/weekly', [ScheduleController::class, 'getWeeklySchedule']);
+    // Receipt download
+    Route::get('transactions/{id}/receipt/download', [TransactionsController::class, 'downloadReceipt']);
 
-    Route::get('/patients', [PatientController::class, 'index']);
+    // Legacy routes
+    Route::get('transactions/linked', [TransactionsController::class, 'getLinkedTransactions']);
+    Route::post('transactions/complete', [TransactionsController::class, 'completeTransaction']);
 
-    Route::post('/upload/image', [ImageUploadController::class, 'uploadImage']);
-    Route::post('/upload/images', [ImageUploadController::class, 'uploadMultiple']);
-    // Intelligent bulk upload from ZIP (AI analyzer)
-    Route::post('/intelligent-bulk-upload', [\App\Http\Controllers\IntelligentBulkUploadController::class, 'upload']);
-
-    Route::get('/transactions', [TransactionController::class, 'index']);
-    Route::post('/transactions', [TransactionController::class, 'store']);
-    Route::get('/transactions/patients', [TransactionController::class, 'getPatientTransactions']);
-
-    Route::get('/receipts', [ReceiptController::class, 'index']);
-    Route::post('/receipts', [ReceiptController::class, 'store']);
-    Route::get('/receipts/{receipt}', [ReceiptController::class, 'show']);
-    Route::get('/receipts/{receipt}/download', [ReceiptController::class, 'downloadReceipt']);
-    Route::get('/customers/{customerId}/receipts', [ReceiptController::class, 'getByCustomer']);
-
-    // Feedback routes
-    Route::get('/feedback', [FeedbackController::class, 'index']);
-    Route::post('/feedback', [FeedbackController::class, 'store']);
-    Route::get('/feedback/available-appointments', [FeedbackController::class, 'getAvailableAppointments']);
-    Route::get('/admin/feedback/analytics', [FeedbackController::class, 'getAnalytics']);
-    Route::get('/feedback/{feedback}', [FeedbackController::class, 'show']);
-    Route::put('/feedback/{feedback}', [FeedbackController::class, 'update']);
-    Route::delete('/feedback/{feedback}', [FeedbackController::class, 'destroy']);
-    Route::get('/customers/{customerId}/feedback', [FeedbackController::class, 'getByCustomer']);
-
-    // Staff schedule routes
-    Route::get('/staff-schedules', [StaffScheduleController::class, 'index']);
-    Route::post('/staff-schedules', [StaffScheduleController::class, 'store']);
-    Route::get('/staff-schedules/{schedule}', [StaffScheduleController::class, 'show']);
-    Route::put('/staff-schedules/{schedule}', [StaffScheduleController::class, 'update']);
-    Route::delete('/staff-schedules/{schedule}', [StaffScheduleController::class, 'destroy']);
-
-    // Restock request routes
-    Route::get('/restock-requests', [RestockRequestController::class, 'index']);
-    Route::post('/restock-requests', [RestockRequestController::class, 'store']);
-    Route::get('/restock-requests/{request}', [RestockRequestController::class, 'show']);
-    Route::put('/restock-requests/{request}', [RestockRequestController::class, 'update']);
-    Route::delete('/restock-requests/{request}', [RestockRequestController::class, 'destroy']);
-
-    // Reservation routes
-    Route::get('/reservations', [ReservationController::class, 'index']);
-    Route::post('/reservations', [ReservationController::class, 'store']);
-    Route::get('/reservations/{reservation}', [ReservationController::class, 'show']);
-    Route::put('/reservations/{reservation}', [ReservationController::class, 'update']);
-    Route::delete('/reservations/{reservation}', [ReservationController::class, 'destroy']);
-    Route::put('/reservations/{reservation}/approve', [ReservationController::class, 'approve']);
-    Route::put('/reservations/{reservation}/reject', [ReservationController::class, 'reject']);
-
-    // Admin user management routes
-    Route::post('/admin/users', [AuthController::class, 'createUser']);
-    Route::get('/admin/users', [AuthController::class, 'getAllUsers']);
-    Route::put('/admin/users/{id}', [AuthController::class, 'updateUser']);
-    Route::delete('/admin/users/{id}', [AuthController::class, 'deleteUser']);
-    Route::post('/admin/users/{id}/approve', [AuthController::class, 'approveUser']);
-    Route::post('/admin/users/{id}/reject', [AuthController::class, 'rejectUser']);
-
+    // Patients with transaction data
+    Route::get('transactions/patients', [TransactionsController::class, 'getPatients']);
 });

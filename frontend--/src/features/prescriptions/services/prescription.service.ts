@@ -1,15 +1,4 @@
-import axios from 'axios';
-
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
-
-// Create axios instance with default config
-const apiClient = axios.create({
-  baseURL: API_BASE_URL,
-  headers: {
-    'Content-Type': 'application/json',
-    'Accept': 'application/json',
-  },
-});
+import apiClient from '@/api/axiosClient';
 
 // Add request interceptor to include auth token
 apiClient.interceptors.request.use((config) => {
@@ -102,34 +91,32 @@ export interface UpdatePrescriptionRequest extends Partial<CreatePrescriptionReq
 }
 
 export const getPrescriptions = (params?: any) => {
-  return apiClient.get<{ data: Prescription[] }>('/api-mysql.php/prescriptions', { params });
+  return apiClient.get<{ data: Prescription[] }>('/prescriptions', { params });
 };
 
 export const getPrescription = (id: string) => {
-  return apiClient.get<Prescription>(`/api-mysql.php/prescriptions/${id}`);
+  return apiClient.get<Prescription>(`/prescriptions/${id}`);
 };
 
 export const createPrescription = (data: CreatePrescriptionRequest) => {
-  return apiClient.post<Prescription>('/api-mysql.php/prescriptions', data);
+  return apiClient.post<Prescription>('/prescriptions', data);
 };
 
 export const updatePrescription = (id: string, data: UpdatePrescriptionRequest) => {
-  return apiClient.put<Prescription>(`/api-mysql.php/prescriptions/${id}`, data);
+  return apiClient.put<Prescription>(`/prescriptions/${id}`, data);
 };
 
 export const deletePrescription = (id: string) => {
-  return apiClient.delete(`/api-mysql.php/prescriptions/${id}`);
+  return apiClient.delete(`/prescriptions/${id}`);
 };
 
 export const getPatientPrescriptions = (patientId: number) => {
-  return apiClient.get<Prescription[]>(`/api-mysql.php/prescriptions/patient/${patientId}`);
+  return apiClient.get<Prescription[]>(`/prescriptions/patient/${patientId}`);
 };
 
 export const downloadPrescriptionPdf = async (prescriptionId: number) => {
-  const token = sessionStorage.getItem('auth_token');
-  const url = `${API_BASE_URL}/api-mysql.php/pdf/prescriptions/${prescriptionId}`;
-  const resp = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
-  const blob = await resp.blob();
+  const resp = await apiClient.get(`/pdf/prescriptions/${prescriptionId}`, { responseType: 'blob' });
+  const blob = resp.data as Blob;
   const href = window.URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = href;
@@ -141,14 +128,12 @@ export const downloadPrescriptionPdf = async (prescriptionId: number) => {
 };
 
 export const listCustomerReceipts = async () => {
-  return apiClient.get(`${API_BASE_URL}/api-mysql.php/pdf/receipts/customer`);
+  return apiClient.get(`/pdf/receipts/customer`);
 };
 
 export const downloadReceiptPdf = async (appointmentId: number) => {
-  const token = sessionStorage.getItem('auth_token');
-  const url = `${API_BASE_URL}/api-mysql.php/pdf/receipts/${appointmentId}`;
-  const resp = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
-  const blob = await resp.blob();
+  const resp = await apiClient.get(`/pdf/receipts/${appointmentId}`, { responseType: 'blob' });
+  const blob = resp.data as Blob;
   const href = window.URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = href;
@@ -182,12 +167,13 @@ export const prescriptionService = {
     await deletePrescription(id);
   },
   getPatientPrescriptions: async (patientId: number) => {
-    const response = await getPatientPrescriptions(patientId);
+    const response = await getPatientPrescriptions(patientId) as any;
     // Handle both paginated and non-paginated responses
-    if (response.data.data) {
-      return response.data.data; // Paginated response
-    } else if (Array.isArray(response.data)) {
-      return response.data; // Direct array response
+    const payload = response?.data ?? response;
+    if (payload && payload.data) {
+      return payload.data; // Paginated response
+    } else if (Array.isArray(payload)) {
+      return payload; // Direct array response
     } else {
       return []; // Fallback
     }

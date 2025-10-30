@@ -1,6 +1,4 @@
-import axios from 'axios';
-
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api';
+import api from '../api/axiosClient';
 
 export interface EyewearConditionAssessment {
   customer_id: number;
@@ -43,13 +41,9 @@ export interface EyewearConditionReport {
 export const sendEyewearConditionNotification = async (
   assessment: EyewearConditionAssessment
 ): Promise<{ message: string; notification_id: string }> => {
-  const response = await axios.post(`${API_BASE_URL}/notifications/eyewear-condition`, assessment, {
-    headers: {
-      'Authorization': `Bearer ${sessionStorage.getItem('auth_token')}`,
-      'Content-Type': 'application/json'
-    }
-  });
-  
+  const token = sessionStorage.getItem('auth_token');
+  if (!token) throw new Error('No authentication token found');
+  const response = await api.post('/notifications/eyewear-condition', assessment);
   return response.data;
 };
 
@@ -60,17 +54,10 @@ export const getEyewearConditionNotifications = async (
   customerId?: number
 ): Promise<EyewearConditionNotification[]> => {
   const params = customerId ? { customer_id: customerId } : {};
-  
-  const response = await axios.get(`${API_BASE_URL}/notifications`, {
-    params: {
-      ...params,
-      type: 'eyewear_condition'
-    },
-    headers: {
-      'Authorization': `Bearer ${sessionStorage.getItem('auth_token')}`
-    }
-  });
-  
+  const token = sessionStorage.getItem('auth_token');
+  if (!token) throw new Error('No authentication token found');
+
+  const response = await api.get('/notifications', { params: { ...params, type: 'eyewear_condition' } });
   return response.data.notifications || [];
 };
 
@@ -78,12 +65,9 @@ export const getEyewearConditionNotifications = async (
  * Get eyewear condition reports for admin
  */
 export const getEyewearConditionReports = async (): Promise<EyewearConditionReport> => {
-  const response = await axios.get(`${API_BASE_URL}/notifications/eyewear-condition/reports`, {
-    headers: {
-      'Authorization': `Bearer ${sessionStorage.getItem('auth_token')}`
-    }
-  });
-  
+  const token = sessionStorage.getItem('auth_token');
+  if (!token) throw new Error('No authentication token found');
+  const response = await api.get('/notifications/eyewear-condition/reports');
   return response.data;
 };
 
@@ -91,14 +75,9 @@ export const getEyewearConditionReports = async (): Promise<EyewearConditionRepo
  * Mark eyewear condition notification as read
  */
 export const markEyewearNotificationAsRead = async (notificationId: string): Promise<void> => {
-  await axios.post(`${API_BASE_URL}/notifications/mark-read`, {
-    notification_id: notificationId
-  }, {
-    headers: {
-      'Authorization': `Bearer ${sessionStorage.getItem('auth_token')}`,
-      'Content-Type': 'application/json'
-    }
-  });
+  const token = sessionStorage.getItem('auth_token');
+  if (!token) throw new Error('No authentication token found');
+  await api.post('/notifications/mark-read', { notification_id: notificationId });
 };
 
 /**
@@ -110,11 +89,8 @@ export const getCustomersForAssessment = async (): Promise<Array<{
   email: string;
   recent_eyewear?: string;
 }>> => {
-  const response = await axios.get(`${API_BASE_URL}/customers`, {
-    headers: {
-      'Authorization': `Bearer ${sessionStorage.getItem('auth_token')}`
-    }
-  });
-  
+  const token = sessionStorage.getItem('auth_token');
+  if (!token) throw new Error('No authentication token found');
+  const response = await api.get('/customers');
   return response.data.customers || [];
 };

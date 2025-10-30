@@ -20,6 +20,13 @@ export default defineConfig(async ({ mode }) => {
       host: "::",
       port: 5173,
       strictPort: false, // Allow Vite to use the next available port if 5173 is busy
+      proxy: {
+        '/api': {
+          target: 'http://localhost:8000',
+          changeOrigin: true,
+          secure: false
+        }
+      }
     },
     plugins: [
       react(),

@@ -27,102 +27,105 @@ class ReceiptSeeder extends Seeder
 
         $sampleReceipts = [
             [
-                'customer_id' => $customers->first()->id,
+                'patient_id' => $customers->first()->id,
                 'branch_id' => $branches->first()->id,
                 'appointment_id' => $appointments->first()->id ?? null,
+                'customer_name' => 'John Doe',
                 'items' => [
                     [
                         'description' => 'Comprehensive Eye Exam',
-                        'quantity' => 1,
-                        'price' => 150.00,
-                        'total' => 150.00
+                        'qty' => 1,
+                        'unit_price' => 150.00,
+                        'amount' => 150.00
                     ],
                     [
                         'description' => 'Progressive Lenses',
-                        'quantity' => 1,
-                        'price' => 350.00,
-                        'total' => 350.00
+                        'qty' => 1,
+                        'unit_price' => 350.00,
+                        'amount' => 350.00
                     ],
                     [
                         'description' => 'Anti-Reflective Coating',
-                        'quantity' => 1,
-                        'price' => 85.00,
-                        'total' => 85.00
+                        'qty' => 1,
+                        'unit_price' => 85.00,
+                        'amount' => 85.00
                     ]
                 ],
-                'subtotal' => 585.00,
-                'tax_amount' => 46.80,
-                'total_amount' => 631.80,
-                'payment_method' => 'card',
-                'payment_status' => 'paid',
-                'notes' => 'Regular checkup with new prescription'
+                'total_sales' => 585.00,
+                'vatable_sales' => 535.32,
+                'add_vat' => 49.68,
+                'total_due' => 585.00,
+                'sales_type' => 'charge',
+                'date' => now()->subDays(5),
             ],
             [
-                'customer_id' => $customers->count() > 1 ? $customers->get(1)->id : $customers->first()->id,
+                'patient_id' => $customers->count() > 1 ? $customers->get(1)->id : $customers->first()->id,
                 'branch_id' => $branches->count() > 1 ? $branches->get(1)->id : $branches->first()->id,
                 'appointment_id' => $appointments->count() > 1 ? $appointments->get(1)->id : null,
+                'customer_name' => 'Jane Smith',
                 'items' => [
                     [
                         'description' => 'Contact Lens Fitting',
-                        'quantity' => 1,
-                        'price' => 75.00,
-                        'total' => 75.00
+                        'qty' => 1,
+                        'unit_price' => 75.00,
+                        'amount' => 75.00
                     ],
                     [
                         'description' => 'Daily Contact Lenses (3-month supply)',
-                        'quantity' => 1,
-                        'price' => 120.00,
-                        'total' => 120.00
+                        'qty' => 1,
+                        'unit_price' => 120.00,
+                        'amount' => 120.00
                     ]
                 ],
-                'subtotal' => 195.00,
-                'tax_amount' => 15.60,
-                'total_amount' => 210.60,
-                'payment_method' => 'insurance',
-                'payment_status' => 'paid',
-                'notes' => 'Contact lens consultation and supply'
+                'total_sales' => 195.00,
+                'vatable_sales' => 178.90,
+                'add_vat' => 16.10,
+                'total_due' => 195.00,
+                'sales_type' => 'cash',
+                'date' => now()->subDays(10),
             ],
             [
-                'customer_id' => $customers->count() > 2 ? $customers->get(2)->id : $customers->first()->id,
+                'patient_id' => $customers->count() > 2 ? $customers->get(2)->id : $customers->first()->id,
                 'branch_id' => $branches->count() > 2 ? $branches->get(2)->id : $branches->first()->id,
                 'appointment_id' => $appointments->count() > 2 ? $appointments->get(2)->id : null,
+                'customer_name' => 'Mike Johnson',
                 'items' => [
                     [
                         'description' => 'Emergency Eye Consultation',
-                        'quantity' => 1,
-                        'price' => 200.00,
-                        'total' => 200.00
+                        'qty' => 1,
+                        'unit_price' => 200.00,
+                        'amount' => 200.00
                     ],
                     [
                         'description' => 'Eye Drops (Prescription)',
-                        'quantity' => 2,
-                        'price' => 25.00,
-                        'total' => 50.00
+                        'qty' => 2,
+                        'unit_price' => 25.00,
+                        'amount' => 50.00
                     ]
                 ],
-                'subtotal' => 250.00,
-                'tax_amount' => 20.00,
-                'total_amount' => 270.00,
-                'payment_method' => 'cash',
-                'payment_status' => 'paid',
-                'notes' => 'Emergency consultation for eye irritation'
+                'total_sales' => 250.00,
+                'vatable_sales' => 229.36,
+                'add_vat' => 20.64,
+                'total_due' => 250.00,
+                'sales_type' => 'charge',
+                'date' => now()->subDays(15),
             ]
         ];
 
         foreach ($sampleReceipts as $receiptData) {
             Receipt::create([
-                'receipt_number' => Receipt::generateReceiptNumber(),
-                'customer_id' => $receiptData['customer_id'],
+                'invoice_no' => Receipt::generateReceiptNumber(),
+                'patient_id' => $receiptData['patient_id'],
                 'branch_id' => $receiptData['branch_id'],
                 'appointment_id' => $receiptData['appointment_id'],
-                'subtotal' => $receiptData['subtotal'],
-                'tax_amount' => $receiptData['tax_amount'],
-                'total_amount' => $receiptData['total_amount'],
-                'payment_method' => $receiptData['payment_method'],
-                'payment_status' => $receiptData['payment_status'],
-                'notes' => $receiptData['notes'],
+                'customer_name' => $receiptData['customer_name'],
                 'items' => $receiptData['items'],
-                'created_at' => now()->subDays(rand(1, 30)),
+                'total_sales' => $receiptData['total_sales'],
+                'vatable_sales' => $receiptData['vatable_sales'],
+                'add_vat' => $receiptData['add_vat'],
+                'total_due' => $receiptData['total_due'],
+                'sales_type' => $receiptData['sales_type'],
+                'date' => $receiptData['date'],
             ]);
         }
 

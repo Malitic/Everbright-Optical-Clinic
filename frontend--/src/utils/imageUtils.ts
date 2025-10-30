@@ -9,22 +9,30 @@
  */
 export const getStorageUrl = (path: string): string => {
   if (!path) return '';
-  
+
   // If it's already a full URL, return as is
   if (path.startsWith('http')) {
     return path;
   }
-  
+
   // If it's a base64 data URL, return as is
   if (path.startsWith('data:')) {
     return path;
   }
-  
-  // Get the API base URL and construct the storage URL
-  const apiBaseUrl = import.meta.env.VITE_API_URL || import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000/api-mysql.php';
-  const baseUrl = apiBaseUrl.replace('/api-mysql.php', '');
+
+  // Special handling for uploads directory - serve directly from root
+  if (path.startsWith('uploads/') || path.startsWith('products/')) {
+    const apiBaseUrl = import.meta.env.VITE_API_URL || import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000/api';
+    const baseUrl = apiBaseUrl.replace(/\/api-mysql\.php$|\/api$/,'');
+    const cleanPath = path.startsWith('/') ? path.substring(1) : path;
+    return `${baseUrl}/${cleanPath}`;
+  }
+
+  // For other storage paths, use Laravel's storage URL
+  const apiBaseUrl = import.meta.env.VITE_API_URL || import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000/api';
+  const baseUrl = apiBaseUrl.replace(/\/api-mysql\.php$|\/api$/,'');
   const cleanPath = path.startsWith('/') ? path.substring(1) : path;
-  
+
   return `${baseUrl}/storage/${cleanPath}`;
 };
 

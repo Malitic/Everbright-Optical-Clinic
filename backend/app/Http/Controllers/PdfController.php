@@ -6,11 +6,13 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
 use Barryvdh\DomPDF\Facade\Pdf;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use App\Models\Appointment;
 use App\Models\Prescription;
 use App\Models\Reservation;
 use App\Models\Product;
 use App\Models\Branch;
+use App\Models\Receipt;
 
 class PdfController extends Controller
 {
@@ -23,58 +25,42 @@ class PdfController extends Controller
             $user = Auth::user();
             $appointment = Appointment::with(['patient', 'optometrist', 'branch'])->findOrFail($appointmentId);
             
-            // Handle role format
-            $userRole = null;
-            if (is_object($user->role)) {
-                $userRole = $user->role->value ?? (string)$user->role;
-            } else {
-                $userRole = (string)$user->role;
-            }
-
             // Check if user can access this appointment
-            if ($userRole === 'customer' && $appointment->patient_id !== $user->id) {
+            if ($user->role->value === 'customer' && $appointment->patient_id !== $user->id) {
                 return response()->json(['message' => 'Unauthorized'], 403);
             }
             
-            if (in_array($userRole, ['staff', 'optometrist']) && $appointment->branch_id !== $user->branch_id) {
+            if (in_array($user->role->value, ['staff', 'optometrist']) && $appointment->branch_id !== $user->branch_id) {
                 return response()->json(['message' => 'Unauthorized'], 403);
             }
 
-            // Load stored receipt data if available
-            $receipt = \App\Models\Receipt::with('items')->where('appointment_id', $appointment->id)->first();
-
-            // Generate invoice number in format like 0601
-            $invoiceNumber = str_pad($appointment->id, 4, '0', STR_PAD_LEFT);
+            // Try to find a saved receipt for this appointment
+            $receipt = Receipt::where('appointment_id', $appointment->id)->latest()->first();
 
             if ($receipt) {
                 $data = [
-                    'invoice_no' => $invoiceNumber,
+                    'invoice_no' => $receipt->invoice_no,
                     'date' => $receipt->date->format('Y-m-d'),
                     'sales_type' => $receipt->sales_type,
                     'customer_name' => $receipt->customer_name,
                     'tin' => $receipt->tin ?? 'N/A',
-                    'address' => $receipt->address ?? ($appointment->patient->address ?? 'N/A'),
-                    'items' => $receipt->items->map(function ($item) {
-                        return [
-                            'description' => $item->description,
-                            'qty' => $item->qty,
-                            'unit_price' => (float) $item->unit_price,
-                            'amount' => (float) $item->amount,
-                        ];
-                    })->toArray(),
-                    'vatable_sales' => (float) $receipt->vatable_sales,
-                    'less_vat' => (float) $receipt->less_vat,
-                    'add_vat' => (float) $receipt->add_vat,
-                    'zero_rated_sales' => (float) $receipt->zero_rated_sales,
-                    'net_of_vat' => (float) $receipt->net_of_vat,
-                    'vat_exempt_sales' => (float) $receipt->vat_exempt_sales,
-                    'discount' => (float) $receipt->discount,
-                    'withholding_tax' => (float) $receipt->withholding_tax,
-                    'total_due' => (float) $receipt->total_due,
+                    'address' => $receipt->address ?? 'N/A',
+                    'items' => $receipt->items ?? [],
+                    'total_sales' => (float)$receipt->total_sales,
+                    'vatable_sales' => (float)$receipt->vatable_sales,
+                    'less_vat' => (float)$receipt->less_vat,
+                    'add_vat' => (float)$receipt->add_vat,
+                    'zero_rated_sales' => (float)$receipt->zero_rated_sales,
+                    'net_of_vat' => (float)$receipt->net_of_vat,
+                    'vat_exempt_sales' => (float)$receipt->vat_exempt_sales,
+                    'discount' => (float)$receipt->discount,
+                    'withholding_tax' => (float)$receipt->withholding_tax,
+                    'total_due' => (float)$receipt->total_due,
                 ];
             } else {
-                // Fallback minimal document
-                $baseAmount = 500.00;
+                // Fallback to basic template if no saved receipt exists
+                $invoiceNumber = str_pad($appointment->id, 4, '0', STR_PAD_LEFT);
+                $baseAmount = 500.00; // default
                 $vatRate = 0.12;
                 $vatableAmount = $baseAmount / (1 + $vatRate);
                 $vatAmount = $baseAmount - $vatableAmount;
@@ -91,6 +77,7 @@ class PdfController extends Controller
                         'unit_price' => $baseAmount,
                         'amount' => $baseAmount,
                     ]],
+                    'total_sales' => $baseAmount,
                     'vatable_sales' => $vatableAmount,
                     'less_vat' => $vatAmount,
                     'add_vat' => $vatAmount,
@@ -103,30 +90,78 @@ class PdfController extends Controller
                 ];
             }
 
-            // Generate PDF with proper configuration
-            $pdf = Pdf::loadView('pdf.receipt', $data)
-                ->setPaper('a4', 'portrait')
-                ->setOption('isHtml5ParserEnabled', true)
-                ->setOption('isRemoteEnabled', true);
+            $pdf = Pdf::loadView('pdf.receipt', $data);
+
+            // Prepare save path; ensure directory exists
+            $filename = 'receipt_' . $data['invoice_no'] . '_' . time() . '.pdf';
+            $dir = storage_path('app/receipts');
+            if (!is_dir($dir)) {
+                @mkdir($dir, 0777, true);
+            }
             
-            // Generate filename
-            $filename = 'receipt_' . $invoiceNumber . '_' . time() . '.pdf';
+            // Try saving but don't fail the download if save has issues
+            try {
+                $pdf->save($dir . DIRECTORY_SEPARATOR . $filename);
+            } catch (\Throwable $e) {
+                \Log::warning('Failed to save receipt PDF: ' . $e->getMessage());
+            }
+
+            // Always return the download stream
+            return $pdf->download($filename);
             
-            // Generate PDF output
-            $output = $pdf->output();
-            
-            // Set proper headers for PDF download
-            return response($output, 200, [
-                'Content-Type' => 'application/pdf',
-                'Content-Disposition' => 'inline; filename="' . $filename . '"',
-                'Content-Length' => strlen($output),
-                'Accept-Ranges' => 'bytes',
-                'Cache-Control' => 'public, must-revalidate, max-age=0',
-                'Pragma' => 'public',
-            ]);
-            
+        } catch (ModelNotFoundException $e) {
+            return response()->json(['error' => 'Appointment not found'], 404);
         } catch (\Exception $e) {
             \Log::error('PDF generation error: ' . $e->getMessage());
+            return response()->json(['error' => 'Failed to generate PDF: ' . $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Generate and download receipt PDF by receipt id (uses saved data only)
+     */
+    public function downloadReceiptById($receiptId)
+    {
+        try {
+            $user = Auth::user();
+            $receipt = Receipt::findOrFail($receiptId);
+
+            // Basic authorization: customers can only access their own; staff/optometrists limited to branch; admins allowed
+            if ($user->role->value === 'customer' && $receipt->patient_id !== $user->id) {
+                return response()->json(['message' => 'Unauthorized'], 403);
+            }
+
+            if (in_array($user->role->value, ['staff', 'optometrist']) && $receipt->branch_id !== $user->branch_id) {
+                return response()->json(['message' => 'Unauthorized'], 403);
+            }
+
+            $data = [
+                'invoice_no' => $receipt->invoice_no,
+                'date' => optional($receipt->date)->format('Y-m-d') ?? date('Y-m-d'),
+                'sales_type' => $receipt->sales_type,
+                'customer_name' => $receipt->customer_name,
+                'tin' => $receipt->tin ?? 'N/A',
+                'address' => $receipt->address ?? 'N/A',
+                'items' => $receipt->items ?? [],
+                'total_sales' => (float)$receipt->total_sales,
+                'vatable_sales' => (float)$receipt->vatable_sales,
+                'less_vat' => (float)$receipt->less_vat,
+                'add_vat' => (float)$receipt->add_vat,
+                'zero_rated_sales' => (float)$receipt->zero_rated_sales,
+                'net_of_vat' => (float)$receipt->net_of_vat,
+                'vat_exempt_sales' => (float)$receipt->vat_exempt_sales,
+                'discount' => (float)$receipt->discount,
+                'withholding_tax' => (float)$receipt->withholding_tax,
+                'total_due' => (float)$receipt->total_due,
+            ];
+
+            $pdf = Pdf::loadView('pdf.receipt', $data);
+            $filename = 'receipt_' . $data['invoice_no'] . '_' . time() . '.pdf';
+            return $pdf->download($filename);
+        } catch (ModelNotFoundException $e) {
+            return response()->json(['error' => 'Receipt not found'], 404);
+        } catch (\Throwable $e) {
+            \Log::error('PDF generation error (by id): ' . $e->getMessage());
             return response()->json(['error' => 'Failed to generate PDF: ' . $e->getMessage()], 500);
         }
     }

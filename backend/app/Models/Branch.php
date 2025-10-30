@@ -53,14 +53,6 @@ class Branch extends Model
     }
 
     /**
-     * Get all transactions for this branch
-     */
-    public function transactions(): HasMany
-    {
-        return $this->hasMany(Transaction::class);
-    }
-
-    /**
      * Scope to get only active branches
      */
     public function scopeActive($query)

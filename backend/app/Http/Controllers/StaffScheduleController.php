@@ -24,14 +24,7 @@ class StaffScheduleController extends Controller
         $user = Auth::user();
         
         // Check authorization - only admins can see all schedules
-        $userRole = null;
-        if (is_object($user->role)) {
-            $userRole = $user->role->value ?? (string)$user->role;
-        } else {
-            $userRole = (string)$user->role;
-        }
-        
-        if (!$user || $userRole !== 'admin') {
+        if (!$user || $user->role->value !== 'admin') {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 
@@ -59,17 +52,10 @@ class StaffScheduleController extends Controller
         $user = Auth::user();
         
         // Check authorization
-        $userRole = null;
-        if (is_object($user->role)) {
-            $userRole = $user->role->value ?? (string)$user->role;
-        } else {
-            $userRole = (string)$user->role;
-        }
-        
         if (!$user || 
-            ($userRole !== 'admin' && 
-             $userRole !== 'staff' && 
-             $userRole !== 'optometrist' && 
+            ($user->role->value !== 'admin' && 
+             $user->role->value !== 'staff' && 
+             $user->role->value !== 'optometrist' && 
              $user->branch_id != $branchId)) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
@@ -138,30 +124,16 @@ class StaffScheduleController extends Controller
         $user = Auth::user();
         
         // Check authorization
-        $userRole = null;
-        if (is_object($user->role)) {
-            $userRole = $user->role->value ?? (string)$user->role;
-        } else {
-            $userRole = (string)$user->role;
-        }
-        
         if (!$user || 
-            ($userRole !== 'admin' && 
-             $userRole !== 'staff' && 
-             $userRole !== 'optometrist' && 
+            ($user->role->value !== 'admin' && 
+             $user->role->value !== 'staff' && 
+             $user->role->value !== 'optometrist' && 
              $user->id != $staffId)) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 
         $staff = User::find($staffId);
-        $staffRole = null;
-        if (is_object($staff->role)) {
-            $staffRole = $staff->role->value ?? (string)$staff->role;
-        } else {
-            $staffRole = (string)$staff->role;
-        }
-        
-        if (!$staff || !in_array($staffRole, ['optometrist', 'staff'])) {
+        if (!$staff || !in_array($staff->role->value, ['optometrist', 'staff'])) {
             return response()->json(['message' => 'Staff member not found'], 404);
         }
 
@@ -176,7 +148,7 @@ class StaffScheduleController extends Controller
                 'id' => $staff->id,
                 'name' => $staff->name,
                 'email' => $staff->email,
-                'role' => $staffRole,
+                'role' => $staff->role->value,
                 'branch' => $staff->branch ? [
                     'id' => $staff->branch->id,
                     'name' => $staff->branch->name,
@@ -214,14 +186,7 @@ class StaffScheduleController extends Controller
     {
         $user = Auth::user();
         
-        $userRole = null;
-        if (is_object($user->role)) {
-            $userRole = $user->role->value ?? (string)$user->role;
-        } else {
-            $userRole = (string)$user->role;
-        }
-        
-        if (!$user || $userRole !== 'admin') {
+        if (!$user || $user->role->value !== 'admin') {
             return response()->json(['message' => 'Unauthorized. Admin access required.'], 403);
         }
 
@@ -244,14 +209,7 @@ class StaffScheduleController extends Controller
 
         // Verify staff member exists and has correct role
         $staff = User::find($request->staff_id);
-        $staffRole = null;
-        if (is_object($staff->role)) {
-            $staffRole = $staff->role->value ?? (string)$staff->role;
-        } else {
-            $staffRole = (string)$staff->role;
-        }
-        
-        if (!$staff || $staffRole !== $request->staff_role) {
+        if (!$staff || $staff->role->value !== $request->staff_role) {
             return response()->json(['message' => 'Invalid staff member or role mismatch'], 422);
         }
 
@@ -327,14 +285,7 @@ class StaffScheduleController extends Controller
     {
         $user = Auth::user();
         
-        $userRole = null;
-        if (is_object($user->role)) {
-            $userRole = $user->role->value ?? (string)$user->role;
-        } else {
-            $userRole = (string)$user->role;
-        }
-        
-        if (!$user || $userRole !== 'admin') {
+        if (!$user || $user->role->value !== 'admin') {
             return response()->json(['message' => 'Unauthorized. Admin access required.'], 403);
         }
 
@@ -366,14 +317,7 @@ class StaffScheduleController extends Controller
     {
         $user = Auth::user();
         
-        $userRole = null;
-        if (is_object($user->role)) {
-            $userRole = $user->role->value ?? (string)$user->role;
-        } else {
-            $userRole = (string)$user->role;
-        }
-        
-        if (!$user || !in_array($userRole, ['admin', 'staff', 'optometrist'])) {
+        if (!$user || !in_array($user->role->value, ['admin', 'staff', 'optometrist'])) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 
@@ -393,18 +337,11 @@ class StaffScheduleController extends Controller
         }
 
         $staffMembers = $query->get()->map(function ($staff) {
-            $staffRole = null;
-            if (is_object($staff->role)) {
-                $staffRole = $staff->role->value ?? (string)$staff->role;
-            } else {
-                $staffRole = (string)$staff->role;
-            }
-            
             return [
                 'id' => $staff->id,
                 'name' => $staff->name,
                 'email' => $staff->email,
-                'role' => $staffRole,
+                'role' => $staff->role->value,
                 'branch' => $staff->branch ? [
                     'id' => $staff->branch->id,
                     'name' => $staff->branch->name,
@@ -431,14 +368,7 @@ class StaffScheduleController extends Controller
     {
         $user = Auth::user();
         
-        $userRole = null;
-        if (is_object($user->role)) {
-            $userRole = $user->role->value ?? (string)$user->role;
-        } else {
-            $userRole = (string)$user->role;
-        }
-        
-        if (!$user || !in_array($userRole, ['admin', 'staff', 'optometrist'])) {
+        if (!$user || !in_array($user->role->value, ['admin', 'staff', 'optometrist'])) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 
@@ -466,16 +396,9 @@ class StaffScheduleController extends Controller
         $query = ScheduleChangeRequest::with(['staff', 'branch', 'requester', 'reviewer']);
 
         // Filter based on user role
-        $userRole = null;
-        if (is_object($user->role)) {
-            $userRole = $user->role->value ?? (string)$user->role;
-        } else {
-            $userRole = (string)$user->role;
-        }
-        
-        if ($userRole === 'admin') {
+        if ($user->role->value === 'admin') {
             // Admin can see all requests
-        } elseif (in_array($userRole, ['optometrist', 'staff'])) {
+        } elseif (in_array($user->role->value, ['optometrist', 'staff'])) {
             // Staff can only see their own requests
             $query->where('staff_id', $user->id);
         } else {
@@ -532,14 +455,7 @@ class StaffScheduleController extends Controller
     {
         $user = Auth::user();
         
-        $userRole = null;
-        if (is_object($user->role)) {
-            $userRole = $user->role->value ?? (string)$user->role;
-        } else {
-            $userRole = (string)$user->role;
-        }
-        
-        if (!$user || !in_array($userRole, ['optometrist', 'staff'])) {
+        if (!$user || !in_array($user->role->value, ['optometrist', 'staff'])) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 
@@ -573,7 +489,7 @@ class StaffScheduleController extends Controller
         try {
             $changeRequest = ScheduleChangeRequest::create([
                 'staff_id' => $user->id,
-                'staff_role' => $userRole,
+                'staff_role' => $user->role->value,
                 'day_of_week' => $request->day_of_week,
                 'branch_id' => $request->branch_id,
                 'start_time' => $request->start_time,
@@ -614,14 +530,7 @@ class StaffScheduleController extends Controller
     {
         $user = Auth::user();
         
-        $userRole = null;
-        if (is_object($user->role)) {
-            $userRole = $user->role->value ?? (string)$user->role;
-        } else {
-            $userRole = (string)$user->role;
-        }
-        
-        if (!$user || $userRole !== 'admin') {
+        if (!$user || $user->role->value !== 'admin') {
             return response()->json(['message' => 'Unauthorized. Admin access required.'], 403);
         }
 
@@ -694,14 +603,7 @@ class StaffScheduleController extends Controller
     {
         $user = Auth::user();
         
-        $userRole = null;
-        if (is_object($user->role)) {
-            $userRole = $user->role->value ?? (string)$user->role;
-        } else {
-            $userRole = (string)$user->role;
-        }
-        
-        if (!$user || $userRole !== 'admin') {
+        if (!$user || $user->role->value !== 'admin') {
             return response()->json(['message' => 'Unauthorized. Admin access required.'], 403);
         }
 

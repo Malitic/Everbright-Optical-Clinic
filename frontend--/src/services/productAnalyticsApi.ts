@@ -1,16 +1,4 @@
-import axios from 'axios';
-
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api';
-
-// Include auth token if present (use sessionStorage for consistency)
-axios.interceptors.request.use((config) => {
-  const token = sessionStorage.getItem('auth_token');
-  if (token) {
-    config.headers = config.headers || {};
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  return config;
-});
+import api from '../api/axiosClient';
 
 export interface TopSellingProduct {
   id: number;
@@ -90,7 +78,7 @@ class ProductAnalyticsApi {
     if (filters.branch_id) params.append('branch_id', filters.branch_id.toString());
     if (filters.limit) params.append('limit', filters.limit.toString());
 
-    const response = await axios.get(`${API_BASE_URL}/admin/products/analytics?${params}`);
+    const response = await api.get(`/admin/products/analytics?${params}`);
     return response.data;
   }
 
@@ -103,7 +91,7 @@ class ProductAnalyticsApi {
     if (filters.period) params.append('period', filters.period.toString());
     if (filters.branch_id) params.append('branch_id', filters.branch_id.toString());
 
-    const response = await axios.get(`${API_BASE_URL}/admin/products/category-analytics?${params}`);
+    const response = await api.get(`/admin/products/category-analytics?${params}`);
     return response.data;
   }
 
@@ -115,7 +103,7 @@ class ProductAnalyticsApi {
     
     if (filters.period) params.append('period', filters.period.toString());
 
-    const response = await axios.get(`${API_BASE_URL}/admin/products/low-performing?${params}`);
+    const response = await api.get(`/admin/products/low-performing?${params}`);
     return response.data;
   }
 }

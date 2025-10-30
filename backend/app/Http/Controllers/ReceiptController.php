@@ -2,330 +2,184 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Receipt;
-use App\Models\ReceiptItem;
-use App\Models\Appointment;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Validator;
+use App\Models\Receipt;
+use App\Models\Appointment;
 
 class ReceiptController extends Controller
 {
     public function store(Request $request)
     {
         $user = Auth::user();
-        
-        // Handle role format
-        $userRole = null;
-        if (is_object($user->role)) {
-            $userRole = $user->role->value ?? (string)$user->role;
-        } else {
-            $userRole = (string)$user->role;
-        }
 
-        if (!in_array($userRole, ['staff', 'admin', 'optometrist'])) {
+        if (!$user || !in_array($user->role?->value, ['staff', 'optometrist', 'admin'])) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 
-        $validated = $request->validate([
-            'appointment_id' => 'required|exists:appointments,id',
-            'sales_type' => 'required|in:cash,charge',
+        $rules = [
+            'appointment_id' => 'nullable|exists:appointments,id',
+            'patient_id' => 'required|integer',
+            'branch_id' => 'nullable|integer',
+            'invoice_no' => 'nullable|string',
             'date' => 'required|date',
+            'sales_type' => 'required|in:cash,charge',
             'customer_name' => 'required|string',
             'tin' => 'nullable|string',
             'address' => 'nullable|string',
             'items' => 'required|array|min:1',
             'items.*.description' => 'required|string',
-            'items.*.qty' => 'required|integer|min:1',
+            'items.*.qty' => 'required|numeric|min:0',
             'items.*.unit_price' => 'required|numeric|min:0',
             'items.*.amount' => 'required|numeric|min:0',
-            'totals.vatable_sales' => 'required|numeric|min:0',
-            'totals.vat_amount' => 'required|numeric|min:0',
-            'totals.zero_rated_sales' => 'required|numeric|min:0',
-            'totals.vat_exempt_sales' => 'required|numeric|min:0',
-            'totals.net_of_vat' => 'required|numeric|min:0',
-            'totals.less_vat' => 'required|numeric|min:0',
-            'totals.add_vat' => 'required|numeric|min:0',
-            'totals.discount' => 'required|numeric|min:0',
-            'totals.withholding_tax' => 'required|numeric|min:0',
-            'totals.total_due' => 'required|numeric|min:0',
-        ]);
+            'total_sales' => 'required|numeric',
+            'vatable_sales' => 'required|numeric',
+            'less_vat' => 'required|numeric',
+            'add_vat' => 'required|numeric',
+            'zero_rated_sales' => 'required|numeric',
+            'net_of_vat' => 'required|numeric',
+            'vat_exempt_sales' => 'required|numeric',
+            'discount' => 'required|numeric',
+            'withholding_tax' => 'required|numeric',
+            'total_due' => 'required|numeric',
+        ];
 
-        $appointment = Appointment::findOrFail($validated['appointment_id']);
-        if (in_array($userRole, ['staff', 'optometrist']) && $appointment->branch_id !== $user->branch_id) {
-            return response()->json(['message' => 'Unauthorized'], 403);
+        $validator = \Validator::make($request->all(), $rules);
+        if ($validator->fails()) {
+            return response()->json(['message' => 'Validation failed', 'errors' => $validator->errors()], 422);
         }
 
-        return DB::transaction(function () use ($validated) {
-            $receipt = Receipt::updateOrCreate(
-                ['appointment_id' => $validated['appointment_id']],
-                [
-                    'sales_type' => $validated['sales_type'],
-                    'date' => $validated['date'],
-                    'customer_name' => $validated['customer_name'],
-                    'tin' => $validated['tin'] ?? null,
-                    'address' => $validated['address'] ?? null,
-                    'vatable_sales' => $validated['totals']['vatable_sales'],
-                    'vat_amount' => $validated['totals']['vat_amount'],
-                    'zero_rated_sales' => $validated['totals']['zero_rated_sales'],
-                    'vat_exempt_sales' => $validated['totals']['vat_exempt_sales'],
-                    'net_of_vat' => $validated['totals']['net_of_vat'],
-                    'less_vat' => $validated['totals']['less_vat'],
-                    'add_vat' => $validated['totals']['add_vat'],
-                    'discount' => $validated['totals']['discount'],
-                    'withholding_tax' => $validated['totals']['withholding_tax'],
-                    'total_due' => $validated['totals']['total_due'],
-                ]
-            );
-
-            // reset items
-            $receipt->items()->delete();
-            foreach ($validated['items'] as $item) {
-                $receipt->items()->create($item);
+        $appointment = null;
+        if ($request->appointment_id) {
+            $appointment = Appointment::find($request->appointment_id);
+            if ($appointment && $user->role->value === 'staff' && $appointment->branch_id !== $user->branch_id) {
+                return response()->json(['message' => 'Unauthorized'], 403);
             }
+        }
 
-            return response()->json($receipt->load('items'), 201);
+        $invoiceNo = $request->invoice_no ?? str_pad(($request->appointment_id ?? time()) % 10000, 4, '0', STR_PAD_LEFT);
+
+        $receipt = Receipt::create([
+            'appointment_id' => $request->appointment_id,
+            'patient_id' => $request->patient_id,
+            'branch_id' => $request->branch_id ?? ($appointment->branch_id ?? $user->branch_id),
+            'staff_id' => $user->id,
+            'invoice_no' => $invoiceNo,
+            'date' => $request->date,
+            'sales_type' => $request->sales_type,
+            'customer_name' => $request->customer_name,
+            'tin' => $request->tin,
+            'address' => $request->address,
+            'items' => $request->items,
+            'total_sales' => $request->total_sales,
+            'vatable_sales' => $request->vatable_sales,
+            'less_vat' => $request->less_vat,
+            'add_vat' => $request->add_vat,
+            'zero_rated_sales' => $request->zero_rated_sales,
+            'net_of_vat' => $request->net_of_vat,
+            'vat_exempt_sales' => $request->vat_exempt_sales,
+            'discount' => $request->discount,
+            'withholding_tax' => $request->withholding_tax,
+            'total_due' => $request->total_due,
+        ]);
+
+        return response()->json(['message' => 'Receipt created', 'data' => $receipt], 201);
+    }
+
+    /**
+     * Get receipts for a customer
+     * GET /api/customers/{customerId}/receipts
+     */
+    public function getCustomerReceipts(Request $request, $customerId)
+    {
+        $user = Auth::user();
+
+        if (!$user) {
+            return response()->json(['message' => 'Unauthorized'], 401);
+        }
+
+        // Customers can only view their own receipts, staff/admin can view any
+        if ($user->role->value === 'customer' && $user->id != $customerId) {
+            return response()->json(['message' => 'You can only view your own receipts'], 403);
+        }
+
+        $receipts = Receipt::where('patient_id', $customerId)
+            ->with(['branch'])
+            ->orderBy('created_at', 'desc')
+            ->paginate(15);
+
+        $transformedReceipts = $receipts->getCollection()->map(function ($receipt) {
+            $salesType = $receipt->sales_type ?: 'cash'; // Default to 'cash' if null
+            return [
+                'id' => $receipt->id,
+                'invoice_no' => $receipt->invoice_no,
+                'date' => $receipt->date,
+                'sales_type' => $salesType,
+                'payment_method' => strtoupper($salesType), // Always provide uppercase payment method
+                'customer_name' => $receipt->customer_name,
+                'total_due' => $receipt->total_due,
+                'items' => $receipt->items,
+                'branch' => $receipt->branch ? [
+                    'id' => $receipt->branch->id,
+                    'name' => $receipt->branch->name,
+                    'address' => $receipt->branch->address,
+                ] : null,
+                'created_at' => $receipt->created_at,
+                'updated_at' => $receipt->updated_at,
+            ];
         });
-    }
-
-    /**
-     * Get receipts for a specific customer
-     */
-    public function getByCustomer($customerId)
-    {
-        $user = Auth::user();
-
-        // Only customers can access their own receipts, or staff/admin can access any
-        if ($user->role->value === 'customer' && $user->id != $customerId) {
-            return response()->json(['message' => 'Unauthorized'], 403);
-        }
-
-        if (!in_array($user->role->value, ['customer', 'staff', 'admin', 'optometrist'])) {
-            return response()->json(['message' => 'Unauthorized'], 403);
-        }
-
-        $receipts = Receipt::with(['appointment.patient', 'appointment.optometrist', 'items'])
-            ->whereHas('appointment', function($query) use ($customerId) {
-                $query->where('patient_id', $customerId);
-            })
-            ->orderBy('created_at', 'desc')
-            ->get();
 
         return response()->json([
-            'data' => $receipts->map(function($receipt) {
-                return [
-                    'id' => $receipt->id,
-                    'receipt_number' => str_pad($receipt->appointment_id, 4, '0', STR_PAD_LEFT),
-                    'customer_id' => $receipt->appointment->patient_id,
-                    'appointment_id' => $receipt->appointment_id,
-                    'subtotal' => $receipt->vatable_sales,
-                    'tax_amount' => $receipt->vat_amount,
-                    'total_amount' => $receipt->total_due,
-                    'payment_method' => $receipt->sales_type,
-                    'payment_status' => 'paid',
-                    'notes' => null,
-                    'items' => $receipt->items->map(function($item) {
-                        return [
-                            'description' => $item->description,
-                            'quantity' => $item->qty,
-                            'price' => $item->unit_price,
-                            'total' => $item->amount,
-                        ];
-                    }),
-                    'created_at' => $receipt->created_at->toISOString(),
-                    'updated_at' => $receipt->updated_at->toISOString(),
-                    'customer' => [
-                        'id' => $receipt->appointment->patient_id,
-                        'name' => $receipt->customer_name,
-                        'email' => $receipt->appointment->patient->email ?? '',
-                    ],
-                    'appointment' => [
-                        'id' => $receipt->appointment->id,
-                        'appointment_date' => $receipt->appointment->appointment_date,
-                        'start_time' => $receipt->appointment->start_time,
-                        'end_time' => $receipt->appointment->end_time,
-                        'type' => $receipt->appointment->type,
-                        'optometrist' => $receipt->appointment->optometrist ? [
-                            'id' => $receipt->appointment->optometrist->id,
-                            'name' => $receipt->appointment->optometrist->name,
-                        ] : null,
-                    ],
-                ];
-            }),
+            'data' => $transformedReceipts,
             'pagination' => [
-                'current_page' => 1,
-                'last_page' => 1,
-                'per_page' => $receipts->count(),
-                'total' => $receipts->count(),
+                'current_page' => $receipts->currentPage(),
+                'last_page' => $receipts->lastPage(),
+                'per_page' => $receipts->perPage(),
+                'total' => $receipts->total(),
             ]
         ]);
     }
 
     /**
-     * Get receipts for a specific customer
+     * Get a single receipt
+     * GET /api/receipts/{receiptId}
      */
-    public function getCustomerReceipts($customerId)
+    public function show(Request $request, $receiptId)
     {
         $user = Auth::user();
 
-        // Only customers can access their own receipts, or staff/admin can access any
-        if ($user->role->value === 'customer' && $user->id != $customerId) {
-            return response()->json(['message' => 'Unauthorized'], 403);
+        if (!$user) {
+            return response()->json(['message' => 'Unauthorized'], 401);
         }
 
-        if (!in_array($user->role->value, ['customer', 'staff', 'admin', 'optometrist'])) {
-            return response()->json(['message' => 'Unauthorized'], 403);
+        $receipt = Receipt::with(['branch'])->find($receiptId);
+
+        if (!$receipt) {
+            return response()->json(['message' => 'Receipt not found'], 404);
         }
 
-        $receipts = Receipt::with(['appointment.patient', 'appointment.optometrist', 'items'])
-            ->whereHas('appointment', function($query) use ($customerId) {
-                $query->where('patient_id', $customerId);
-            })
-            ->orderBy('created_at', 'desc')
-            ->get();
-
-        return response()->json([
-            'data' => $receipts->map(function($receipt) {
-                return [
-                    'id' => $receipt->id,
-                    'receipt_number' => str_pad($receipt->appointment_id, 4, '0', STR_PAD_LEFT),
-                    'customer_id' => $receipt->appointment->patient_id,
-                    'appointment_id' => $receipt->appointment_id,
-                    'subtotal' => $receipt->vatable_sales,
-                    'tax_amount' => $receipt->vat_amount,
-                    'total_amount' => $receipt->total_due,
-                    'payment_method' => $receipt->sales_type,
-                    'payment_status' => 'paid',
-                    'notes' => null,
-                    'items' => $receipt->items->map(function($item) {
-                        return [
-                            'description' => $item->description,
-                            'quantity' => $item->qty,
-                            'price' => $item->unit_price,
-                            'total' => $item->amount,
-                        ];
-                    }),
-                    'created_at' => $receipt->created_at->toISOString(),
-                    'updated_at' => $receipt->updated_at->toISOString(),
-                    'customer' => [
-                        'id' => $receipt->appointment->patient_id,
-                        'name' => $receipt->customer_name,
-                        'email' => $receipt->appointment->patient->email ?? '',
-                    ],
-                    'appointment' => [
-                        'id' => $receipt->appointment_id,
-                        'appointment_date' => $receipt->appointment->appointment_date,
-                        'start_time' => $receipt->appointment->start_time,
-                        'end_time' => $receipt->appointment->end_time,
-                        'type' => $receipt->appointment->type,
-                        'optometrist' => $receipt->appointment->optometrist ? [
-                            'id' => $receipt->appointment->optometrist->id,
-                            'name' => $receipt->appointment->optometrist->name,
-                        ] : null,
-                    ],
-                ];
-            }),
-            'pagination' => [
-                'current_page' => 1,
-                'last_page' => 1,
-                'per_page' => $receipts->count(),
-                'total' => $receipts->count(),
-            ]
-        ]);
-    }
-
-    /**
-     * Get a specific receipt
-     */
-    public function getReceipt($receiptId)
-    {
-        $user = Auth::user();
-        $receipt = Receipt::with(['appointment.patient', 'appointment.optometrist', 'items'])->findOrFail($receiptId);
-        
-        // Handle role format
-        $userRole = null;
-        if (is_object($user->role)) {
-            $userRole = $user->role->value ?? (string)$user->role;
-        } else {
-            $userRole = (string)$user->role;
-        }
-
-        // Check if user can access this receipt
-        if ($userRole === 'customer' && $receipt->appointment->patient_id !== $user->id) {
-            return response()->json(['message' => 'Unauthorized'], 403);
-        }
-
-        if (in_array($userRole, ['staff', 'optometrist']) && $receipt->appointment->branch_id !== $user->branch_id) {
-            return response()->json(['message' => 'Unauthorized'], 403);
+        // Customers can only view their own receipts, staff/admin can view any
+        if ($user->role->value === 'customer' && $receipt->patient_id != $user->id) {
+            return response()->json(['message' => 'You can only view your own receipts'], 403);
         }
 
         return response()->json([
             'id' => $receipt->id,
-            'receipt_number' => str_pad($receipt->appointment_id, 4, '0', STR_PAD_LEFT),
-            'customer_id' => $receipt->appointment->patient_id,
-            'appointment_id' => $receipt->appointment_id,
-            'subtotal' => $receipt->vatable_sales,
-            'tax_amount' => $receipt->vat_amount,
-            'total_amount' => $receipt->total_due,
-            'payment_method' => $receipt->sales_type,
-            'payment_status' => 'paid',
-            'notes' => null,
-            'items' => $receipt->items->map(function($item) {
-                return [
-                    'description' => $item->description,
-                    'quantity' => $item->qty,
-                    'price' => $item->unit_price,
-                    'total' => $item->amount,
-                ];
-            }),
-            'created_at' => $receipt->created_at->toISOString(),
-            'updated_at' => $receipt->updated_at->toISOString(),
-            'customer' => [
-                'id' => $receipt->appointment->patient_id,
-                'name' => $receipt->customer_name,
-                'email' => $receipt->appointment->patient->email ?? '',
-            ],
-            'appointment' => [
-                'id' => $receipt->appointment_id,
-                'appointment_date' => $receipt->appointment->appointment_date,
-                'start_time' => $receipt->appointment->start_time,
-                'end_time' => $receipt->appointment->end_time,
-                'type' => $receipt->appointment->type,
-                'optometrist' => $receipt->appointment->optometrist ? [
-                    'id' => $receipt->appointment->optometrist->id,
-                    'name' => $receipt->appointment->optometrist->name,
-                ] : null,
-            ],
+            'invoice_no' => $receipt->invoice_no,
+            'date' => $receipt->date,
+            'sales_type' => $receipt->sales_type,
+            'payment_method' => $receipt->sales_type ? strtoupper($receipt->sales_type) : 'CASH',
+            'customer_name' => $receipt->customer_name,
+            'total_due' => $receipt->total_due,
+            'items' => $receipt->items,
+            'branch' => $receipt->branch ? [
+                'id' => $receipt->branch->id,
+                'name' => $receipt->branch->name,
+                'address' => $receipt->branch->address,
+            ] : null,
+            'created_at' => $receipt->created_at,
+            'updated_at' => $receipt->updated_at,
         ]);
-    }
-
-    /**
-     * Download receipt PDF
-     */
-    public function downloadReceipt($receiptId)
-    {
-        $user = Auth::user();
-        $receipt = Receipt::with(['appointment.patient', 'appointment.optometrist', 'items'])->findOrFail($receiptId);
-        
-        // Handle role format
-        $userRole = null;
-        if (is_object($user->role)) {
-            $userRole = $user->role->value ?? (string)$user->role;
-        } else {
-            $userRole = (string)$user->role;
-        }
-
-        // Check if user can access this receipt
-        if ($userRole === 'customer' && $receipt->appointment->patient_id !== $user->id) {
-            return response()->json(['message' => 'Unauthorized'], 403);
-        }
-
-        if (in_array($userRole, ['staff', 'optometrist']) && $receipt->appointment->branch_id !== $user->branch_id) {
-            return response()->json(['message' => 'Unauthorized'], 403);
-        }
-
-        // Generate PDF using the existing PdfController
-        $pdfController = new \App\Http\Controllers\PdfController();
-        return $pdfController->downloadReceipt($receipt->appointment_id);
     }
 }

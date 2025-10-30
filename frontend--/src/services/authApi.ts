@@ -1,13 +1,21 @@
 import axios from 'axios';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000/api';
+const getEnv = () => ((import.meta as any)?.env) || {} as any;
+const API_BASE_URL = (getEnv().VITE_API_URL || getEnv().VITE_API_BASE_URL || (typeof window !== 'undefined' ? `${window.location.origin}/api` : '') || 'http://127.0.0.1:8000/api');
 
 const getApiBaseCandidates = (): string[] => {
   const candidates: string[] = [];
   
-  // Prioritize environment variables
-  if (import.meta.env.VITE_API_URL) candidates.push(import.meta.env.VITE_API_URL);
-  if (import.meta.env.VITE_API_BASE_URL) candidates.push(import.meta.env.VITE_API_BASE_URL);
+  // Environment variables (if present) – try these first
+  const env = getEnv();
+  if (env.VITE_API_URL) candidates.push(env.VITE_API_URL);
+  if (env.VITE_API_BASE_URL) candidates.push(env.VITE_API_BASE_URL);
+
+  // Same-origin next to avoid CORS issues when backend is co-hosted
+  if (typeof window !== 'undefined' && window.location?.origin) {
+    candidates.push(`${window.location.origin}/api`);
+    candidates.push(`${window.location.origin}/api`);
+  }
   
   // Add fallback candidates
   candidates.push('http://127.0.0.1:8000/api');
@@ -27,6 +35,10 @@ const getApiBaseCandidates = (): string[] => {
 };
 
 const isNetworkError = (err: any) => err?.code === 'ERR_NETWORK' || err?.message === 'Network Error';
+const isRetryableHttp = (err: any) => {
+  const status = err?.response?.status;
+  return status === 404 || status === 405 || status === 502 || status === 503 || status === 504;
+};
 
 // Create axios instance for auth requests
 const authApi = axios.create({
@@ -78,14 +90,14 @@ export const login = async (credentials: LoginRequest): Promise<AuthResponse> =>
   let lastErr: any = null;
   for (const base of bases) {
     try {
-      const response = await axios.post(`${base}/login`, credentials, {
+      const response = await axios.post(`${base}/auth/login`, credentials, {
         headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
         withCredentials: false,
       });
       return response.data;
     } catch (err: any) {
       lastErr = err;
-      if (isNetworkError(err)) {
+      if (isNetworkError(err) || isRetryableHttp(err)) {
         // Try next candidate
         continue;
       }
@@ -100,7 +112,7 @@ export const register = async (userData: RegisterRequest): Promise<AuthResponse>
   let lastErr: any = null;
   for (const base of bases) {
     try {
-      const response = await axios.post(`${base}/register`, userData, {
+      const response = await axios.post(`${base}/auth/register`, userData, {
         headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
         withCredentials: false,
       });
@@ -120,7 +132,7 @@ export const logout = async (): Promise<void> => {
   const bases = getApiBaseCandidates();
   for (const base of bases) {
     try {
-      await axios.post(`${base}/logout`, {}, {
+      await axios.post(`${base}/auth/logout`, {}, {
         headers: { 'Authorization': `Bearer ${token}` },
         withCredentials: false,
       });
@@ -139,7 +151,7 @@ export const getProfile = async (): Promise<User> => {
   let lastErr: any = null;
   for (const base of bases) {
     try {
-      const response = await axios.get(`${base}/profile`, {
+      const response = await axios.get(`${base}/auth/profile`, {
         headers: { 'Authorization': `Bearer ${token}` },
         withCredentials: false,
       });
@@ -152,4 +164,3 @@ export const getProfile = async (): Promise<User> => {
   }
   throw lastErr || new Error('Network Error');
 };
-

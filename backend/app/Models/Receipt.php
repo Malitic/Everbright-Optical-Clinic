@@ -4,128 +4,98 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\HasMany;
-use Illuminate\Database\Eloquent\SoftDeletes;
-use App\Traits\Auditable;
 
 class Receipt extends Model
 {
-    use HasFactory, SoftDeletes, Auditable;
+    use HasFactory;
 
     protected $fillable = [
-        'receipt_number',
-        'customer_id',
-        'branch_id',
-        'reservation_id',
         'appointment_id',
-        'sales_type',
+        'patient_id',
+        'branch_id',
+        'staff_id',
+        'invoice_no',
         'date',
+        'sales_type',
         'customer_name',
         'tin',
         'address',
+        'items',
+        'total_sales',
         'vatable_sales',
-        'vat_amount',
-        'zero_rated_sales',
-        'vat_exempt_sales',
-        'net_of_vat',
         'less_vat',
         'add_vat',
+        'zero_rated_sales',
+        'net_of_vat',
+        'vat_exempt_sales',
         'discount',
         'withholding_tax',
         'total_due',
-        'payment_method',
-        'payment_status',
     ];
 
     protected $casts = [
         'date' => 'date',
+        'items' => 'array',
+        'total_sales' => 'decimal:2',
         'vatable_sales' => 'decimal:2',
-        'vat_amount' => 'decimal:2',
-        'zero_rated_sales' => 'decimal:2',
-        'vat_exempt_sales' => 'decimal:2',
-        'net_of_vat' => 'decimal:2',
         'less_vat' => 'decimal:2',
         'add_vat' => 'decimal:2',
+        'zero_rated_sales' => 'decimal:2',
+        'net_of_vat' => 'decimal:2',
+        'vat_exempt_sales' => 'decimal:2',
         'discount' => 'decimal:2',
         'withholding_tax' => 'decimal:2',
         'total_due' => 'decimal:2',
     ];
 
     /**
-     * Boot method to generate receipt number
+     * Get the branch that generated this receipt
      */
-    protected static function boot()
-    {
-        parent::boot();
-
-        static::creating(function ($receipt) {
-            if (empty($receipt->receipt_number)) {
-                $receipt->receipt_number = static::generateReceiptNumber();
-            }
-        });
-    }
-
-    /**
-     * Generate unique receipt number
-     */
-    public static function generateReceiptNumber(): string
-    {
-        $date = now()->format('Ymd');
-        $prefix = "REC-{$date}-";
-        
-        $lastReceipt = static::where('receipt_number', 'like', $prefix . '%')
-            ->orderBy('receipt_number', 'desc')
-            ->first();
-        
-        if ($lastReceipt) {
-            $lastNumber = (int) substr($lastReceipt->receipt_number, -4);
-            $newNumber = $lastNumber + 1;
-        } else {
-            $newNumber = 1;
-        }
-        
-        return $prefix . str_pad($newNumber, 4, '0', STR_PAD_LEFT);
-    }
-
-    /**
-     * Get the customer for this receipt
-     */
-    public function customer(): BelongsTo
-    {
-        return $this->belongsTo(User::class, 'customer_id');
-    }
-
-    /**
-     * Get the branch for this receipt
-     */
-    public function branch(): BelongsTo
+    public function branch()
     {
         return $this->belongsTo(Branch::class);
     }
 
     /**
-     * Get the reservation for this receipt
+     * Get the patient this receipt belongs to
      */
-    public function reservation(): BelongsTo
+    public function patient()
     {
-        return $this->belongsTo(Reservation::class);
+        return $this->belongsTo(User::class, 'patient_id');
     }
 
     /**
-     * Get the appointment for this receipt
+     * Get the staff member who created this receipt
      */
-    public function appointment(): BelongsTo
+    public function staff()
+    {
+        return $this->belongsTo(User::class, 'staff_id');
+    }
+
+    /**
+     * Get the appointment this receipt is for (if any)
+     */
+    public function appointment()
     {
         return $this->belongsTo(Appointment::class);
     }
 
     /**
-     * Get the receipt items
+     * Generate a unique receipt number
      */
-    public function items(): HasMany
+    public static function generateReceiptNumber()
     {
-        return $this->hasMany(ReceiptItem::class);
-    }
+        $date = now()->format('ymd');
+        $lastReceipt = self::where('invoice_no', 'like', $date . '%')
+                          ->orderBy('id', 'desc')
+                          ->first();
 
+        $sequence = 1;
+        if ($lastReceipt) {
+            $lastSequence = (int) substr($lastReceipt->invoice_no, -4);
+            $sequence = $lastSequence + 1;
+        }
+
+        return $date . sprintf('%04d', $sequence);
+    }
 }

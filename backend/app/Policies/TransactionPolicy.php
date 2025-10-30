@@ -95,5 +95,3 @@ class TransactionPolicy
         return $user->role->value === UserRole::ADMIN->value;
     }
 }
-
-

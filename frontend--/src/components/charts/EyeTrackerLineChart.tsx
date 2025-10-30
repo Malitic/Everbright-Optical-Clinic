@@ -222,11 +222,11 @@ export function EyeTrackerLineChart({
                 stroke="#2563eb"
                 strokeWidth={2}
                 dot={(props: any) => {
-                  const { cx, cy, payload } = props;
+                  const { cx, cy, payload, index } = props;
                   const hasCondition = payload.condition && payload.condition !== 'None' && payload.condition !== 'Not specified';
                   return (
                     <circle
-                      key={`rightEye-dot-${payload.date}`}
+                      key={`rightEye-dot-${payload.date}-${index}-${payload.rightEye}`}
                       cx={cx}
                       cy={cy}
                       r={hasCondition ? 6 : 4}
@@ -247,11 +247,11 @@ export function EyeTrackerLineChart({
                 stroke="#dc2626"
                 strokeWidth={2}
                 dot={(props: any) => {
-                  const { cx, cy, payload } = props;
+                  const { cx, cy, payload, index } = props;
                   const hasCondition = payload.condition && payload.condition !== 'None' && payload.condition !== 'Not specified';
                   return (
                     <circle
-                      key={`leftEye-dot-${payload.date}`}
+                      key={`leftEye-dot-${payload.date}-${index}-${payload.leftEye}`}
                       cx={cx}
                       cy={cy}
                       r={hasCondition ? 6 : 4}

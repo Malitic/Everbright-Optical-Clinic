@@ -84,5 +84,3 @@ class UserPolicy
         return $user->role->value === UserRole::ADMIN->value;
     }
 }
-
-

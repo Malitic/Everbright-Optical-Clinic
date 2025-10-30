@@ -32,9 +32,16 @@ const BranchManagement: React.FC = () => {
   const [loading, setLoading] = useState(false);
 
   // Fetch branches
-  const { data: branches = [], isLoading, refetch } = useQuery({
+  const { data: branches = [], isLoading, error, refetch } = useQuery({
     queryKey: ['branches'],
     queryFn: getBranches,
+    retry: (failureCount, error: any) => {
+      // Don't retry on 401/403 errors
+      if (error?.response?.status === 401 || error?.response?.status === 403) {
+        return false;
+      }
+      return failureCount < 3;
+    },
   });
 
   // Form state
@@ -52,7 +59,7 @@ const BranchManagement: React.FC = () => {
     try {
       setLoading(true);
       const token = sessionStorage.getItem('auth_token');
-      const apiBaseUrl = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api-mysql.php';
+  const apiBaseUrl = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api';
       const response = await fetch(`${apiBaseUrl}/branches`, {
         method: 'POST',
         headers: {
@@ -94,7 +101,7 @@ const BranchManagement: React.FC = () => {
     try {
       setLoading(true);
       const token = sessionStorage.getItem('auth_token');
-      const apiBaseUrl = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api-mysql.php';
+  const apiBaseUrl = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api';
       
       
       const response = await fetch(`${apiBaseUrl}/branches/${selectedBranch.id}`, {
@@ -138,7 +145,7 @@ const BranchManagement: React.FC = () => {
     try {
       setLoading(true);
       const token = sessionStorage.getItem('auth_token');
-      const apiBaseUrl = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api-mysql.php';
+  const apiBaseUrl = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api';
       
       
       const response = await fetch(`${apiBaseUrl}/branches/${branchId}`, {
@@ -210,6 +217,67 @@ const BranchManagement: React.FC = () => {
             <p className="text-gray-600">Loading branches...</p>
           </div>
         </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    const errorMessage = error?.response?.status === 401 || error?.response?.status === 403
+      ? 'You do not have permission to view branches. Please log in as an admin user.'
+      : error?.message || 'Failed to load branches. Please try again.';
+
+    return (
+      <div className="p-6 max-w-7xl mx-auto">
+        <Card className="max-w-2xl mx-auto">
+          <CardHeader>
+            <CardTitle className="text-red-600">Unable to Load Branches</CardTitle>
+            <CardDescription>
+              {errorMessage}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <h4 className="font-medium text-blue-900 mb-2">Quick Solutions:</h4>
+                <ul className="list-disc list-inside text-sm text-blue-800 space-y-1">
+                  <li>Ensure you're logged in as an admin user</li>
+                  <li>Try refreshing the page</li>
+                  <li>Check your internet connection</li>
+                  <li>Click the refresh button below if the issue persists</li>
+                </ul>
+              </div>
+
+              <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                <h4 className="font-medium text-gray-900 mb-2">For Developers:</h4>
+                <p className="text-sm text-gray-600 mb-3">
+                  Error details: {error?.response?.status + ' ' + error?.response?.statusText || 'Network Error'}
+                </p>
+                <div className="flex space-x-2">
+                  <Button
+                    onClick={() => refetch()}
+                    variant="outline"
+                    className="flex items-center space-x-2"
+                  >
+                    <RefreshCw className="h-4 w-4" />
+                    <span>Retry</span>
+                  </Button>
+                  <Button
+                    onClick={() => {
+                      // Clear auth and redirect to login
+                      sessionStorage.removeItem('auth_token');
+                      sessionStorage.removeItem('user');
+                      window.location.href = '/login';
+                    }}
+                    variant="outline"
+                    className="text-red-600 hover:text-red-700"
+                  >
+                    Re-login as Admin
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     );
   }

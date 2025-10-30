@@ -36,7 +36,7 @@ const AdminStockManagement: React.FC = () => {
 
   const fetchBranchStock = async () => {
     try {
-      const response = await fetch('http://127.0.0.1:8000/api-mysql.php/branch-stock', {
+      const response = await fetch('http://127.0.0.1:8000/api/branch-stock', {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`
         }
@@ -71,7 +71,7 @@ const AdminStockManagement: React.FC = () => {
 
     setSaving(true);
     try {
-      const response = await fetch('http://127.0.0.1:8000/api-mysql.php/branch-stock', {
+      const response = await fetch('http://127.0.0.1:8000/api/branch-stock', {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',

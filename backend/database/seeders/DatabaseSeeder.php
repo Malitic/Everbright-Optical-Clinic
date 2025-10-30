@@ -5,7 +5,6 @@ namespace Database\Seeders;
 use App\Models\User;
 use App\Models\Product;
 use App\Models\Appointment;
-use App\Models\Transaction;
 use App\Enums\UserRole;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Artisan;
@@ -33,9 +32,8 @@ class DatabaseSeeder extends Seeder
         $userCount = User::count();
         $productCount = Product::count();
         $appointmentCount = Appointment::count();
-        $transactionCount = Transaction::count();
-        
-        $hasData = $userCount > 0 || $productCount > 0 || $appointmentCount > 0 || $transactionCount > 0;
+
+        $hasData = $userCount > 0 || $productCount > 0 || $appointmentCount > 0;
         
         if ($hasData) {
             $this->command->newLine();
@@ -47,7 +45,6 @@ class DatabaseSeeder extends Seeder
             $this->command->line("  • Users: {$userCount}");
             $this->command->line("  • Products: {$productCount}");
             $this->command->line("  • Appointments: {$appointmentCount}");
-            $this->command->line("  • Transactions: {$transactionCount}");
             $this->command->newLine();
             $this->command->error('❌ SEEDING PREVENTED - This would overwrite or duplicate existing data!');
             $this->command->newLine();

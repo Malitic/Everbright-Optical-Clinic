@@ -4,7 +4,6 @@ namespace App\Http\Controllers;
 
 use App\Models\Appointment;
 use App\Models\User;
-use App\Services\WebSocketService;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Auth;
@@ -110,8 +109,6 @@ class AppointmentController extends Controller
             'end_time' => 'required|date_format:H:i|after:start_time',
             'type' => 'required|in:eye_exam,contact_fitting,follow_up,consultation,emergency',
             'notes' => 'nullable|string|max:1000',
-            'phone' => 'nullable|string|max:20',
-            'social_media' => 'nullable|string|max:255',
         ]);
 
         if ($validator->fails()) {
@@ -182,21 +179,6 @@ class AppointmentController extends Controller
             $patient->update(['branch_id' => $request->branch_id]);
         }
 
-        // Update patient contact information if provided
-        if ($patient && $patient->role->value === UserRole::CUSTOMER->value) {
-            $updateData = [];
-            if ($request->has('phone') && $request->phone) {
-                $updateData['phone'] = $request->phone;
-            }
-            if ($request->has('social_media') && $request->social_media) {
-                $updateData['social_media'] = $request->social_media;
-            }
-            
-            if (!empty($updateData)) {
-                $patient->update($updateData);
-            }
-        }
-
         $appointment = Appointment::create($request->all());
 
         // Load relationships for notifications
@@ -209,12 +191,10 @@ class AppointmentController extends Controller
             "Your appointment has been booked for {$appointment->appointment_date} at {$appointment->start_time} at {$appointment->branch->name}"
         );
 
-        // Send real-time notification
-        WebSocketService::notifyAppointmentUpdate(
-            $appointment,
-            'created',
-            "New appointment scheduled for {$appointment->appointment_date} at {$appointment->start_time}"
-        );
+        // Emit realtime event for staff and optometrists
+        Realtime::emit('appointment.created', [
+            'appointment' => $appointment->load(['patient:id,name', 'optometrist:id,name']),
+        ], null, $user->id);
 
         return response()->json($appointment, 201);
     }
@@ -288,103 +268,18 @@ class AppointmentController extends Controller
     /**
      * Remove the specified appointment.
      */
-    public function destroy($id): JsonResponse
+    public function destroy(Appointment $appointment): JsonResponse
     {
         $user = Auth::user();
-        
-        // Find the appointment manually to debug route model binding issue
-        $appointment = Appointment::find($id);
-        
-        if (!$appointment) {
-            \Log::warning('Appointment not found for deletion', [
-                'appointment_id' => $id,
-                'user_id' => $user?->id,
-                'user_role' => $user?->role?->value
-            ]);
-            return response()->json(['error' => 'Appointment not found'], 404);
-        }
 
         // Check if user has permission to delete this appointment
         if (!$this->canDeleteAppointment($user, $appointment)) {
-            \Log::warning('Appointment deletion unauthorized', [
-                'appointment_id' => $appointment->id,
-                'user_id' => $user?->id,
-                'user_role' => $user?->role?->value
-            ]);
             return response()->json(['error' => 'Unauthorized'], 403);
         }
 
         $appointment->delete();
 
         return response()->json(['message' => 'Appointment deleted successfully']);
-    }
-
-    /**
-     * Get all appointments for the authenticated optometrist.
-     */
-    public function getOptometristAppointments(): JsonResponse
-    {
-        $user = Auth::user();
-
-        if (!$user || $user->role->value !== UserRole::OPTOMETRIST->value) {
-            return response()->json(['error' => 'Unauthorized'], 403);
-        }
-
-        // Get all appointments (optometrists can see all appointments across all branches)
-        $appointments = Appointment::with(['patient', 'optometrist', 'branch'])
-            ->orderBy('appointment_date', 'desc')
-            ->orderBy('start_time', 'desc')
-            ->get()
-            ->map(function ($appointment) {
-                return [
-                    'id' => $appointment->id,
-                    'patient' => $appointment->patient ? [
-                        'id' => $appointment->patient->id,
-                        'name' => $appointment->patient->name,
-                        'email' => $appointment->patient->email,
-                        'phone' => $appointment->patient->phone,
-                    ] : null,
-                    'date' => $appointment->appointment_date?->format('Y-m-d'),
-                    'start_time' => $appointment->start_time,
-                    'end_time' => $appointment->end_time,
-                    'type' => $appointment->type,
-                    'status' => $appointment->status,
-                    'branch' => $appointment->branch ? [
-                        'name' => $appointment->branch->name,
-                        'address' => $appointment->branch->address
-                    ] : null,
-                    'notes' => $appointment->notes,
-                ];
-            });
-
-        return response()->json([
-            'data' => $appointments,
-            'total' => $appointments->count()
-        ]);
-    }
-
-    /**
-     * Get staff appointments for their assigned branch.
-     */
-    public function getStaffAppointments(): JsonResponse
-    {
-        $user = Auth::user();
-
-        if (!$user || $user->role->value !== UserRole::STAFF->value) {
-            return response()->json(['error' => 'Unauthorized'], 403);
-        }
-
-        // Staff can only see appointments at their branch
-        $appointments = Appointment::with(['patient', 'optometrist', 'branch'])
-            ->where('branch_id', $user->branch_id)
-            ->orderBy('appointment_date', 'desc')
-            ->orderBy('start_time', 'desc')
-            ->get();
-
-        return response()->json([
-            'data' => $appointments,
-            'total' => $appointments->count()
-        ]);
     }
 
     /**

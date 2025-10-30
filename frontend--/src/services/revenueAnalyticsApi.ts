@@ -1,16 +1,4 @@
-import axios from 'axios';
-
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api';
-
-// Include auth token if present (use sessionStorage for consistency)
-axios.interceptors.request.use((config) => {
-  const token = sessionStorage.getItem('auth_token');
-  if (token) {
-    config.headers = config.headers || {};
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  return config;
-});
+import api from '../api/axiosClient';
 
 export interface MonthlyComparisonData {
   current_month: {
@@ -47,11 +35,10 @@ class RevenueAnalyticsApi {
    * Get monthly comparison analytics
    */
   async getMonthlyComparison(filters: RevenueAnalyticsFilters = {}): Promise<MonthlyComparisonData> {
-    const params = new URLSearchParams();
-    
-    if (filters.branch_id) params.append('branch_id', filters.branch_id.toString());
+    const params: Record<string, any> = {};
+    if (filters.branch_id) params.branch_id = filters.branch_id;
 
-    const response = await axios.get(`${API_BASE_URL}/admin/revenue/monthly-comparison?${params}`);
+    const response = await api.get('/admin/revenue/monthly-comparison', { params });
     return response.data;
   }
 
@@ -59,12 +46,11 @@ class RevenueAnalyticsApi {
    * Get revenue by service analytics
    */
   async getRevenueByService(filters: RevenueAnalyticsFilters = {}): Promise<RevenueByServiceData> {
-    const params = new URLSearchParams();
-    
-    if (filters.period) params.append('period', filters.period.toString());
-    if (filters.branch_id) params.append('branch_id', filters.branch_id.toString());
+    const params: Record<string, any> = {};
+    if (filters.period) params.period = filters.period;
+    if (filters.branch_id) params.branch_id = filters.branch_id;
 
-    const response = await axios.get(`${API_BASE_URL}/admin/revenue/by-service?${params}`);
+    const response = await api.get('/admin/revenue/by-service', { params });
     return response.data;
   }
 }

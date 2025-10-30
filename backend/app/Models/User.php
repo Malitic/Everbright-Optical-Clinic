@@ -4,17 +4,15 @@ namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
 use App\Enums\UserRole;
-use App\Traits\Auditable;
 
 class User extends Authenticatable
 {
     /** @use HasFactory<\Database\Factories\UserFactory> */
-    use HasFactory, Notifiable, HasApiTokens, SoftDeletes, Auditable;
+    use HasFactory, Notifiable, HasApiTokens;
 
     /**
      * The attributes that are mass assignable.
@@ -28,12 +26,6 @@ class User extends Authenticatable
         'role',
         'branch_id',
         'is_approved',
-        'phone',
-        'social_media',
-        'address',
-        'date_of_birth',
-        'emergency_contact',
-        'emergency_phone',
     ];
 
     /**
@@ -55,7 +47,6 @@ class User extends Authenticatable
     {
         return [
             'email_verified_at' => 'datetime',
-            'password' => 'hashed',
             'role' => UserRole::class,
             'is_approved' => 'boolean',
         ];
@@ -107,21 +98,5 @@ class User extends Authenticatable
     public function createdPrescriptions()
     {
         return $this->hasMany(Prescription::class, 'optometrist_id');
-    }
-
-    /**
-     * Get transactions for this user (as customer)
-     */
-    public function transactions()
-    {
-        return $this->hasMany(Transaction::class, 'customer_id');
-    }
-
-    /**
-     * Get schedules for this user (as optometrist/staff)
-     */
-    public function schedules()
-    {
-        return $this->hasMany(Schedule::class, 'staff_id');
     }
 }

@@ -1,6 +1,4 @@
-import axios from 'axios';
-
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api';
+import api from '../api/axiosClient';
 
 export interface EyewearReminder {
   id: string;
@@ -37,12 +35,10 @@ export interface EyewearRemindersResponse {
  * Get pending eyewear reminders for the logged-in customer
  */
 export const getEyewearReminders = async (): Promise<EyewearRemindersResponse> => {
-  const response = await axios.get(`${API_BASE_URL}/eyewear/reminders`, {
-    headers: {
-      'Authorization': `Bearer ${sessionStorage.getItem('auth_token')}`
-    }
-  });
-  
+  const token = sessionStorage.getItem('auth_token');
+  if (!token) throw new Error('No authentication token found');
+
+  const response = await api.get('/eyewear/reminders');
   return response.data;
 };
 
@@ -53,13 +49,9 @@ export const submitEyewearConditionForm = async (
   eyewearId: string,
   formData: EyewearConditionFormData
 ): Promise<{ message: string; notification_id: string }> => {
-  const response = await axios.post(`${API_BASE_URL}/eyewear/${eyewearId}/condition-form`, formData, {
-    headers: {
-      'Authorization': `Bearer ${sessionStorage.getItem('auth_token')}`,
-      'Content-Type': 'application/json'
-    }
-  });
-  
+  const token = sessionStorage.getItem('auth_token');
+  if (!token) throw new Error('No authentication token found');
+  const response = await api.post(`/eyewear/${eyewearId}/condition-form`, formData);
   return response.data;
 };
 
@@ -70,13 +62,9 @@ export const scheduleEyewearAppointment = async (
   eyewearId: string,
   appointmentData: EyewearAppointmentData
 ): Promise<{ message: string; appointment_id: string }> => {
-  const response = await axios.post(`${API_BASE_URL}/eyewear/${eyewearId}/set-appointment`, appointmentData, {
-    headers: {
-      'Authorization': `Bearer ${sessionStorage.getItem('auth_token')}`,
-      'Content-Type': 'application/json'
-    }
-  });
-  
+  const token = sessionStorage.getItem('auth_token');
+  if (!token) throw new Error('No authentication token found');
+  const response = await api.post(`/eyewear/${eyewearId}/set-appointment`, appointmentData);
   return response.data;
 };
 
@@ -84,12 +72,7 @@ export const scheduleEyewearAppointment = async (
  * Mark eyewear reminder as dismissed
  */
 export const dismissEyewearReminder = async (reminderId: string): Promise<void> => {
-  await axios.post(`${API_BASE_URL}/notifications/mark-read`, {
-    notification_id: reminderId
-  }, {
-    headers: {
-      'Authorization': `Bearer ${sessionStorage.getItem('auth_token')}`,
-      'Content-Type': 'application/json'
-    }
-  });
+  const token = sessionStorage.getItem('auth_token');
+  if (!token) throw new Error('No authentication token found');
+  await api.post('/notifications/mark-read', { notification_id: reminderId });
 };

@@ -6,86 +6,56 @@ use App\Models\User;
 use App\Models\Appointment;
 use App\Models\Prescription;
 use Illuminate\Http\Request;
-use Illuminate\Http\JsonResponse;
-use Illuminate\Support\Facades\Auth;
+use App\Enums\UserRole;
 use Carbon\Carbon;
 
 class OptometristController extends Controller
 {
     /**
-     * Get all optometrists (public endpoint for scheduling)
+     * Get patients that have been seen by the logged-in optometrist
+     * GET /api/optometrist/patients
      */
-    public function index(): JsonResponse
+    public function getPatients(Request $request)
     {
-        try {
-            $optometrists = User::where('role', 'optometrist')
-                ->where('is_approved', true)
-                ->select('id', 'name', 'email', 'phone')
-                ->get()
-                ->map(function ($optometrist) {
-                    return [
-                        'id' => $optometrist->id,
-                        'name' => $optometrist->name,
-                        'email' => $optometrist->email,
-                        'phone' => $optometrist->phone,
-                        'specialization' => 'General Optometry', // Default specialization
-                    ];
-                });
+        $user = $request->user();
 
-            return response()->json([
-                'optometrists' => $optometrists,
-                'total' => $optometrists->count()
-            ]);
-
-        } catch (\Exception $e) {
-            return response()->json([
-                'error' => 'Failed to fetch optometrists',
-                'message' => $e->getMessage()
-            ], 500);
-        }
-    }
-
-    /**
-     * Get all patients for the authenticated optometrist
-     */
-    public function getPatients(Request $request): JsonResponse
-    {
-        $optometrist = Auth::user();
-        
-        if (!$optometrist || $optometrist->role->value !== 'optometrist') {
-            return response()->json(['message' => 'Unauthorized'], 403);
+        if (!$user || $user->role->value !== 'optometrist') {
+            return response()->json(['message' => 'Unauthorized. Optometrist access required.'], 403);
         }
 
-        // Get all patients who have appointments with this optometrist
-        $patientIds = Appointment::where('optometrist_id', $optometrist->id)
-            ->distinct()
-            ->pluck('patient_id');
+        // Get unique patients this optometrist has seen
+        $patientIds = Appointment::where('optometrist_id', $user->id)
+            ->where('status', 'completed')
+            ->pluck('patient_id')
+            ->unique();
 
         $patients = User::whereIn('id', $patientIds)
-            ->where('role', 'customer')
-            ->with(['appointments' => function($query) use ($optometrist) {
-                $query->where('optometrist_id', $optometrist->id)
-                      ->orderBy('appointment_date', 'desc');
-            }])
-            ->with(['prescriptions' => function($query) use ($optometrist) {
-                $query->where('optometrist_id', $optometrist->id)
-                      ->orderBy('issue_date', 'desc');
+            ->where('role', UserRole::CUSTOMER->value)
+            ->with(['appointments' => function ($query) use ($user) {
+                $query->where('optometrist_id', $user->id)
+                    ->orderBy('appointment_date', 'desc');
+            }, 'prescriptions' => function ($query) use ($user) {
+                $query->where('optometrist_id', $user->id)
+                    ->orderBy('issue_date', 'desc');
             }])
             ->get()
             ->map(function ($patient) {
+                $lastAppointment = $patient->appointments->first();
+                $allAppointments = $patient->appointments;
+
                 return [
                     'id' => $patient->id,
                     'name' => $patient->name,
                     'email' => $patient->email,
                     'phone' => $patient->phone,
-                    'date_of_birth' => $patient->date_of_birth,
-                    'last_visit' => $patient->appointments->first()?->appointment_date,
-                    'next_appointment' => $patient->appointments->where('status', 'scheduled')->first()?->appointment_date,
-                    'total_appointments' => $patient->appointments->count(),
+                    'last_visit' => $lastAppointment ? $lastAppointment->appointment_date : null,
+                    'total_appointments' => $allAppointments->count(),
                     'total_prescriptions' => $patient->prescriptions->count(),
-                    'status' => 'active'
+                    'status' => 'active', // All patients this optometrist has seen are active for their purposes
                 ];
-            });
+            })
+            ->sortByDesc('last_visit')
+            ->values();
 
         return response()->json([
             'data' => $patients,
@@ -94,74 +64,84 @@ class OptometristController extends Controller
     }
 
     /**
-     * Get a specific patient with detailed history
+     * Get detailed patient information for optometrist
+     * GET /api/optometrist/patients/{id}
      */
-    public function getPatient(Request $request, $patientId): JsonResponse
+    public function getPatient(Request $request, $patientId)
     {
-        $optometrist = Auth::user();
-        
-        if (!$optometrist || $optometrist->role->value !== 'optometrist') {
-            return response()->json(['message' => 'Unauthorized'], 403);
+        $user = $request->user();
+
+        if (!$user || $user->role->value !== 'optometrist') {
+            return response()->json(['message' => 'Unauthorized. Optometrist access required.'], 403);
         }
 
         $patient = User::where('id', $patientId)
-            ->where('role', 'customer')
+            ->where('role', UserRole::CUSTOMER->value)
             ->first();
 
         if (!$patient) {
             return response()->json(['message' => 'Patient not found'], 404);
         }
 
-        // Verify this patient has appointments with this optometrist
-        $hasAppointments = Appointment::where('patient_id', $patientId)
-            ->where('optometrist_id', $optometrist->id)
+        // Check if this optometrist has been involved with this patient
+        $hasHistory = Appointment::where('patient_id', $patientId)
+            ->where('optometrist_id', $user->id)
             ->exists();
 
-        if (!$hasAppointments) {
-            return response()->json(['message' => 'Patient not found in your records'], 404);
+        if (!$hasHistory) {
+            return response()->json(['message' => 'You have not treated this patient'], 403);
         }
 
-        // Get appointments with this optometrist
+        // Get all appointments with this optometrist
         $appointments = Appointment::where('patient_id', $patientId)
-            ->where('optometrist_id', $optometrist->id)
+            ->where('optometrist_id', $user->id)
             ->with('branch')
             ->orderBy('appointment_date', 'desc')
             ->get()
             ->map(function ($appointment) {
                 return [
                     'id' => $appointment->id,
-                    'date' => $appointment->appointment_date?->format('Y-m-d'),
+                    'date' => $appointment->appointment_date,
                     'time' => $appointment->start_time,
                     'type' => $appointment->type,
                     'status' => $appointment->status,
                     'branch' => $appointment->branch ? [
                         'name' => $appointment->branch->name,
-                        'address' => $appointment->branch->address
+                        'address' => $appointment->branch->address,
                     ] : null,
                     'notes' => $appointment->notes,
                 ];
             });
 
-        // Get prescriptions issued by this optometrist
+        // Get all prescriptions created by this optometrist for this patient
         $prescriptions = Prescription::where('patient_id', $patientId)
-            ->where('optometrist_id', $optometrist->id)
+            ->where('optometrist_id', $user->id)
             ->orderBy('issue_date', 'desc')
             ->get()
             ->map(function ($prescription) {
                 return [
                     'id' => $prescription->id,
                     'prescription_number' => $prescription->prescription_number,
-                    'issue_date' => $prescription->issue_date?->format('Y-m-d'),
-                    'expiry_date' => $prescription->expiry_date?->format('Y-m-d'),
+                    'issue_date' => $prescription->issue_date,
+                    'expiry_date' => $prescription->expiry_date,
                     'status' => $prescription->status,
                     'type' => $prescription->type,
-                    'right_eye' => $prescription->right_eye,
-                    'left_eye' => $prescription->left_eye,
+                    'right_eye' => json_decode($prescription->right_eye, true),
+                    'left_eye' => json_decode($prescription->left_eye, true),
                     'vision_acuity' => $prescription->vision_acuity,
                     'recommendations' => $prescription->recommendations,
                     'additional_notes' => $prescription->additional_notes,
                 ];
             });
+
+        // Statistics
+        $lastAppointment = $appointments->first();
+        $nextAppointment = Appointment::where('patient_id', $patientId)
+            ->where('optometrist_id', $user->id)
+            ->where('status', 'scheduled')
+            ->where('appointment_date', '>=', Carbon::today())
+            ->orderBy('appointment_date')
+            ->first();
 
         return response()->json([
             'patient' => [
@@ -176,74 +156,26 @@ class OptometristController extends Controller
             'statistics' => [
                 'total_appointments' => $appointments->count(),
                 'total_prescriptions' => $prescriptions->count(),
-                'last_visit' => $appointments->first()?->date,
-                'next_appointment' => $appointments->where('status', 'scheduled')->first()?->date,
+                'last_visit' => $lastAppointment ? $lastAppointment['date'] : null,
+                'next_appointment' => $nextAppointment ? $nextAppointment->appointment_date : null,
             ]
         ]);
     }
 
     /**
-     * Get all prescriptions for the authenticated optometrist
+     * Get today's appointments for the optometrist
+     * GET /api/optometrist/appointments/today
      */
-    public function getPrescriptions(Request $request): JsonResponse
+    public function getTodayAppointments(Request $request)
     {
-        $optometrist = Auth::user();
-        
-        if (!$optometrist || $optometrist->role->value !== 'optometrist') {
-            return response()->json(['message' => 'Unauthorized'], 403);
+        $user = $request->user();
+
+        if (!$user || $user->role->value !== 'optometrist') {
+            return response()->json(['message' => 'Unauthorized. Optometrist access required.'], 403);
         }
 
-        $prescriptions = Prescription::where('optometrist_id', $optometrist->id)
-            ->with(['patient', 'appointment'])
-            ->orderBy('issue_date', 'desc')
-            ->get()
-            ->map(function ($prescription) {
-                return [
-                    'id' => $prescription->id,
-                    'prescription_number' => $prescription->prescription_number,
-                    'issue_date' => $prescription->issue_date?->format('Y-m-d'),
-                    'expiry_date' => $prescription->expiry_date?->format('Y-m-d'),
-                    'status' => $prescription->status,
-                    'type' => $prescription->type,
-                    'patient' => $prescription->patient ? [
-                        'id' => $prescription->patient->id,
-                        'name' => $prescription->patient->name,
-                        'email' => $prescription->patient->email,
-                    ] : null,
-                    'appointment' => $prescription->appointment ? [
-                        'id' => $prescription->appointment->id,
-                        'date' => $prescription->appointment->appointment_date?->format('Y-m-d'),
-                        'type' => $prescription->appointment->type,
-                    ] : null,
-                    'right_eye' => $prescription->right_eye,
-                    'left_eye' => $prescription->left_eye,
-                    'vision_acuity' => $prescription->vision_acuity,
-                    'recommendations' => $prescription->recommendations,
-                    'additional_notes' => $prescription->additional_notes,
-                ];
-            });
-
-        return response()->json([
-            'data' => $prescriptions,
-            'total' => $prescriptions->count()
-        ]);
-    }
-
-    /**
-     * Get today's appointments for the authenticated optometrist
-     */
-    public function getTodayAppointments(Request $request): JsonResponse
-    {
-        $optometrist = Auth::user();
-        
-        if (!$optometrist || $optometrist->role->value !== 'optometrist') {
-            return response()->json(['message' => 'Unauthorized'], 403);
-        }
-
-        $today = Carbon::today();
-        
-        $appointments = Appointment::where('optometrist_id', $optometrist->id)
-            ->whereDate('appointment_date', $today)
+        $appointments = Appointment::where('optometrist_id', $user->id)
+            ->where('appointment_date', Carbon::today())
             ->with(['patient', 'branch'])
             ->orderBy('start_time')
             ->get()
@@ -256,14 +188,14 @@ class OptometristController extends Controller
                         'email' => $appointment->patient->email,
                         'phone' => $appointment->patient->phone,
                     ] : null,
-                    'date' => $appointment->appointment_date?->format('Y-m-d'),
+                    'date' => $appointment->appointment_date,
                     'start_time' => $appointment->start_time,
                     'end_time' => $appointment->end_time,
                     'type' => $appointment->type,
                     'status' => $appointment->status,
                     'branch' => $appointment->branch ? [
                         'name' => $appointment->branch->name,
-                        'address' => $appointment->branch->address
+                        'address' => $appointment->branch->address,
                     ] : null,
                     'notes' => $appointment->notes,
                 ];
@@ -272,6 +204,139 @@ class OptometristController extends Controller
         return response()->json([
             'data' => $appointments,
             'total' => $appointments->count()
+        ]);
+    }
+
+    /**
+     * Get all appointments for the optometrist
+     * GET /api/optometrist/appointments
+     */
+    public function getAllAppointments(Request $request)
+    {
+        $user = $request->user();
+
+        if (!$user || $user->role->value !== 'optometrist') {
+            return response()->json(['message' => 'Unauthorized. Optometrist access required.'], 403);
+        }
+
+        $query = Appointment::where('optometrist_id', $user->id)
+            ->with(['patient', 'branch']);
+
+        // Filter by status if provided
+        if ($request->has('status')) {
+            $query->where('status', $request->status);
+        }
+
+        // Filter by date range if provided
+        if ($request->has('start_date')) {
+            $query->where('appointment_date', '>=', $request->start_date);
+        }
+        if ($request->has('end_date')) {
+            $query->where('appointment_date', '<=', $request->end_date);
+        }
+
+        $appointments = $query->orderBy('appointment_date', 'desc')
+            ->orderBy('start_time', 'desc')
+            ->paginate(15);
+
+        $transformedAppointments = $appointments->getCollection()->map(function ($appointment) {
+            return [
+                'id' => $appointment->id,
+                'patient' => $appointment->patient ? [
+                    'id' => $appointment->patient->id,
+                    'name' => $appointment->patient->name,
+                    'email' => $appointment->patient->email,
+                    'phone' => $appointment->patient->phone,
+                ] : null,
+                'date' => $appointment->appointment_date,
+                'start_time' => $appointment->start_time,
+                'end_time' => $appointment->end_time,
+                'type' => $appointment->type,
+                'status' => $appointment->status,
+                'branch' => $appointment->branch ? [
+                    'name' => $appointment->branch->name,
+                    'address' => $appointment->branch->address,
+                ] : null,
+                'notes' => $appointment->notes,
+            ];
+        });
+
+        return response()->json([
+            'data' => $transformedAppointments,
+            'pagination' => [
+                'current_page' => $appointments->currentPage(),
+                'last_page' => $appointments->lastPage(),
+                'per_page' => $appointments->perPage(),
+                'total' => $appointments->total(),
+            ]
+        ]);
+    }
+
+    /**
+     * Get prescriptions created by the optometrist
+     * GET /api/optometrist/prescriptions
+     */
+    public function getPrescriptions(Request $request)
+    {
+        $user = $request->user();
+
+        if (!$user || $user->role->value !== 'optometrist') {
+            return response()->json(['message' => 'Unauthorized. Optometrist access required.'], 403);
+        }
+
+        $query = Prescription::where('optometrist_id', $user->id)
+            ->with(['patient']);
+
+        // Filter by status if provided
+        if ($request->has('status')) {
+            $query->where('status', $request->status);
+        }
+
+        // Filter by date range if provided
+        if ($request->has('start_date')) {
+            $query->where('issue_date', '>=', $request->start_date);
+        }
+        if ($request->has('end_date')) {
+            $query->where('issue_date', '<=', $request->end_date);
+        }
+
+        $prescriptions = $query->orderBy('issue_date', 'desc')
+            ->paginate(15);
+
+        $transformedPrescriptions = $prescriptions->getCollection()->map(function ($prescription) {
+            return [
+                'id' => $prescription->id,
+                'prescription_number' => $prescription->prescription_number,
+                'issue_date' => $prescription->issue_date,
+                'expiry_date' => $prescription->expiry_date,
+                'status' => $prescription->status,
+                'type' => $prescription->type,
+                'patient' => $prescription->patient ? [
+                    'id' => $prescription->patient->id,
+                    'name' => $prescription->patient->name,
+                    'email' => $prescription->patient->email,
+                ] : null,
+                'appointment' => $prescription->appointment ? [
+                    'id' => $prescription->appointment->id,
+                    'date' => $prescription->appointment->appointment_date,
+                    'type' => $prescription->appointment->type,
+                ] : null,
+                'right_eye' => json_decode($prescription->right_eye, true),
+                'left_eye' => json_decode($prescription->left_eye, true),
+                'vision_acuity' => $prescription->vision_acuity,
+                'recommendations' => $prescription->recommendations,
+                'additional_notes' => $prescription->additional_notes,
+            ];
+        });
+
+        return response()->json([
+            'data' => $transformedPrescriptions,
+            'pagination' => [
+                'current_page' => $prescriptions->currentPage(),
+                'last_page' => $prescriptions->lastPage(),
+                'per_page' => $prescriptions->perPage(),
+                'total' => $prescriptions->total(),
+            ]
         ]);
     }
 }
