@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API Connection Test</title>
+    <script>
+        async function testAPIConnection() {
+            const output = document.getElementById('output');
+            output.innerHTML = '<p>Testing API connection...</p>';
+
+            try {
+                // Test health endpoint
+                const healthResponse = await fetch('http://127.0.0.1:8000/api/health');
+                const healthData = await healthResponse.json();
+
+                if (healthData.status === 'healthy') {
+                    output.innerHTML += '<p>✅ Health check passed: ' + JSON.stringify(healthData) + '</p>';
+                } else {
+                    output.innerHTML += '<p>❌ Health check failed: ' + JSON.stringify(healthData) + '</p>';
+                }
+
+                // Test different user roles
+                const testUsers = [
+                    { email: 'genesis@gmail.com', password: 'password', role: 'customer', name: 'Genesis (Customer)' },
+                    { email: 'admin@everbright.com', password: 'password', role: 'admin', name: 'Admin (Admin)' },
+                    { email: 'unitop@gmail.com', password: 'password', role: 'staff', name: 'Unitop Staff (Staff)' },
+                    { email: 'samuel.prieto@everbright.com', password: 'password', role: 'optometrist', name: 'Dr. Samuel Prieto (Optometrist)' }
+                ];
+
+                for (const user of testUsers) {
+                    try {
+                        const loginResponse = await fetch('http://127.0.0.1:8000/api/login', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify({
+                                email: user.email,
+                                password: user.password,
+                                role: user.role
+                            })
+                        });
+
+                        const loginResult = await loginResponse.json();
+                        if (loginResult.token) {
+                            output.innerHTML += '<p>✅ LOGIN SUCCESS: ' + user.name + ' - Token: ' + loginResult.token.substring(0, 20) + '...</p>';
+                        } else {
+                            output.innerHTML += '<p>❌ LOGIN FAILED: ' + user.name + ' - ' + (loginResult.message || 'Unknown error') + '</p>';
+                        }
+                    } catch (loginError) {
+                        output.innerHTML += '<p>❌ LOGIN NETWORK ERROR: ' + user.name + ' - ' + loginError.message + '</p>';
+                    }
+                }
+
+                // Test users endpoint (should show all users)
+                try {
+                    const usersResponse = await fetch('http://127.0.0.1:8000/api/users');
+                    const usersData = await usersResponse.json();
+                    if (usersData.data && usersData.data.length > 0) {
+                        output.innerHTML += '<p>✅ Users endpoint working: Found ' + usersData.data.length + ' users</p>';
+                    } else {
+                        output.innerHTML += '<p>❌ Users endpoint failed</p>';
+                    }
+                } catch (usersError) {
+                    output.innerHTML += '<p>❌ Users endpoint network error: ' + usersError.message + '</p>';
+                }
+
+            } catch (error) {
+                output.innerHTML += '<p>❌ Network error: ' + error.message + '</p>';
+            }
+        }
+
+        function testEnvVars() {
+            const envOutput = document.getElementById('env-output');
+            envOutput.innerHTML = '<p>Checking environment variables...</p>';
+
+            // Try both formats that the frontend might use
+            const viteApiUrl = import.meta.env?.VITE_API_URL;
+            const viteApiBaseUrl = import.meta.env?.VITE_API_BASE_URL;
+
+            envOutput.innerHTML += '<p>VITE_API_URL: ' + (viteApiUrl || 'undefined') + '</p>';
+            envOutput.innerHTML += '<p>VITE_API_BASE_URL: ' + (viteApiBaseUrl || 'undefined') + '</p>';
+
+            if (viteApiUrl || viteApiBaseUrl) {
+                envOutput.innerHTML += '<p>✅ Environment variables loaded correctly</p>';
+            } else {
+                envOutput.innerHTML += '<p>❌ Environment variables not found</p>';
+            }
+        }
+    </script>
+</head>
+<body>
+    <h1>Frontend Backend Communication Test</h1>
+
+    <h2>Environment Variables</h2>
+    <button onclick="testEnvVars()">Check Environment Variables</button>
+    <div id="env-output"></div>
+
+    <h2>API Connection Test</h2>
+    <button onclick="testAPIConnection()">Test API Connection</button>
+    <div id="output"></div>
+
+    <h2>Notes</h2>
+    <ul>
+        <li>Frontend is running on: <strong>http://localhost:5173</strong></li>
+    <li>Backend PHP API is expected at: <strong>http://127.0.0.1:8000/api</strong></li>
+        <li>If tests fail, check if both servers are running and consider CORS/proxy issues.</li>
+    </ul>
+</body>
+</html>
